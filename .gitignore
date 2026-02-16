@@ -23,4 +23,5 @@ data.json
 
 dist
 .env
+test/sample_vault/.obsidian/plugins
 /tsconfig.tsbuildinfo
