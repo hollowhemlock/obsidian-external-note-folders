@@ -1,5 +1,11 @@
 # Architecture Decision Records
 
+## Procedures
+- **[review-checklist.md](review-checklist.md)** — Use when reviewing an ADR before accepting it.
+- **[0000-template.md](0000-template.md)** — Template for new ADRs.
+
+## Records
+
 - [ADR-0001](0001-vault-is-source-of-truth.md) - Vault is source of truth
 - [ADR-0002](0002-missing-external-is-normal.md) - Missing external is normal (Unavailable)
 - [ADR-0003](0003-no-deletions.md) - No deletions (trust boundary)
