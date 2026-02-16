@@ -1,0 +1,10 @@
+{
+  "author": "hollowhemlock",
+  "authorUrl": "https://github.com/hollowhemlock/",
+  "description": "Associate Obsidian vault notes with lazily created folders under an external root using UUIDs, preserving stable associations across moves and reorganizations.",
+
+  "id": "external-note-folders",
+  "isDesktopOnly": true,
+  "name": "External Note Folders",
+  "version": "0.0.0"
+}
