@@ -15,3 +15,8 @@
 - [ADR-0007](0007-uuid-regeneration-and-manual-edits.md) - UUID regeneration & manual edits
 - [ADR-0008](0008-no-reverse-reconciliation.md) - No reverse reconciliation (external never drives vault)
 - [ADR-0009](0009-status-model.md) - Status model (OK / Unavailable / Warning / Error)
+- [ADR-0010](0010-use-generator-obsidian-plugin.md) - Use generator-obsidian-plugin
+- [ADR-0011](0011-reconcile-execution-safety-model.md) - Reconcile execution safety model (ordering, journal, recovery)
+- [ADR-0012](0012-command-serialization-and-concurrency.md) - Command serialization and concurrency boundaries
+- [ADR-0013](0013-filesystem-boundary-and-path-identity.md) - Filesystem boundary and path identity policy
+- [ADR-0014](0014-exf-marker-format-and-validation.md) - `.exf` marker format and validation contract

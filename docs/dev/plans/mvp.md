@@ -1,284 +1,251 @@
-Perfect. Here’s a clean, execution-ordered `docs/todo-mvp.md` you can drop straight into your repo.
+# External Note Folders - MVP Checklist
 
----
+This checklist defines a safe, minimal MVP aligned with ADR-0001 through ADR-0014.
 
-# `docs/todo-mvp.md`
+## 0. Scope and Invariants
 
-# External Note Folders — MVP Checklist
+- [ ] Vault is source of truth (`exf` UUID in note frontmatter)
+- [ ] No deletions of vault files, external folders, or `.exf` markers
+- [ ] Reconcile is explicit and dry-run by default
+- [ ] External state never drives vault mutations
+- [ ] Exactly one external root is configured
 
-This checklist covers everything required to ship a safe, minimal, production-ready MVP consistent with the ADRs.
+References:
+- [ ] `docs/dev/adr/0001-vault-is-source-of-truth.md`
+- [ ] `docs/dev/adr/0003-no-deletions.md`
+- [ ] `docs/dev/adr/0004-single-external-root.md`
+- [ ] `docs/dev/adr/0006-reconcile-is-explicit.md`
+- [ ] `docs/dev/adr/0008-no-reverse-reconciliation.md`
 
----
+## 1. Repo and Plugin Setup
 
-## 0️⃣ Repo & Build Setup
+- [ ] Initialize Obsidian plugin scaffold (TypeScript + build)
+- [ ] Configure `manifest.json`
+- [ ] Add `main.ts`
+- [ ] Add `package.json` scripts (`dev`, `build`, `version`)
+- [ ] Confirm hot reload in a test vault
 
-* [ ] Initialize Obsidian plugin scaffold (TS + build system)
-* [ ] Configure `manifest.json`
-* [ ] Add `main.ts`
-* [ ] Add `package.json` scripts (`dev`, `build`, `version`)
-* [ ] Confirm hot reload works in test vault
-* [ ] Add `docs/adr/` (commit ADR pack)
+## 2. Settings
 
----
+- [ ] Add settings tab
+- [ ] Add External Root setting (absolute path)
+- [ ] Validate configured path is absolute
+- [ ] Add "Dry-run by default" toggle (default: true)
+- [ ] On settings change, invalidate scan cache and clear any active plan state
 
-## 1️⃣ Settings
+## 3. UUID and Marker Contract
 
-* [ ] Add settings tab
-* [ ] Add **External Root** (absolute path string)
-* [ ] Validate path is absolute
-* [ ] Add “Dry-run by default” toggle (default: true)
-* [ ] Invalidate scan cache when settings change
+- [ ] UUID helper: generate canonical lowercase RFC 4122 UUID
+- [ ] UUID helper: strict UUID validation (no permissive coercion)
+- [ ] Frontmatter helper for `exf` read/write
+- [ ] `.exf` writer uses UTF-8 without BOM and trailing `\n`
+- [ ] `.exf` parser accepts only one UUID line plus optional trailing newline
+- [ ] `.exf` parser rejects BOM, extra lines, extra content, non-canonical UUID
+- [ ] Any malformed `.exf` is `Error` and blocks mutation
 
----
+References:
+- [ ] `docs/dev/adr/0005-bound-folder-marker.md`
+- [ ] `docs/dev/adr/0014-exf-marker-format-and-validation.md`
 
-## 2️⃣ Core Utilities
+## 4. Path and Filesystem Boundary Policy
 
-### UUID
+- [ ] Derive vault-relative path without `.md`
+- [ ] Normalize path separators
+- [ ] Sanitize illegal characters (Windows-safe)
+- [ ] Handle reserved names and trailing dots/spaces
+- [ ] Enforce max path length (deterministic hash shortening)
+- [ ] Normalize Unicode to NFC for path-derived naming/comparison
+- [ ] Use canonical absolute paths for identity checks
+- [ ] Apply case-insensitive comparison where filesystem requires it
+- [ ] Enforce root boundary after canonicalization (must remain under external root)
+- [ ] Default scan policy: do not traverse symlink/junction/reparse points
+- [ ] Conflict checks include ancestor and descendant `.exf` marker collisions
 
-* [ ] UUID generation helper
-* [ ] UUID format validation
-* [ ] Frontmatter read/write helper (`exf` key)
+Reference:
+- [ ] `docs/dev/adr/0013-filesystem-boundary-and-path-identity.md`
 
----
+## 5. Vault Scan
 
-### Path Derivation
-
-* [ ] Derive vault-relative path without `.md`
-* [ ] Join with external root
-* [ ] Normalize separators
-* [ ] Remove illegal characters (Windows-safe)
-* [ ] Handle reserved names
-* [ ] Guard against trailing dots/spaces
-* [ ] Enforce max path length (shorten with hash if needed)
-* [ ] Case-insensitive comparison helper
-
----
-
-## 3️⃣ Vault Scan
-
-* [ ] Scan markdown files using metadata cache
-* [ ] Extract UUIDs
-* [ ] Build `Map<uuid, notePath>`
-* [ ] Detect duplicate UUIDs in vault → mark as Error
+- [ ] Scan markdown notes and collect `Map<uuid, notePath>`
+- [ ] Detect duplicate UUIDs in vault and classify as `Error`
+- [ ] Use a fresh-enough read strategy for safety decisions (no stale plan inputs)
 
 Function:
 
 ```ts
 scanVaultUUIDs(): {
-  map: Map<string, string>,
-  duplicates: string[]
+  map: Map<string, string>;
+  duplicates: string[];
 }
 ```
 
----
+## 6. External Root Scan
 
-## 4️⃣ External Root Scan
-
-* [ ] Recursively find `.exf` files
-* [ ] Parse UUID (trim, validate)
-* [ ] Build `Map<uuid, boundFolderPath>`
-* [ ] Detect duplicate UUIDs → Error
-* [ ] Detect malformed `.exf` → Error
+- [ ] Recursively discover `.exf` files under external root boundary
+- [ ] Parse and validate markers with strict contract
+- [ ] Build `Map<uuid, boundFolderPath>`
+- [ ] Detect duplicate UUIDs in external root and classify as `Error`
+- [ ] Detect malformed markers and classify as `Error`
+- [ ] Surface permission/read failures as `Error` (not `Unavailable`)
 
 Function:
 
 ```ts
 scanExternalRoot(): {
-  map: Map<string, string>,
-  duplicates: string[],
-  malformed: string[]
+  map: Map<string, string>;
+  duplicates: string[];
+  malformed: string[];
+  accessErrors: string[];
 }
 ```
 
----
+## 7. Filesystem Mutation Layer
 
-## 5️⃣ Filesystem Safety Layer
+Implement one guarded module for all mutations.
 
-Create a single guarded module for all mutations.
+- [ ] `ensureDir(path)` with boundary checks
+- [ ] `writeMarker(boundFolder, uuid)` with overwrite refusal on conflicting UUID
+- [ ] `moveDir(src, dst)` no-overwrite, conflict-aware, boundary-checked
+- [ ] `openInExplorer(path)` with explicit error handling for missing/inaccessible paths
+- [ ] Enforce no-deletion invariant in all mutation code paths
+- [ ] Each mutating operation is idempotent on retry where feasible
 
-* [ ] `ensureDir(path)`
-* [ ] `writeMarker(boundFolder, uuid)`
+## 8. Command Serialization and Locking
 
-  * Refuse overwrite if different UUID
-* [ ] `moveDir(src, dst)`
+- [ ] Implement single-flight lock for mutating commands
+- [ ] Mutating commands: `Reconcile (execute)`, `Open External Folder` (when creating), `Assign UUID` (when writing)
+- [ ] Reject overlapping mutating commands with clear user notice
+- [ ] Reconcile confirm step re-validates lock/version before execution
+- [ ] Lock release guaranteed on success and failure paths
 
-  * No overwrite allowed
-  * Abort on conflict
-* [ ] `openInExplorer(path)`
-* [ ] Enforce no deletion rule
+Reference:
+- [ ] `docs/dev/adr/0012-command-serialization-and-concurrency.md`
 
----
+## 9. Commands
 
-## 6️⃣ Commands
+### 9.1 Assign UUID
 
----
+- [ ] If UUID missing: generate and write
+- [ ] If UUID exists: no-op + notice
+- [ ] Never mutate external root from this command
 
-### Assign UUID
+### 9.2 Open External Folder
 
-* [ ] If missing → generate + write
-* [ ] If exists → no-op (or show notice)
-* [ ] Never touch external root
+- [ ] If UUID missing: assign UUID first
+- [ ] Scan external map
+- [ ] If UUID already bound: open existing folder
+- [ ] If UUID unbound:
+- [ ] Derive target path using path policy
+- [ ] Create directory
+- [ ] Write `.exf`
+- [ ] Open folder
 
----
+### 9.3 Verify
 
-### Open External Folder
+- [ ] Scan vault and external
+- [ ] Categorize:
+- [ ] `OK`
+- [ ] `Unavailable` (vault UUID with no bound external folder)
+- [ ] `Warning` (orphan bound folder)
+- [ ] `Error` (duplicates, malformed markers, mismatches, boundary/access failures)
+- [ ] Show grouped report modal
+- [ ] Log structured summary
 
-* [ ] If UUID missing → auto-assign
-* [ ] Scan external
-* [ ] If UUID exists → open folder
-* [ ] If missing:
+### 9.4 Reconcile (Dry-Run Default)
 
-  * [ ] Derive target path
-  * [ ] Create directory
-  * [ ] Write `.exf`
-  * [ ] Open folder
+- [ ] Build immutable plan from scan snapshot
+- [ ] Abort plan/execution if any integrity `Error` exists
+- [ ] For UUID intersection:
+- [ ] Derive canonical target path
+- [ ] Skip if already correct
+- [ ] Plan move when target empty/unbound
+- [ ] Mark conflict when target has different UUID
+- [ ] Mark conflict on ancestor/descendant marker collisions
+- [ ] Resolve unbound occupied target using deterministic suffix strategy
+- [ ] Show plan modal (moves, conflicts, skipped, risk notices)
+- [ ] Execute only with explicit confirmation
+- [ ] Never delete anything
 
----
+Reference:
+- [ ] `docs/dev/adr/0009-status-model.md`
 
-### Verify
+## 10. Reconcile Execution Journal and Recovery
 
-* [ ] Scan vault + external
+- [ ] Persist a reconcile run journal for execution phase
+- [ ] Journal each move entry with states: `pending`, `applied`, `failed`
+- [ ] Per entry execution order:
+- [ ] Re-validate preconditions
+- [ ] Execute move
+- [ ] Verify postconditions
+- [ ] On first failure: stop execution and mark run incomplete
+- [ ] On next reconcile: detect incomplete run and offer resume or regenerate plan
+- [ ] Ensure already applied entries are safe to re-check/retry (idempotent handling)
 
-* [ ] Categorize statuses:
+Reference:
+- [ ] `docs/dev/adr/0011-reconcile-execution-safety-model.md`
 
-  * OK
-  * Unavailable (vault only)
-  * Warning (orphan bound folder)
-  * Error (duplicates, malformed, mismatches)
+## 11. Caching Rules
 
-* [ ] Display grouped modal report
+- [ ] Cache is optional for read-only UX, not required for correctness
+- [ ] Never execute reconcile from stale cache-only state
+- [ ] Invalidate cache on settings change, reconcile execution, and folder creation
+- [ ] Label cached verify results when freshness is uncertain
 
-* [ ] Log summary to console
+## 12. UX and Logging
 
----
+- [ ] Reconcile modal clearly distinguishes dry-run vs execute mode
+- [ ] Confirm dialog contains explicit mutation summary before execute
+- [ ] Verify modal uses grouped actionable sections
+- [ ] Use clear, neutral language
+- [ ] Write structured logs for plan and execution events
+- [ ] Include run ID and operation IDs in logs for incident debugging
 
-### Reconcile (Dry-Run Default)
+## 13. Testing
 
-* [ ] Scan vault + external
-* [ ] Abort immediately if:
+- [ ] Unit tests:
+- [ ] path sanitization/canonicalization/boundary checks
+- [ ] UUID validation and normalization policy
+- [ ] strict `.exf` parse/write contract
+- [ ] duplicate detection
+- [ ] reconcile planner conflicts and deterministic suffixing
+- [ ] lock behavior and stale-plan invalidation
+- [ ] journal state transitions and idempotent re-run behavior
+- [ ] Integration/manual matrix:
+- [ ] external root missing
+- [ ] external drive detached or permissions denied
+- [ ] duplicate UUID in vault
+- [ ] duplicate UUID in external
+- [ ] malformed `.exf`
+- [ ] note rename then reconcile
+- [ ] interrupted reconcile execution (simulated mid-run failure)
+- [ ] concurrent command attempts
+- [ ] symlink/junction/root-escape attempts
 
-  * duplicate UUIDs in vault
-  * duplicate UUIDs in external
-  * malformed markers
-* [ ] For UUIDs in intersection:
+## 14. Documentation
 
-  * [ ] Derive target path
-  * [ ] If already correct → skip
-  * [ ] If target empty/unbound → plan move
-  * [ ] If target has different UUID → conflict
-  * [ ] If descendant `.exf` exists → conflict
-  * [ ] If unbound but occupied → suffix target
-* [ ] Present plan modal
-* [ ] Execute only if confirmed
-* [ ] Never delete anything
+- [ ] README covers:
+- [ ] what plugin does and does not do
+- [ ] command semantics
+- [ ] no-deletions guarantee
+- [ ] dry-run and explicit execution model
+- [ ] troubleshooting for malformed markers and incomplete journal runs
+- [ ] Link ADR index
 
----
+## 15. Release Checklist
 
-## 7️⃣ Status Model Enforcement
+- [ ] All blocking tests pass
+- [ ] Manual safety matrix completed
+- [ ] Build succeeds
+- [ ] Test in fresh vault and realistic external root
+- [ ] Version bump
+- [ ] Tag and publish
 
-* [ ] Implement OK
-* [ ] Implement Unavailable
-* [ ] Implement Warning
-* [ ] Implement Error (abort reconcile)
+## MVP Done Criteria (Measurable)
 
-Make sure:
-
-* Unavailable is informational
-* Errors block mutation
-
----
-
-## 8️⃣ Logging & UX
-
-* [ ] Reconcile modal:
-
-  * planned moves
-  * conflicts
-  * confirmation button
-* [ ] Verify modal:
-
-  * grouped sections
-* [ ] Console logs for debugging
-* [ ] Clear, non-alarmist language
-
----
-
-## 9️⃣ Caching (Optional but Recommended)
-
-* [ ] In-memory cache for external scan (TTL 10–30s)
-* [ ] Invalidate on:
-
-  * settings change
-  * reconcile execution
-  * external folder creation
-
----
-
-## 🔟 Edge Case Hardening
-
-* [ ] Case-only rename handling
-* [ ] Nested bound folder collision detection
-* [ ] Unicode normalization
-* [ ] Path length guard
-* [ ] Windows reserved names
-
----
-
-## 1️⃣1️⃣ Testing
-
-* [ ] Unit tests:
-
-  * path sanitization
-  * UUID validation
-  * duplicate detection
-  * reconcile plan collision cases
-* [ ] Manual test matrix:
-
-  * external root missing
-  * external drive detached
-  * duplicate UUID in vault
-  * duplicate UUID in external
-  * malformed `.exf`
-  * rename note then reconcile
-
----
-
-## 1️⃣2️⃣ Documentation
-
-* [ ] README
-
-  * What it does
-  * What it is not
-  * Commands
-  * Safety guarantees (no deletions)
-* [ ] Link ADR index
-* [ ] Add screenshots later (optional)
-
----
-
-## 1️⃣3️⃣ Release Checklist
-
-* [ ] Bump version
-* [ ] Build
-* [ ] Test in fresh vault
-* [ ] Tag release
-* [ ] Publish
-
----
-
-# MVP Done Criteria
-
-You are done when:
-
-* Vault can contain many UUIDs with no external folders and Verify reports Unavailable (not error).
-* Reconcile never deletes anything.
-* Duplicate UUIDs block mutation.
-* No background automation exists.
-* User never fears running a command.
-
----
-
-If you want next, I can:
-
-* Give you a **clean internal architecture layout** (`src/` folder structure)
-* Or write a minimal `main.ts` skeleton to accelerate coding.
+- [ ] Verify reports `Unavailable` (not `Error`) for notes with no external folder
+- [ ] Reconcile execution never performs deletion operations
+- [ ] Any integrity `Error` blocks mutation
+- [ ] Mutating commands are serialized by lock
+- [ ] Interrupted reconcile leaves journal state that supports explicit resume/regenerate
+- [ ] Boundary checks prevent scan/mutation outside configured external root
+- [ ] Strict malformed `.exf` handling is enforced and user-visible
