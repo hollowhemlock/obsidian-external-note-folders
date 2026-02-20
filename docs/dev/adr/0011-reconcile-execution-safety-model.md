@@ -1,6 +1,6 @@
 # ADR-0011: Reconcile Execution Safety Model (Ordering, Journal, Recovery)
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-02-19
 **Participants:** Maintainers
 
@@ -19,54 +19,75 @@ No-delete is necessary but not sufficient for trust if recovery is ambiguous.
 
 ## Decision
 
-Reconcile execution must use an explicit operation journal and a defined ordering model.
+Reconcile execution uses an audit journal and relies on re-scan for recovery.
 
 - A reconcile run has two phases: `plan` then `execute`.
 - Execution begins only from a user-confirmed immutable plan snapshot.
-- Before each mutation, append a journal entry (`pending`); after success, mark entry `applied`.
 - Required operation ordering for each move:
   1. Re-validate preconditions (source exists, destination policy still valid)
   2. Execute move (`src -> dst`) with no-overwrite semantics
   3. Verify postconditions (marker UUID and path expectations)
-- On any failed step, stop execution and mark run `incomplete`; do not continue best-effort.
-- On next reconcile invocation, detect incomplete journal state and surface explicit recovery options:
-  - verify-and-resume unfinished plan where safe
-  - abort-resume and generate a new plan
-- Reconcile operations must be idempotent against already-applied entries.
+- On any failed step, stop execution and do not continue best-effort.
+- Journal each move for auditability: source, destination, timestamp, outcome
+  (success/failure). Include a run ID for grouping.
+- Recovery model: re-scan, not replay. On next reconcile invocation, the plugin
+  re-scans both vault and external root and builds a fresh plan from current
+  state. Already-applied moves are naturally reflected in the re-scan results.
+  No resume/abort UX is needed.
+
+### Why re-scan is sufficient for recovery
+
+Moves are within a single external root (same filesystem, atomic `rename()`).
+The plugin never deletes anything. If reconcile is interrupted after 3 of 5
+moves, the 3 moved folders are in their new locations, the 2 unmoved folders
+are in their old locations. A fresh scan sees the actual state and generates a
+correct plan for the remaining moves. The journal adds auditability but is not
+needed for correctness.
 
 ## Alternatives Considered
 
 ### A. No journal; rely on in-memory flow only
 - Pros: Less code and storage
-- Cons: Crash leaves ambiguous state; no deterministic resume path
-- Why rejected/accepted: Rejected for trust-critical mutation flow
+- Cons: No audit trail for debugging or support
+- Why rejected/accepted: Rejected; auditability is valuable even without
+  recovery semantics
 
 ### B. Full transactional filesystem abstraction
 - Pros: Stronger atomic model
 - Cons: Not practical cross-platform for directory-tree moves
 - Why rejected/accepted: Rejected for MVP complexity and OS limitations
 
+### C. Journal with pending/applied/failed state machine and resume/abort UX
+- Pros: Explicit recovery decisions after interruption
+- Cons: Significant implementation complexity for a recovery path that re-scan
+  already handles; resume/abort UX is confusing for users who don't understand
+  journal state
+- Why rejected/accepted: Rejected; re-scan provides correct recovery with less
+  complexity and better UX
+
 ## Consequences
 
 ### Positive
-- Clear recovery posture after interruption
-- Better user trust and supportability through auditable execution history
+- Clear audit trail for debugging and support
+- Simple recovery model: just run reconcile again
+- Lower implementation complexity than state-machine recovery
 
 ### Neutral
-- Adds small metadata overhead for journal storage and maintenance
+- Adds small metadata overhead for journal storage
 
 ### Negative / Trade-offs
-- More implementation complexity in reconcile executor
-- Requires explicit stale-journal handling UX
+- No explicit "pick up where you left off" — user must re-confirm a new plan
+  after interruption
 
 ## Non-Goals
 
 - Providing true ACID transactions across arbitrary filesystem operations
 - Automatic rollback of all partially applied moves in every failure mode
+- Resume/replay of interrupted reconcile runs
 
 ## Future Considerations
 
-If journal format changes, migration must preserve old run readability and recovery decisions.
+If journal format changes, migration must preserve old run readability.
 Future auto-reconcile features must keep the same journaled execution guarantees.
 
 ## References

@@ -1,6 +1,6 @@
 # ADR-0014: `.exf` Marker Format and Validation Contract
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-02-19
 **Participants:** Maintainers
 

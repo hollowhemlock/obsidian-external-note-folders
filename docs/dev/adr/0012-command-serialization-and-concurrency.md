@@ -1,6 +1,6 @@
 # ADR-0012: Command Serialization and Concurrency Boundaries
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-02-19
 **Participants:** Maintainers
 

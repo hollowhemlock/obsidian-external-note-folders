@@ -1,6 +1,6 @@
 # ADR-0013: Filesystem Boundary and Path Identity Policy
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-02-19
 **Participants:** Maintainers
 

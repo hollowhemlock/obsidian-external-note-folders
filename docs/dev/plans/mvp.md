@@ -17,8 +17,9 @@ The plan is split into two phases:
 
 - [ ] Vault is source of truth (`exf` UUID in note frontmatter)
 - [ ] No deletions of vault files, external folders, or `.exf` markers
-- [ ] No auto-renaming — plugin never invents folder names the user didn't
-      expect
+- [ ] No conflict-based surprise renames — plugin never renames folders to
+      dodge collisions (deterministic path derivation including sanitization
+      and hash shortening is normal creation behavior, not renaming)
 - [ ] External state never drives vault mutations
 - [ ] Exactly one external root is configured
 
@@ -30,7 +31,7 @@ References:
 
 ### 1. Repo and Plugin Setup
 
-- [ ] Initialize Obsidian plugin scaffold (TypeScript + build)
+- [ ] Initialize Obsidian plugin scaffold per ADR-0010 (TypeScript + build)
 - [ ] Configure `manifest.json`
 - [ ] Add `main.ts`
 - [ ] Add `package.json` scripts (`dev`, `build`, `version`)
@@ -126,6 +127,8 @@ Implement one guarded module for all mutations.
 - [ ] Mutating commands: `Open External Folder` (when creating), `Assign UUID`
       (when writing)
 - [ ] Reject overlapping mutating commands with clear user notice
+- [ ] Read-only commands (Verify) may run during mutation but results must be
+      labeled as possibly stale
 - [ ] Lock release guaranteed on success and failure paths
 
 Reference:
@@ -330,3 +333,12 @@ Reference:
       auto-renamed
 - [ ] Mutating commands (including Reconcile execute) are serialized by lock
 - [ ] Reconcile execution is logged with run IDs for auditability
+
+---
+
+## Deferred — Regenerate UUID
+
+ADR-0007 (accepted) defines a Regenerate UUID command with re-association
+semantics and safe-abort mode. This is deferred past Phase 1. Until then,
+users can manually edit the `exf` frontmatter field to change a UUID; Verify
+will surface the consequences (orphaned bound folder, new Unavailable status).
