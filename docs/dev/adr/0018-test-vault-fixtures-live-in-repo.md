@@ -22,6 +22,20 @@ sample test directories under `test/`, but fixture policy and lifecycle are not 
 Store canonical test fixture vaults and external roots in the repository under `test/fixtures/`,
 with this policy:
 
+- Canonical layout:
+  - `test/fixtures/fixture/vault`
+  - `test/fixtures/fixture/external-root`
+  - `test/fixtures/sandbox/vault` (disposable)
+  - `test/fixtures/sandbox/external-root` (disposable)
+- Sandbox lifecycle is script-driven:
+  - `npm run fixtures:new-sandbox` performs full fixture -> sandbox reset
+  - `npm run fixtures:refresh-sandbox` refreshes content while preserving
+    `sandbox/vault/.obsidian`
+- Vault opening is script-driven for consistency:
+  - `npm run fixtures:open-fixture`
+  - `npm run fixtures:open-sandbox`
+  - `npm run vault:open -- <path>`
+
 - Fixtures are version-controlled and named by scenario intent, not by ticket number alone
 - Each fixture scenario includes:
   - vault tree
@@ -31,6 +45,10 @@ with this policy:
   fixture files in place
 - Add a focused fixture per bug class when behavior depends on directory shape or marker content
 - Keep fixtures minimal: only files needed to express scenario semantics
+- Fixture `.obsidian` policy:
+  - track durable vault config needed for repeatable behavior
+  - do not track plugin runtime artifacts in fixture (`main.js`, `styles.css`, `manifest.json`);
+    these are local runtime concerns and may be updated by Obsidian/BRAT
 
 Large/binary fixture policy:
 
@@ -57,6 +75,7 @@ Large/binary fixture policy:
 
 ### Neutral
 - Repository includes additional fixture directories and maintenance conventions
+- Developers use documented fixture scripts instead of ad hoc manual sync
 
 ### Negative / Trade-offs
 - Fixture sprawl risk if scenarios are not curated
