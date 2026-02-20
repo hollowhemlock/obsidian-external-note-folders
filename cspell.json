@@ -9,7 +9,8 @@
   "dictionaries": [],
   "words": [
     "dblclick",
-    "tsbuildinfo"
+    "tsbuildinfo",
+    "vitest"
   ],
   "ignoreWords": [],
   "import": [],

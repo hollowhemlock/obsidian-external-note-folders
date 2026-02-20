@@ -26,6 +26,7 @@
   },
   "include": [
     "./eslint.config.*ts",
+    "./vitest.config.ts",
     "./src/**/*.svelte",
     "./src/**/*.ts",
     "./src/**/*.tsx",

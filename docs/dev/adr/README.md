@@ -24,3 +24,4 @@
 - [ADR-0016](0016-layered-architecture-core-vs-obsidian-adapter.md) - Layered architecture (core engine vs Obsidian adapter)
 - [ADR-0017](0017-testing-strategy-by-boundary.md) - Testing strategy by boundary (core, adapter, integration)
 - [ADR-0018](0018-test-vault-fixtures-live-in-repo.md) - Test vault and external-root fixtures live in-repo
+- [ADR-0019](0019-vitest-as-test-runner.md) - Vitest as test runner

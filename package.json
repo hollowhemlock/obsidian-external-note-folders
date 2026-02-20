@@ -24,6 +24,8 @@
     "lint": "obsidian-dev-utils lint",
     "lint:fix": "obsidian-dev-utils lint:fix",
     "spellcheck": "obsidian-dev-utils spellcheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "version": "obsidian-dev-utils version"
   },
   "devDependencies": {
@@ -41,7 +43,8 @@
     "obsidian-typings": "obsidian-public-latest",
     "react": "latest",
     "react-dom": "latest",
-    "svelte": "latest"
+    "svelte": "latest",
+    "vitest": "latest"
   },
   "overrides": {
     "@antfu/utils": "9.2.0",
