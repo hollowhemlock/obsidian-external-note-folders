@@ -21,3 +21,6 @@
 - [ADR-0013](0013-filesystem-boundary-and-path-identity.md) - Filesystem boundary and path identity policy
 - [ADR-0014](0014-exf-marker-format-and-validation.md) - `.exf` marker format and validation contract
 - [ADR-0015](0015-external-folder-path-derivation.md) - External folder path derivation rule
+- [ADR-0016](0016-layered-architecture-core-vs-obsidian-adapter.md) - Layered architecture (core engine vs Obsidian adapter)
+- [ADR-0017](0017-testing-strategy-by-boundary.md) - Testing strategy by boundary (core, adapter, integration)
+- [ADR-0018](0018-test-vault-fixtures-live-in-repo.md) - Test vault and external-root fixtures live in-repo
