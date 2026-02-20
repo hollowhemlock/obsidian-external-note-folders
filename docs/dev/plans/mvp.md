@@ -86,7 +86,7 @@ Function:
 ```ts
 scanVaultUUIDs(): {
   map: Map<string, string>;
-  duplicates: string[];
+  duplicatePaths: Map<string, string[]>;
 }
 ```
 
@@ -104,7 +104,7 @@ Function:
 ```ts
 scanExternalRoot(): {
   map: Map<string, string>;
-  duplicates: string[];
+  duplicatePaths: Map<string, string[]>;
   malformed: string[];
   accessErrors: string[];
 }
@@ -126,6 +126,11 @@ Implement one guarded module for all mutations.
 - [ ] Implement single-flight lock for mutating commands
 - [ ] Mutating commands: `Open External Folder` (when creating), `Assign UUID`
       (when writing)
+- [ ] Global mutation preflight for every mutating command:
+  - [ ] Run vault + external integrity scan immediately before mutation
+  - [ ] If any integrity `Error` exists anywhere, abort mutation with grouped
+        actionable notice
+  - [ ] This includes external access/boundary failures (strict fail-closed)
 - [ ] Reject overlapping mutating commands with clear user notice
 - [ ] Read-only commands (Verify) may run during mutation but results must be
       labeled as possibly stale
@@ -138,6 +143,7 @@ Reference:
 
 #### 9.1 Assign UUID
 
+- [ ] Run global mutation preflight and abort on any integrity `Error`
 - [ ] If UUID missing: generate and write
 - [ ] If UUID exists: no-op + notice
 - [ ] Never mutate external root from this command
@@ -145,6 +151,7 @@ Reference:
 #### 9.2 Open External Folder
 
 - [ ] If UUID missing: assign UUID first
+- [ ] Run global mutation preflight and abort on any integrity `Error`
 - [ ] Scan external map
 - [ ] If UUID already bound: open existing folder
 - [ ] If UUID unbound:
@@ -204,7 +211,7 @@ Reference:
   - [ ] path sanitization/canonicalization/boundary checks
   - [ ] UUID validation and normalization policy
   - [ ] strict `.exf` parse/write contract
-  - [ ] duplicate detection
+  - [ ] duplicate detection with path-rich diagnostics (`uuid -> paths[]`)
 - [ ] Integration/manual matrix:
   - [ ] external root missing
   - [ ] external drive detached or permissions denied
@@ -269,6 +276,9 @@ move or rename. Ship after Phase 0 is validated by real usage.
 
 - [ ] Build immutable plan from scan snapshot
 - [ ] Abort plan/execution if any integrity `Error` exists
+- [ ] Immediately before each planned move, re-check source/destination
+      invariants against live filesystem state; on mismatch, mark conflict and
+      skip move
 - [ ] For UUID intersection:
   - [ ] Derive canonical target path
   - [ ] Skip if already correct
