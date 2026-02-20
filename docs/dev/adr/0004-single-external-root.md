@@ -1,7 +1,8 @@
-# ADR 0004: Single External Root
+# ADR-0004: Single External Root
 
-**Status:** Accepted  
+**Status:** Accepted
 **Date:** 2026-02-14
+**Participants:** Maintainers
 
 ## Context
 

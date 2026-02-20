@@ -1,7 +1,8 @@
-# ADR 0009: Explicit Status Model (OK / Unavailable / Warning / Error)
+# ADR-0009: Explicit Status Model (OK / Unavailable / Warning / Error)
 
-**Status:** Accepted  
+**Status:** Accepted
 **Date:** 2026-02-14
+**Participants:** Maintainers
 
 ## Context
 
@@ -27,8 +28,11 @@ Define these statuses:
   - Duplicate UUIDs in external root
   - `.exf` malformed/unreadable
   - UUID mismatch collisions (e.g., target path has different UUID)
+  - Vault-side `exf` frontmatter value that is not a valid UUID
+  - External root directory absent or inaccessible (blocks all mutations)
 
-Errors abort reconcile/move operations.
+Errors abort the entire reconcile run; no further moves are attempted after the first error is
+encountered. See ADR-0011 for execution semantics.
 
 ## Alternatives Considered
 
@@ -58,3 +62,9 @@ Errors abort reconcile/move operations.
 ## Future Considerations
 
 If bulk creation or cleanup is added later, it must be explicit, opt-in, and preserve these semantics.
+
+## References
+
+- [ADR-0002](0002-missing-external-is-normal.md)
+- [ADR-0003](0003-no-deletions.md)
+- [ADR-0011](0011-reconcile-execution-safety-model.md)

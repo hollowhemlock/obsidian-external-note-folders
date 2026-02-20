@@ -20,3 +20,4 @@
 - [ADR-0012](0012-command-serialization-and-concurrency.md) - Command serialization and concurrency boundaries
 - [ADR-0013](0013-filesystem-boundary-and-path-identity.md) - Filesystem boundary and path identity policy
 - [ADR-0014](0014-exf-marker-format-and-validation.md) - `.exf` marker format and validation contract
+- [ADR-0015](0015-external-folder-path-derivation.md) - External folder path derivation rule

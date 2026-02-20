@@ -26,7 +26,8 @@ Define a strict, versioned marker contract for `.exf`.
   - writer emits trailing newline (`\\n`)
   - parser accepts one optional trailing newline
 - Parser behavior:
-  - trim only final line ending
+  - trim only a single final `\n` line ending
+  - `\r\n` and `\r` line endings are parse failures; only `\n` is accepted
   - reject extra content, extra lines, BOM, or non-canonical UUID format
 - Any parse failure is `Error` and blocks mutation operations.
 - Marker schema versioning:

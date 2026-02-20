@@ -1,7 +1,8 @@
-# ADR 0006: Reconcile Is Explicit and Dry-Run by Default
+# ADR-0006: Reconcile Is Explicit and Dry-Run by Default
 
-**Status:** Accepted  
+**Status:** Accepted
 **Date:** 2026-02-14
+**Participants:** Maintainers
 
 ## Context
 
@@ -52,3 +53,8 @@ External reorganization occurs only via an explicit Reconcile command.
 ## Future Considerations
 
 Auto-reconcile may be added later only after proven invariants, and should start as a prompt/suggestion.
+
+## References
+
+- [ADR-0003](0003-no-deletions.md)
+- [ADR-0011](0011-reconcile-execution-safety-model.md)

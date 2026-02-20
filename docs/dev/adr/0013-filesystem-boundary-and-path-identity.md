@@ -26,9 +26,16 @@ All external paths must be canonicalized and validated against external-root bou
 - Default scan policy: do not traverse symlinks/junctions/reparse points.
 - Path comparison policy:
   - use canonical absolute paths for identity
-  - apply case-insensitive comparison only where filesystem behavior requires it
+  - determine case-sensitivity per external root at plugin startup via a filesystem probe (write
+    a temporary file, check whether a case-variant path resolves to it; if probe is inconclusive,
+    default to case-insensitive to avoid false non-collision)
   - normalize Unicode to NFC before path-derived naming and comparison
-- Conflict policy must include both ancestor and descendant bound-folder marker conflicts.
+- Conflict policy must include both ancestor and descendant bound-folder marker conflicts:
+  - Ancestor conflict: the intended target path falls inside an existing bound folder
+    (e.g., target is `root/A/B/` but `root/A/` already has a `.exf` marker)
+  - Descendant conflict: an existing bound folder falls inside the intended target path
+    (e.g., target is `root/A/` but `root/A/sub/` already has a `.exf` marker)
+  Both cases are classified as `Error` and block the affected move.
 - If canonicalization or boundary checks fail, classify as `Error` and block mutation.
 
 ## Alternatives Considered

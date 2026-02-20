@@ -24,12 +24,18 @@ Reconcile execution uses an audit journal and relies on re-scan for recovery.
 - A reconcile run has two phases: `plan` then `execute`.
 - Execution begins only from a user-confirmed immutable plan snapshot.
 - Required operation ordering for each move:
-  1. Re-validate preconditions (source exists, destination policy still valid)
+  1. Re-validate preconditions:
+     - source path exists and is within external root boundary
+     - destination path is within external root boundary and does not already exist
+     - source `.exf` UUID matches the plan's expected UUID
+     - destination parent directory exists or can be created without conflict
   2. Execute move (`src -> dst`) with no-overwrite semantics
-  3. Verify postconditions (marker UUID and path expectations)
+  3. Verify postconditions (destination exists, `.exf` UUID matches expected)
 - On any failed step, stop execution and do not continue best-effort.
 - Journal each move for auditability: source, destination, timestamp, outcome
   (success/failure). Include a run ID for grouping.
+- Journal storage: `{vault}/.obsidian/plugins/external-note-folders/journal/`, one file per
+  run named `{run-id}.json`. Journal files are never automatically deleted.
 - Recovery model: re-scan, not replay. On next reconcile invocation, the plugin
   re-scans both vault and external root and builds a fresh plan from current
   state. Already-applied moves are naturally reflected in the re-scan results.

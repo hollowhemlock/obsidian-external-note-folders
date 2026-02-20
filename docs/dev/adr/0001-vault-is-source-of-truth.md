@@ -1,7 +1,8 @@
-# ADR 0001: Vault Is the Source of Truth
+# ADR-0001: Vault Is the Source of Truth
 
-**Status:** Accepted  
+**Status:** Accepted
 **Date:** 2026-02-14
+**Participants:** Maintainers
 
 ## Context
 
@@ -20,8 +21,10 @@ partially synced, or unavailable on some machines. A single authoritative source
 The vault is authoritative for identity mapping.
 
 - Notes store a UUID in frontmatter (`exf: <uuid>`)
-- The external root follows the vault map “as much as possible”
-- External state is derived and may be incomplete without being “broken”
+- The external root reflects vault state for notes that have bound folders; notes without bound
+  folders and unavailable external roots are expected, not errors
+- External state is derived and may be incomplete: missing bound folders are informational
+  (Unavailable), not failures
 
 ## Alternatives Considered
 

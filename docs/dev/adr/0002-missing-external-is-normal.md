@@ -1,7 +1,8 @@
-# ADR 0002: Missing External Folders Are Normal
+# ADR-0002: Missing External Folders Are Normal
 
-**Status:** Accepted  
+**Status:** Accepted
 **Date:** 2026-02-14
+**Participants:** Maintainers
 
 ## Context
 
@@ -51,3 +52,8 @@ It is expected that there are more UUIDs in the vault than bound folders in the 
 ## Future Considerations
 
 If bulk creation is added later, it must be opt-in and clearly separate from reconcile moves.
+
+## References
+
+- [ADR-0001](0001-vault-is-source-of-truth.md)
+- [ADR-0009](0009-status-model.md)

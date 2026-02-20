@@ -1,7 +1,8 @@
-# ADR 0005: Bound Folders Are Defined by a Root Marker File (`.exf`)
+# ADR-0005: Bound Folders Are Defined by a Root Marker File (`.exf`)
 
-**Status:** Accepted  
+**Status:** Accepted
 **Date:** 2026-02-14
+**Participants:** Maintainers
 
 ## Context
 
@@ -55,3 +56,7 @@ A folder is identity-bearing only if it contains `.exf` at its root (“bound fo
 ## Future Considerations
 
 If marker filename changes later, provide migration tooling; do not auto-delete legacy markers.
+
+## References
+
+- [ADR-0014](0014-exf-marker-format-and-validation.md)

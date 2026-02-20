@@ -1,7 +1,8 @@
-# ADR 0003: No Deletions (Trust Boundary)
+# ADR-0003: No Deletions (Trust Boundary)
 
-**Status:** Accepted  
+**Status:** Accepted
 **Date:** 2026-02-14
+**Participants:** Maintainers
 
 ## Context
 
@@ -59,3 +60,7 @@ Allowed mutations are limited to:
 
 If any cleanup is added later, it must be explicit, opt-in, and reversible (trash/quarantine) with
 clear previews and confirmations.
+
+## References
+
+- [ADR-0001](0001-vault-is-source-of-truth.md)

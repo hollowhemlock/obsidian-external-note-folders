@@ -1,7 +1,8 @@
-# ADR 0008: No Reverse Reconciliation (External Does Not Drive Vault)
+# ADR-0008: No Reverse Reconciliation (External Does Not Drive Vault)
 
-**Status:** Accepted  
+**Status:** Accepted
 **Date:** 2026-02-14
+**Participants:** Maintainers
 
 ## Context
 
@@ -54,3 +55,8 @@ External changes are reported by Verify only.
 ## Future Considerations
 
 If ever added, it must start as read-only suggestions and must never auto-delete vault content.
+
+## References
+
+- [ADR-0001](0001-vault-is-source-of-truth.md)
+- [ADR-0006](0006-reconcile-is-explicit.md)

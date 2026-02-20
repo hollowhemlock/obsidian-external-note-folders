@@ -26,8 +26,13 @@ The plugin enforces a single-flight command lock for mutation-capable commands.
 - Only one mutating command may run at a time.
 - If a mutating command is in progress:
   - new mutating commands are rejected with a clear user notice
-  - read-only commands may run but must be labeled as possibly stale
-- Reconcile dry-run plan confirmation must re-check that no other mutating command has completed since plan creation.
+  - read-only commands may run; their output includes a visible banner: "Results may not reflect
+    in-progress mutations"
+- The plugin maintains a monotonically increasing mutation sequence counter, incremented on each
+  mutating command completion.
+- A reconcile dry-run plan captures the counter value at plan creation time. On execution
+  confirmation, the plan re-checks the current counter against the captured value; if they differ,
+  the plan is stale and execution is rejected, prompting the user to run a fresh dry-run.
 - Lock lifecycle is explicit: acquire before preflight, release only after success/failure finalization.
 
 ## Alternatives Considered
