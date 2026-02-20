@@ -14,15 +14,18 @@ import {
 } from 'obsidian-dev-utils/ScriptUtils/esbuild/ObsidianPluginBuilder';
 import { resolvePathFromRoot } from 'obsidian-dev-utils/ScriptUtils/Root';
 
-/** Relative path to the on-repo Obsidian vault's .obsidian config directory. */
-const DEV_VAULT_PATH = 'test/sample_vault/.obsidian';
+/** Relative path to the on-repo sandbox vault's .obsidian config directory. */
+// eslint-disable-next-line obsidianmd/hardcoded-config-path -- filesystem path, not runtime Vault access
+const DEV_VAULT_PATH = 'test/fixtures/sandbox/vault/.obsidian';
 /** Relative path to the dev build output directory. */
 const DEV_DIST_PATH = 'dist/dev';
 
 export async function invoke(): Promise<CliTaskResult> {
   const devVaultConfigDir = resolvePathFromRoot(DEV_VAULT_PATH)
     ?? ((): never => {
-      throw new Error(`Could not find '${DEV_VAULT_PATH}' in project root. Create it with: mkdir test/sample_vault/.obsidian`);
+      throw new Error(
+        `Could not find '${DEV_VAULT_PATH}' in project root. Run: npm run fixtures:new-sandbox`
+      );
     })();
 
   // Collect additional OBSIDIAN_CONFIG_FOLDERS (comma-separated)

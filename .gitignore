@@ -23,5 +23,10 @@ data.json
 
 dist
 .env
-test/sample_vault/.obsidian/plugins
+test/fixtures/fixture/vault/.obsidian/plugins/*/main.js
+test/fixtures/fixture/vault/.obsidian/plugins/*/styles.css
+test/fixtures/fixture/vault/.obsidian/plugins/*/manifest.json
+!test/fixtures/fixture/vault/.obsidian/plugins/obsidian42-brat/data.json
+test/fixtures/sandbox/*
+!test/fixtures/sandbox/.gitkeep
 /tsconfig.tsbuildinfo
