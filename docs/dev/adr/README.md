@@ -25,3 +25,5 @@
 - [ADR-0017](0017-testing-strategy-by-boundary.md) - Testing strategy by boundary (core, adapter, integration)
 - [ADR-0018](0018-test-vault-fixtures-live-in-repo.md) - Test vault and external-root fixtures live in-repo
 - [ADR-0019](0019-vitest-as-test-runner.md) - Vitest as test runner
+- [ADR-0020](0020-release-please-for-versioning-and-changelog.md) - Release Please for versioning and changelog
+- [ADR-0021](0021-obsidian-cli-integration-testing.md) - Require Obsidian CLI integration testing (v1.12+)

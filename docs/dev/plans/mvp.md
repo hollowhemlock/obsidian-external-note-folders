@@ -236,8 +236,15 @@ Reference:
 - [ ] Manual safety matrix completed
 - [ ] Build succeeds
 - [ ] Test in fresh vault and realistic external root
-- [ ] Version bump
+- [ ] Release PR generated and reviewed (Release Please)
+- [ ] Changelog updated (`CHANGELOG.md`)
+- [ ] Version bump propagated to `package.json` and `manifest.json`
+- [ ] `versions.json` updated for released version/min app version
 - [ ] Tag and publish
+
+Reference:
+- [ ] `docs/dev/adr/0020-release-please-for-versioning-and-changelog.md`
+- [ ] `docs/dev/procedures/release.md`
 
 ### Phase 0 Done Criteria
 
