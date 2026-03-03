@@ -25,7 +25,10 @@
     "lint:fix": "obsidian-dev-utils lint:fix",
     "spellcheck": "obsidian-dev-utils spellcheck",
     "test": "vitest run",
+    "test:integration": "npm run integration:prepare && vitest run --config vitest.integration.config.ts",
+    "test:integration:watch": "vitest --config vitest.integration.config.ts",
     "test:watch": "vitest",
+    "integration:prepare": "npm run fixtures:new-sandbox && npm run build && jiti scripts/install-plugin-to-sandbox.ts",
     "version": "obsidian-dev-utils version"
   },
   "devDependencies": {

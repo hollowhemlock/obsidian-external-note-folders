@@ -45,8 +45,22 @@ Open any vault path in Obsidian:
 npm run vault:open -- test/fixtures/sandbox/vault
 ```
 
+Prepare and run Obsidian CLI integration tests:
+
+```powershell
+npm run test:integration
+```
+
+Run only the integration tests (assumes sandbox and plugin artifacts are already prepared):
+
+```powershell
+npm run test:integration:watch
+```
+
 ## Notes
 
 - `fixtures:refresh-sandbox` is useful during hot-reload sessions because it keeps the sandbox
   `.obsidian` state while restoring vault content and external-root content from fixture.
 - Tests/scripts should mutate sandbox paths, not fixture paths.
+- On Windows, CLI tests should use `Obsidian.com` (not `Obsidian.exe`) and require Command line interface
+  to be enabled in Obsidian Settings -> General.
