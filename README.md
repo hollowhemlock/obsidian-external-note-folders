@@ -28,6 +28,7 @@ This is a plugin for [Obsidian](https://obsidian.md/) that Associate Obsidian va
 ### Commit conventions
 
 Use format: `<type>: <description>`
+Local enforcement uses Husky `commit-msg` hook (installed by `npm install` via `prepare`).
 
 | Prefix | Purpose | Typical Impact |
 | --- | --- | --- |
@@ -42,6 +43,14 @@ Use format: `<type>: <description>`
 | `ci` | CI configuration/scripts | None / internal |
 | `chore` | Maintenance tasks, misc changes | None / internal |
 | `revert` | Revert a previous commit | Patch (usually) |
+
+### Local git hooks
+
+- Hook manager: Husky
+- Installed automatically on `npm install` via `npm run prepare`
+- Commit messages are validated locally by `.husky/commit-msg`
+- To reinstall hooks manually: `npm run prepare`
+- CI also enforces the same rule in `.github/workflows/commit-message-lint.yml`
 
 ### Development policy references
 

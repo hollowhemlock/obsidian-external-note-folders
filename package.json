@@ -30,7 +30,8 @@
     "test:integration:watch": "vitest --config vitest.integration.config.ts",
     "test:watch": "vitest",
     "integration:prepare": "npm run fixtures:new-sandbox && npm run build && jiti scripts/install-plugin-to-sandbox.ts",
-    "version": "obsidian-dev-utils version"
+    "version": "obsidian-dev-utils version",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@codemirror/language": "latest",
@@ -40,6 +41,7 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "husky": "^9.1.7",
     "jiti": "latest",
     "moment": "latest",
     "obsidian": "latest",
