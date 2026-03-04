@@ -26,5 +26,10 @@ jobs:
       - name: Format check
         run: npm run format:check
 
+      - name: Verify ADR index is up to date
+        run: |
+          npm run docs:adr:index
+          git diff --exit-code docs/dev/adr/README.md
+
       - name: Test
         run: npm run test
