@@ -37,7 +37,7 @@ jobs:
             exit 0
           fi
 
-          PATTERN='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|bug|dev)(\([^)]+\))?(!)?: .+'
+          PATTERN='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?(!)?: .+'
           FAILED=0
 
           for MSG in "${MESSAGES[@]}"; do

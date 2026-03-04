@@ -2,6 +2,53 @@
 
 This is a plugin for [Obsidian](https://obsidian.md/) that Associate Obsidian vault notes with lazily created folders under an external root using UUIDs, preserving stable associations across moves and reorganizations.
 
+## Contributor Guide
+
+### Project structure
+
+- `src/`: plugin source (entrypoint `main.ts`, core plugin classes, UI samples, editor extensions, styles)
+- `scripts/`: local development helpers
+- `test/fixtures/`: committed fixture data and disposable sandbox data
+- `docs/dev/adr/`: architecture decision records
+- `docs/dev/procedures/`: development and release procedures
+- `dist/`: build output (generated)
+
+### Build, test, and development commands
+
+- `npm run dev`
+- `npm run build`
+- `npm run build:clean`
+- `npm run lint`
+- `npm run format:check`
+- `npm run test`
+- `npm run test:watch`
+- `npm run fixtures:new-sandbox`
+- `npm run fixtures:refresh-sandbox`
+
+### Commit conventions
+
+Use format: `<type>: <description>`
+
+| Prefix | Purpose | Typical Impact |
+| --- | --- | --- |
+| `feat` | Add a new feature | Minor (unless `!`) |
+| `fix` | Fix a bug | Patch (unless `!`) |
+| `docs` | Documentation-only changes | None / internal |
+| `style` | Formatting (whitespace, lint formatting), no behavior change | None / internal |
+| `refactor` | Code change that neither fixes a bug nor adds a feature | None / internal |
+| `perf` | Performance improvement | Patch/Minor (depends) |
+| `test` | Add or adjust tests | None / internal |
+| `build` | Build system or external dependencies | None / internal (or release tooling) |
+| `ci` | CI configuration/scripts | None / internal |
+| `chore` | Maintenance tasks, misc changes | None / internal |
+| `revert` | Revert a previous commit | Patch (usually) |
+
+### Development policy references
+
+- TDD workflow: `docs/dev/procedures/tdd-workflow.md`
+- Review gate policy: `docs/dev/procedures/commit-pull-request-merge-review-gate.md`
+- ADR index: `docs/dev/adr/README.md`
+
 ## Installation
 
 The plugin is not available in [the official Community Plugins repository](https://obsidian.md/plugins) yet.

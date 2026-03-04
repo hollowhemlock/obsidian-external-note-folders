@@ -69,7 +69,7 @@ Define a strict, model-agnostic review contract for three stages:
 
 ### Focus
 
-- Commit subject format/type correctness (`feat|fix|bug|docs|test|refactor|dev|...`)
+- Commit subject format/type correctness (`feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert`)
 - Atomic boundaries (single logical concern)
 - TDD alignment when behavior changed (or explicit justified deviation)
 - Scope alignment between stated intent and changed files
