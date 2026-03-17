@@ -1,10 +1,12 @@
-# ADR-0016: Layered Architecture (Core Engine vs Obsidian Adapter)
+---
+status: "Proposed"
+date: "2026-02-20"
+decision-makers: "Maintainers"
+---
 
-**Status:** Proposed
-**Date:** 2026-02-20
-**Participants:** Maintainers
+# Layered Architecture (Core Engine vs Obsidian Adapter)
 
-## Context
+## Context and Problem Statement
 
 Current implementation work will span filesystem logic, reconcile planning, and Obsidian-specific
 interaction (commands, UI, vault APIs). Without explicit layering, domain rules can drift into
@@ -17,7 +19,12 @@ plugin/UI code, reducing testability and increasing coupling to Obsidian runtime
 - Make filesystem behavior explicit and mockable
 - Enable safe future extension (CLI, batch tools, richer UI) without rewriting core logic
 
-## Decision
+## Considered Options
+
+* Keep logic directly inside Obsidian plugin classes
+* Fully separate packages immediately (`packages/core`, `packages/plugin`)
+
+## Decision Outcome
 
 Adopt a two-layer TypeScript architecture with explicit boundaries:
 
@@ -43,19 +50,7 @@ Dependency rule:
 - Allowed: `obsidian -> core`
 - Forbidden: `core -> obsidian`
 
-## Alternatives Considered
-
-### A. Keep logic directly inside Obsidian plugin classes
-- Pros: Fewer files initially; fast prototype iteration
-- Cons: Hard to unit test; high coupling; domain rules become implicit in UI flow
-- Why rejected/accepted: Rejected due to long-term maintenance and safety risk
-
-### B. Fully separate packages immediately (`packages/core`, `packages/plugin`)
-- Pros: Strong compile-time boundary, clearer release artifacts
-- Cons: Extra tooling and workspace complexity before MVP scope is stable
-- Why rejected/accepted: Deferred; may be adopted later once boundaries settle
-
-## Consequences
+### Consequences
 
 ### Positive
 - Most behavior can be tested in pure TypeScript unit tests
@@ -69,18 +64,32 @@ Dependency rule:
 - More up-front structure and interface design work
 - Some operations require explicit data mapping between layers
 
-## Non-Goals
+## Pros and Cons of the Options
+
+### Keep logic directly inside Obsidian plugin classes
+- Pros: Fewer files initially; fast prototype iteration
+- Cons: Hard to unit test; high coupling; domain rules become implicit in UI flow
+- Why rejected/accepted: Rejected due to long-term maintenance and safety risk
+
+### Fully separate packages immediately (`packages/core`, `packages/plugin`)
+- Pros: Strong compile-time boundary, clearer release artifacts
+- Cons: Extra tooling and workspace complexity before MVP scope is stable
+- Why rejected/accepted: Deferred; may be adopted later once boundaries settle
+
+## More Information
+
+### Non-Goals
 
 - Immediate monorepo/package split
 - Designing a public SDK for third-party consumers
 
-## Future Considerations
+### Future Considerations
 
 If split into multiple packages later, preserve current dependency rule and keep `core` free of
 Obsidian imports. Add automated boundary checks (lint rule or import restriction) as structure
 stabilizes.
 
-## References
+### References
 
 - [ADR-0001](0001-vault-is-source-of-truth.md)
 - [ADR-0006](0006-reconcile-is-explicit.md)

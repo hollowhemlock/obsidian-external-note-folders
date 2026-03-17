@@ -1,9 +1,12 @@
-# ADR 0010: Use generator-obsidian-plugin for Project Scaffolding
+---
+status: "Accepted"
+date: "2026-02-15"
+decision-makers: "Maintainers"
+---
 
-**Status:** Accepted
-**Date:** 2026-02-15
+# Use generator-obsidian-plugin for Project Scaffolding
 
-## Context
+## Context and Problem Statement
 
 Starting a new Obsidian plugin requires significant boilerplate: TypeScript configuration, build
 tooling, linting, formatting, spell-checking, and Obsidian API type definitions. Setting this up
@@ -17,7 +20,13 @@ manually is tedious, error-prone, and results in inconsistent project structure 
 - Consistent, repeatable project setup across plugins
 - Access to actively maintained dev utilities (obsidian-dev-utils)
 
-## Decision
+## Considered Options
+
+* Official Obsidian sample plugin
+* Manual project setup
+* Fork/copy another plugin's setup
+
+## Decision Outcome
 
 Use [generator-obsidian-plugin](https://github.com/mnaoumov/generator-obsidian-plugin) (v11.9.1)
 as the Yeoman generator to scaffold this project.
@@ -43,25 +52,7 @@ The generator provides:
 - **Framework support** for Svelte and React components
 - **CSS preprocessing** with SASS
 
-## Alternatives Considered
-
-### A. Official Obsidian sample plugin
-- Pros: Minimal, officially supported, well-understood
-- Cons: Bare-bones — no linting, formatting, spell-checking, or extended types out of the box;
-  requires significant manual setup for production-quality tooling
-- Why rejected: Too much manual configuration needed to reach a quality baseline
-
-### B. Manual project setup
-- Pros: Full control over every dependency and configuration choice
-- Cons: Time-consuming, hard to keep consistent, no community-maintained updates
-- Why rejected: Unnecessary effort when a well-maintained generator exists
-
-### C. Fork/copy another plugin's setup
-- Pros: Proven configuration from a working plugin
-- Cons: Inherits that project's quirks, no upgrade path, manual cleanup needed
-- Why rejected: Fragile and not repeatable
-
-## Consequences
+### Consequences
 
 ### Positive
 - Immediate access to a working build pipeline with `npm run build` and `npm run dev`
@@ -79,19 +70,39 @@ The generator provides:
 - Some overrides in package.json (e.g., `boolean: npm:dry-uninstall`) are inherited without
   clear documentation of why they exist
 
-## Non-Goals
+## Pros and Cons of the Options
+
+### Official Obsidian sample plugin
+- Pros: Minimal, officially supported, well-understood
+- Cons: Bare-bones — no linting, formatting, spell-checking, or extended types out of the box;
+  requires significant manual setup for production-quality tooling
+- Why rejected: Too much manual configuration needed to reach a quality baseline
+
+### Manual project setup
+- Pros: Full control over every dependency and configuration choice
+- Cons: Time-consuming, hard to keep consistent, no community-maintained updates
+- Why rejected: Unnecessary effort when a well-maintained generator exists
+
+### Fork/copy another plugin's setup
+- Pros: Proven configuration from a working plugin
+- Cons: Inherits that project's quirks, no upgrade path, manual cleanup needed
+- Why rejected: Fragile and not repeatable
+
+## More Information
+
+### Non-Goals
 
 - Evaluating or replacing individual tools within the generated scaffold (ESLint config, dprint
   rules, etc.) — those are accepted as a package deal
 - Maintaining a fork of the generator
 
-## Future Considerations
+### Future Considerations
 
 If the generator becomes unmaintained or diverges significantly from project needs, the generated
 scaffold can be treated as a standalone starting point and maintained independently. The key
 constraint is that obsidian-dev-utils must remain compatible with the Obsidian API version in use.
 
-## References
+### References
 
 - [generator-obsidian-plugin](https://github.com/mnaoumov/generator-obsidian-plugin)
 - [obsidian-dev-utils](https://github.com/mnaoumov/obsidian-dev-utils)

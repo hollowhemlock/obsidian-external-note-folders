@@ -1,10 +1,12 @@
-# ADR-0002: Missing External Folders Are Normal
+---
+status: "Accepted"
+date: "2026-02-14"
+decision-makers: "Maintainers"
+---
 
-**Status:** Accepted
-**Date:** 2026-02-14
-**Participants:** Maintainers
+# Missing External Folders Are Normal
 
-## Context
+## Context and Problem Statement
 
 On many machines, not all external folders will be present (external drive not attached, not synced,
 or never created). This must not be treated as a failure.
@@ -16,7 +18,12 @@ or never created). This must not be treated as a failure.
 - Prevent unsafe auto-creation or destructive “cleanup”
 - Support multi-machine workflows naturally
 
-## Decision
+## Considered Options
+
+* Treat missing external as error
+* Auto-create all missing externals during reconcile
+
+## Decision Outcome
 
 It is expected that there are more UUIDs in the vault than bound folders in the external root.
 
@@ -24,19 +31,7 @@ It is expected that there are more UUIDs in the vault than bound folders in the 
 - Reconcile skips missing external folders
 - Creation happens via explicit command (e.g., “Open External Folder”), not by default reconcile
 
-## Alternatives Considered
-
-### A. Treat missing external as error
-- Pros: Forces completeness
-- Cons: Noisy, incorrect in common setups, pressures unsafe automation
-- Why rejected: External absence is normal and often intentional
-
-### B. Auto-create all missing externals during reconcile
-- Pros: Completeness by default
-- Cons: Implicit mutation; creates folders for notes that don’t need them
-- Why rejected: Too surprising for MVP; violates “explicit changes” posture
-
-## Consequences
+### Consequences
 
 ### Positive
 - Works cleanly with external drives and partial sync
@@ -45,15 +40,29 @@ It is expected that there are more UUIDs in the vault than bound folders in the 
 ### Negative / Trade-offs
 - Users may need an explicit action to materialize an external folder
 
-## Non-Goals
+## Pros and Cons of the Options
+
+### Treat missing external as error
+- Pros: Forces completeness
+- Cons: Noisy, incorrect in common setups, pressures unsafe automation
+- Why rejected: External absence is normal and often intentional
+
+### Auto-create all missing externals during reconcile
+- Pros: Completeness by default
+- Cons: Implicit mutation; creates folders for notes that don’t need them
+- Why rejected: Too surprising for MVP; violates “explicit changes” posture
+
+## More Information
+
+### Non-Goals
 
 - Enforcing one-to-one completeness between vault and external root
 
-## Future Considerations
+### Future Considerations
 
 If bulk creation is added later, it must be opt-in and clearly separate from reconcile moves.
 
-## References
+### References
 
 - [ADR-0001](0001-vault-is-source-of-truth.md)
 - [ADR-0009](0009-status-model.md)

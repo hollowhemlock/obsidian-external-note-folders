@@ -25,6 +25,28 @@ function extractFirstMatch(content: string, pattern: RegExp, fallback: string): 
   return match?.[1]?.trim() || fallback;
 }
 
+function parseFrontMatter(content: string): Record<string, string> {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---/m.exec(content);
+  if (!match?.[1]) {
+    return {};
+  }
+
+  const metadata: Record<string, string> = {};
+  for (const line of match[1].split(/\r?\n/)) {
+    const keyValue = /^\s*([A-Za-z0-9_-]+)\s*:\s*(.+)\s*$/.exec(line);
+    if (!keyValue) {
+      continue;
+    }
+
+    const key = keyValue[1].trim();
+    const rawValue = keyValue[2].trim();
+    const value = rawValue.replace(/^['"]|['"]$/g, '').trim();
+    metadata[key] = value;
+  }
+
+  return metadata;
+}
+
 function inferTags(text: string): string[] {
   const rules: Array<{ regex: RegExp; tag: string }> = [
     { regex: /\b(vault|source of truth|frontmatter|uuid)\b/i, tag: 'vault-model' },
@@ -90,15 +112,16 @@ async function loadAdrRecords(): Promise<AdrRecord[]> {
   const records = await Promise.all(adrFiles.map(async (fileName) => {
     const fullPath = join(ADR_DIR, fileName);
     const content = await readFile(fullPath, 'utf8');
+    const frontMatter = parseFrontMatter(content);
 
     const title = extractFirstMatch(
       content,
       /^#\s+ADR(?:-| )\d{4}:\s+(.+)$/m,
       extractFirstMatch(content, /^#\s+(.+)$/m, fileName)
     );
-    const id = extractFirstMatch(content, /^#\s+ADR(?:-| )(\d{4}):/m, fileName.slice(0, 4));
-    const status = extractFirstMatch(content, /^\*\*Status:\*\*\s+(.+)$/m, 'Unknown');
-    const date = extractFirstMatch(content, /^\*\*Date:\*\*\s+(.+)$/m, 'Unknown');
+    const id = fileName.slice(0, 4);
+    const status = frontMatter.status || extractFirstMatch(content, /^\*\*Status:\*\*\s+(.+)$/m, 'Unknown');
+    const date = frontMatter.date || extractFirstMatch(content, /^\*\*Date:\*\*\s+(.+)$/m, 'Unknown');
     const tags = inferTags(`${title} ${fileName}`);
     const whenToRead = inferWhenToRead(tags, title);
 

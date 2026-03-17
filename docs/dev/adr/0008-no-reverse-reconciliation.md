@@ -1,10 +1,12 @@
-# ADR-0008: No Reverse Reconciliation (External Does Not Drive Vault)
+---
+status: "Accepted"
+date: "2026-02-14"
+decision-makers: "Maintainers"
+---
 
-**Status:** Accepted
-**Date:** 2026-02-14
-**Participants:** Maintainers
+# No Reverse Reconciliation (External Does Not Drive Vault)
 
-## Context
+## Context and Problem Statement
 
 External folders can be moved/deleted/edited outside Obsidian. If the plugin lets external state
 mutate vault content, it introduces deletion semantics and significant ambiguity about intent.
@@ -16,7 +18,12 @@ mutate vault content, it introduces deletion semantics and significant ambiguity
 - Preserve safety/trust boundary
 - Keep vault authoritative
 
-## Decision
+## Considered Options
+
+* Reverse reconcile: external → vault
+* Bidirectional model
+
+## Decision Outcome
 
 External state never drives vault changes.
 
@@ -27,19 +34,7 @@ The plugin does not:
 
 External changes are reported by Verify only.
 
-## Alternatives Considered
-
-### A. Reverse reconcile: external → vault
-- Pros: Could “rebuild” vault mapping from external structure
-- Cons: Requires watchers; ambiguous; deletion semantics; surprising
-- Why rejected: Too risky and complex
-
-### B. Bidirectional model
-- Pros: Full mirroring
-- Cons: Hard conflicts; unclear precedence; high support burden
-- Why rejected: Not MVP; violates safety goals
-
-## Consequences
+### Consequences
 
 ### Positive
 - Trust boundary preserved
@@ -48,15 +43,29 @@ External changes are reported by Verify only.
 ### Negative / Trade-offs
 - Users must manage external-only reorganizations manually
 
-## Non-Goals
+## Pros and Cons of the Options
+
+### Reverse reconcile: external → vault
+- Pros: Could “rebuild” vault mapping from external structure
+- Cons: Requires watchers; ambiguous; deletion semantics; surprising
+- Why rejected: Too risky and complex
+
+### Bidirectional model
+- Pros: Full mirroring
+- Cons: Hard conflicts; unclear precedence; high support burden
+- Why rejected: Not MVP; violates safety goals
+
+## More Information
+
+### Non-Goals
 
 - Automatically reflecting external changes into vault
 
-## Future Considerations
+### Future Considerations
 
 If ever added, it must start as read-only suggestions and must never auto-delete vault content.
 
-## References
+### References
 
 - [ADR-0001](0001-vault-is-source-of-truth.md)
 - [ADR-0006](0006-reconcile-is-explicit.md)

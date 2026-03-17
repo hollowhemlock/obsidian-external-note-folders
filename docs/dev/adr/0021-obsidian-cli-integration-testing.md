@@ -1,10 +1,12 @@
-# ADR-0021: Require Obsidian CLI Integration Testing (v1.12+)
+---
+status: "Accepted"
+date: "2026-03-03"
+decision-makers: "Maintainers"
+---
 
-**Status:** Accepted
-**Date:** 2026-03-03
-**Participants:** Maintainers
+# Require Obsidian CLI Integration Testing (v1.12+)
 
-## Context
+## Context and Problem Statement
 
 Unit and adapter tests cover internal logic, but they do not verify behavior through the real Obsidian runtime surface. Obsidian v1.12 introduced a CLI interface that enables command-level integration checks against a live vault.
 
@@ -18,7 +20,13 @@ This project needs an integration requirement that validates plugin behavior wit
 - Support both human maintainers and LLM agents with explicit, repeatable workflow
 - Avoid coupling integration test pass/fail to machines without Obsidian CLI installed
 
-## Decision
+## Considered Options
+
+* Unit tests only
+* Run CLI integration tests in default CI on hosted runners
+* Mock the CLI process
+
+## Decision Outcome
 
 Adopt a dedicated **Obsidian CLI integration test lane** with these constraints:
 
@@ -32,24 +40,7 @@ Adopt a dedicated **Obsidian CLI integration test lane** with these constraints:
 - On Windows, CLI execution uses `Obsidian.com` (not `Obsidian.exe`) when available
 - CI integration job runs on `self-hosted` runners labeled `obsidian-cli`
 
-## Alternatives Considered
-
-### A. Unit tests only
-- Pros: Fast and simple
-- Cons: No verification of runtime CLI behavior
-- Why rejected: Does not satisfy integration requirement
-
-### B. Run CLI integration tests in default CI on hosted runners
-- Pros: Single CI lane
-- Cons: Hosted runners may not provide configured Obsidian CLI runtime
-- Why rejected: Unreliable and environment-dependent
-
-### C. Mock the CLI process
-- Pros: Fully deterministic in any environment
-- Cons: Does not validate actual Obsidian runtime semantics
-- Why rejected: Misses the key requirement of real integration coverage
-
-## Consequences
+### Consequences
 
 ### Positive
 - Real command-path validation through Obsidian CLI
@@ -62,16 +53,35 @@ Adopt a dedicated **Obsidian CLI integration test lane** with these constraints:
 - Requires prepared local or self-hosted environment with Obsidian CLI enabled
 - Integration lane is slower than unit-only CI
 
-## Non-Goals
+## Pros and Cons of the Options
+
+### Unit tests only
+- Pros: Fast and simple
+- Cons: No verification of runtime CLI behavior
+- Why rejected: Does not satisfy integration requirement
+
+### Run CLI integration tests in default CI on hosted runners
+- Pros: Single CI lane
+- Cons: Hosted runners may not provide configured Obsidian CLI runtime
+- Why rejected: Unreliable and environment-dependent
+
+### Mock the CLI process
+- Pros: Fully deterministic in any environment
+- Cons: Does not validate actual Obsidian runtime semantics
+- Why rejected: Misses the key requirement of real integration coverage
+
+## More Information
+
+### Non-Goals
 
 - Replacing unit tests with integration tests
 - Running CLI integration on every hosted CI environment
 
-## Future Considerations
+### Future Considerations
 
 Expand integration coverage as domain commands are implemented (Assign UUID, Open External Folder, Verify, Reconcile), keeping fixture scenarios traceable to ADR invariants.
 
-## References
+### References
 
 - [ADR-0017](0017-testing-strategy-by-boundary.md)
 - [ADR-0018](0018-test-vault-fixtures-live-in-repo.md)

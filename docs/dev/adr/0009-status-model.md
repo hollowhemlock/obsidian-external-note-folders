@@ -1,10 +1,12 @@
-# ADR-0009: Explicit Status Model (OK / Unavailable / Warning / Error)
+---
+status: "Accepted"
+date: "2026-02-14"
+decision-makers: "Maintainers"
+---
 
-**Status:** Accepted
-**Date:** 2026-02-14
-**Participants:** Maintainers
+# Explicit Status Model (OK / Unavailable / Warning / Error)
 
-## Context
+## Context and Problem Statement
 
 The plugin must distinguish between normal absence and true integrity problems. External folders may
 be missing intentionally or temporarily.
@@ -16,7 +18,12 @@ be missing intentionally or temporarily.
 - Make errors actionable and rare
 - Keep reconcile behavior deterministic
 
-## Decision
+## Considered Options
+
+* Binary valid/invalid
+* Auto-fix on detection
+
+## Decision Outcome
 
 Define these statuses:
 
@@ -34,19 +41,7 @@ Define these statuses:
 Errors abort the entire reconcile run; no further moves are attempted after the first error is
 encountered. See ADR-0011 for execution semantics.
 
-## Alternatives Considered
-
-### A. Binary valid/invalid
-- Pros: Simple
-- Cons: Treats normal absence as failure; noisy; misleading
-- Why rejected: External missing is normal
-
-### B. Auto-fix on detection
-- Pros: Fewer warnings
-- Cons: Implicit mutation; risks creating unwanted folders
-- Why rejected: Violates explicit-change model; not MVP
-
-## Consequences
+### Consequences
 
 ### Positive
 - Clear diagnostics for users
@@ -55,15 +50,29 @@ encountered. See ADR-0011 for execution semantics.
 ### Negative / Trade-offs
 - Slightly more reporting complexity
 
-## Non-Goals
+## Pros and Cons of the Options
+
+### Binary valid/invalid
+- Pros: Simple
+- Cons: Treats normal absence as failure; noisy; misleading
+- Why rejected: External missing is normal
+
+### Auto-fix on detection
+- Pros: Fewer warnings
+- Cons: Implicit mutation; risks creating unwanted folders
+- Why rejected: Violates explicit-change model; not MVP
+
+## More Information
+
+### Non-Goals
 
 - Automatically “correcting” Unavailable or Warning states
 
-## Future Considerations
+### Future Considerations
 
 If bulk creation or cleanup is added later, it must be explicit, opt-in, and preserve these semantics.
 
-## References
+### References
 
 - [ADR-0002](0002-missing-external-is-normal.md)
 - [ADR-0003](0003-no-deletions.md)

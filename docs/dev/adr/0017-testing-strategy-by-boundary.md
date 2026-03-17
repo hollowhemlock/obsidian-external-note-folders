@@ -1,10 +1,12 @@
-# ADR-0017: Testing Strategy by Boundary (Core, Adapter, Integration)
+---
+status: "Proposed"
+date: "2026-02-20"
+decision-makers: "Maintainers"
+---
 
-**Status:** Proposed
-**Date:** 2026-02-20
-**Participants:** Maintainers
+# Testing Strategy by Boundary (Core, Adapter, Integration)
 
-## Context
+## Context and Problem Statement
 
 The plugin has safety-critical behavior around scan/reconcile planning and filesystem mutation.
 Testing only through manual Obsidian runs is too slow and too fragile, while testing only pure
@@ -17,7 +19,12 @@ functions misses adapter and runtime integration failures.
 - Verify adapter behavior without requiring full UI automation
 - Ensure deterministic test results across operating systems
 
-## Decision
+## Considered Options
+
+* Integration-heavy strategy only
+* Unit tests only
+
+## Decision Outcome
 
 Adopt a boundary-aligned testing strategy:
 
@@ -46,19 +53,7 @@ CI expectation:
 - Unit + adapter tests run on every change
 - Integration tests run in CI at least on mainline and pre-release workflows
 
-## Alternatives Considered
-
-### A. Integration-heavy strategy only
-- Pros: Exercises realistic end-to-end behavior
-- Cons: Slow, brittle, difficult to isolate failures
-- Why rejected/accepted: Rejected as default strategy; kept for targeted high-risk flows
-
-### B. Unit tests only
-- Pros: Fast and easy to maintain
-- Cons: Adapter regressions and runtime wiring errors can slip through
-- Why rejected/accepted: Rejected due to incomplete risk coverage
-
-## Consequences
+### Consequences
 
 ### Positive
 - Faster iteration with strong guardrails around core invariants
@@ -71,17 +66,31 @@ CI expectation:
 - Additional maintenance cost for test doubles and fixtures
 - CI runtime increases as integration coverage grows
 
-## Non-Goals
+## Pros and Cons of the Options
+
+### Integration-heavy strategy only
+- Pros: Exercises realistic end-to-end behavior
+- Cons: Slow, brittle, difficult to isolate failures
+- Why rejected/accepted: Rejected as default strategy; kept for targeted high-risk flows
+
+### Unit tests only
+- Pros: Fast and easy to maintain
+- Cons: Adapter regressions and runtime wiring errors can slip through
+- Why rejected/accepted: Rejected due to incomplete risk coverage
+
+## More Information
+
+### Non-Goals
 
 - Full UI/E2E automation of all Obsidian interactions
 - Absolute line coverage targets as a quality gate
 
-## Future Considerations
+### Future Considerations
 
 If test runtime grows materially, split integration suites by risk tier and run full matrix on
 scheduled builds while preserving quick PR feedback on critical tests.
 
-## References
+### References
 
 - [ADR-0003](0003-no-deletions.md)
 - [ADR-0006](0006-reconcile-is-explicit.md)
