@@ -1,4 +1,8 @@
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import {
+  readdir,
+  readFile,
+  writeFile
+} from 'node:fs/promises';
 import { join } from 'node:path';
 
 type AdrRecord = {
@@ -38,9 +42,14 @@ function parseFrontMatter(content: string): Record<string, string> {
       continue;
     }
 
-    const key = keyValue[1].trim();
-    const rawValue = keyValue[2].trim();
-    const value = rawValue.replace(/^['"]|['"]$/g, '').trim();
+    const [, rawKey, rawValue] = keyValue;
+    if (rawKey === undefined || rawValue === undefined) {
+      continue;
+    }
+
+    const key = rawKey.trim();
+    const normalizedRawValue = rawValue.trim();
+    const value = normalizedRawValue.replace(/^['"]|['"]$/g, '').trim();
     metadata[key] = value;
   }
 
@@ -120,8 +129,8 @@ async function loadAdrRecords(): Promise<AdrRecord[]> {
       extractFirstMatch(content, /^#\s+(.+)$/m, fileName)
     );
     const id = fileName.slice(0, 4);
-    const status = frontMatter.status || extractFirstMatch(content, /^\*\*Status:\*\*\s+(.+)$/m, 'Unknown');
-    const date = frontMatter.date || extractFirstMatch(content, /^\*\*Date:\*\*\s+(.+)$/m, 'Unknown');
+    const status = frontMatter['status'] || extractFirstMatch(content, /^\*\*Status:\*\*\s+(.+)$/m, 'Unknown');
+    const date = frontMatter['date'] || extractFirstMatch(content, /^\*\*Date:\*\*\s+(.+)$/m, 'Unknown');
     const tags = inferTags(`${title} ${fileName}`);
     const whenToRead = inferWhenToRead(tags, title);
 
@@ -163,11 +172,19 @@ function buildReadme(records: AdrRecord[]): string {
 
   for (const record of records) {
     lines.push(
-      `| [${record.id}](${record.fileName}) | ${escapePipes(record.status)} | ${escapePipes(record.date)} | ${escapePipes(record.title)} | ${record.tags.map((tag) => `\`${tag}\``).join(', ')} | ${escapePipes(record.whenToRead)} |`
+      `| [${record.id}](${record.fileName}) | ${escapePipes(record.status)} | ${escapePipes(record.date)} | ${escapePipes(record.title)} | ${
+        record.tags.map((tag) => `\`${tag}\``).join(', ')
+      } | ${escapePipes(record.whenToRead)} |`
     );
   }
 
-  lines.push('', '## Discovery Tips', '- Search by tags first, then scan "When to read".', '- If a change crosses boundaries, read all ADRs matching each boundary tag.', '');
+  lines.push(
+    '',
+    '## Discovery Tips',
+    '- Search by tags first, then scan "When to read".',
+    '- If a change crosses boundaries, read all ADRs matching each boundary tag.',
+    ''
+  );
 
   return lines.join('\n');
 }

@@ -4,13 +4,13 @@ import {
   readFile
 } from 'node:fs/promises';
 import path from 'node:path';
+import { resolvePathFromRoot } from 'obsidian-dev-utils/ScriptUtils/Root';
 import {
   beforeAll,
   describe,
   expect,
   it
 } from 'vitest';
-import { resolvePathFromRoot } from 'obsidian-dev-utils/ScriptUtils/Root';
 
 type CliResult = {
   command: string;
@@ -149,7 +149,9 @@ describe('obsidian CLI integration', () => {
 
     expect(
       combinedOutput.length > 0,
-      `${formatCliResult(versionResult)}\nExpected output. On Windows, use Obsidian.com and ensure CLI is enabled in Settings -> General -> Command line interface.`
+      `${
+        formatCliResult(versionResult)
+      }\nExpected output. On Windows, use Obsidian.com and ensure CLI is enabled in Settings -> General -> Command line interface.`
     ).toBe(true);
 
     const parsedVersion = parseSemverFromText(combinedOutput);
