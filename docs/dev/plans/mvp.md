@@ -237,10 +237,11 @@ Reference:
 - [ ] Build succeeds
 - [ ] Test in fresh vault and realistic external root
 - [ ] Release PR generated and reviewed (Release Please)
-- [ ] Changelog updated (`CHANGELOG.md`)
-- [ ] Version bump propagated to `package.json` and `manifest.json`
-- [ ] `versions.json` updated for released version/min app version
-- [ ] Tag and publish
+- [ ] Changelog updated (`CHANGELOG.md`) in release PR
+- [ ] Version bump propagated to `package.json` and `manifest.json` in release PR
+- [ ] Release PR merged
+- [ ] GitHub release published and required assets uploaded
+- [ ] `versions.json` updated on `main` for released version/min app version
 
 Reference:
 - [ ] `docs/dev/adr/0020-release-please-for-versioning-and-changelog.md`

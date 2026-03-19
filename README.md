@@ -21,6 +21,7 @@ This is a plugin for [Obsidian](https://obsidian.md/) that Associate Obsidian va
 - `npm run lint`
 - `npm run format:check`
 - `npm run test`
+- `npm run test:integration`
 - `npm run test:watch`
 - `npm run fixtures:new-sandbox`
 - `npm run fixtures:refresh-sandbox`
@@ -56,6 +57,7 @@ Local enforcement uses Husky `commit-msg` hook (installed by `npm install` via `
 
 - TDD workflow: `docs/dev/procedures/tdd-workflow.md`
 - Review gate policy: `docs/dev/procedures/commit-pull-request-merge-review-gate.md`
+- MVP validation: `docs/dev/procedures/mvp-validation.md`
 - ADR index: `docs/dev/adr/README.md`
 
 ## Installation

@@ -15,10 +15,10 @@ Define a strict, model-agnostic review contract for three stages:
 - `context`: short task/issue summary
 - `changed_files`: file list and key diffs
 - `commit_sha`
-- `test_evidence`: outputs for `npm run lint`, `npm run format:check`, `npm run test`
+- `test_evidence`: outputs for blocker-relevant validation commands
 - `evidence_source`: `ci | local`
 - `evidence_timestamp`: ISO-8601
-- `ci_run_url` (required for pull/merge; preferred for commit)
+- `ci_run_url` (required when blocker-relevant evidence is CI-backed; required for pull/merge blocker checks)
 - `release_context`: `none | patch | minor | breaking`
 - `open_risks`
 
@@ -32,10 +32,16 @@ Define a strict, model-agnostic review contract for three stages:
 
 - Missing blocker-relevant evidence -> `BLOCK`
 - `confidence=low` for any critical-path check -> `BLOCK`
-- Blocker checks backed only by `local` evidence -> `BLOCK`
+- Required CI-backed checks presented without CI evidence -> `BLOCK`
 - Stale or invalid `evidence_timestamp` -> `BLOCK`
 - Incomplete `override_request` -> keep `BLOCK`
 - Override may only downgrade `BLOCK` to `PASS_WITH_WARNINGS` (never `PASS`)
+
+### Evidence Provenance by Stage
+
+- Commit review: `local` or `ci` evidence is acceptable. Local evidence must include exact commands and timestamp.
+- Pull request review: blocker-relevant lint, format, and test checks must be `ci`-backed.
+- Merge gate: blocker-relevant checks and release validation must be `ci`-backed.
 
 ### Required Output Schema
 
@@ -121,11 +127,13 @@ Any material inconsistency -> `BLOCK`.
 
 - Output `BLOCK` unless blockers are exactly `none`
 - Missing blocker-relevant evidence -> `BLOCK`
-- Release pull request with missing/expired governance metadata -> `BLOCK`
+- Release pull request with missing required release evidence -> `BLOCK`
 
 ## Governance Metadata
 
-Required:
+Status: advisory until the repository defines a canonical storage location and validation automation for this metadata.
+
+Suggested fields:
 
 - `prompt_pack_version` (semver)
 - `owner`
@@ -135,8 +143,8 @@ Required:
 Policy:
 
 - Missing/expired governance metadata:
-  - Commit/pull review -> at least `PASS_WITH_WARNINGS`
-  - Merge gate on release pull request -> `BLOCK`
+  - Commit/pull/merge review -> at most `PASS_WITH_WARNINGS`
+  - Never block by itself until a repository-owned source of truth exists
 
 ## Minimum Validation Scenarios
 
@@ -146,7 +154,7 @@ Policy:
 4. `feat` behavior with `none` release impact label -> pull `BLOCK`
 5. Release semver/changelog mismatch -> merge `BLOCK`
 6. Mixed feature/refactor/tooling in one commit -> commit `BLOCK`
-7. Local-only blocker evidence -> `BLOCK`
+7. Local-only blocker evidence on pull/merge -> `BLOCK`
 8. Low confidence on critical behavior classification -> `BLOCK`
 9. Override requested without expiry/follow-up -> remains `BLOCK`
-10. Stale governance metadata on release merge gate -> `BLOCK`
+10. Missing governance metadata without a repo source of truth -> merge `PASS_WITH_WARNINGS`

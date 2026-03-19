@@ -1,6 +1,6 @@
 # Procedure: Test-Driven Development Workflow
 
-This procedure defines how to implement features and fixes using TDD with atomic commits. It applies to both human developers and LLM agents.
+This procedure defines how to implement features and fixes using TDD with atomic, shareable commits. It applies to both human developers and LLM agents.
 
 ## Prerequisites
 
@@ -9,19 +9,17 @@ This procedure defines how to implement features and fixes using TDD with atomic
 
 ## The Cycle
 
-Each unit of work follows **Red → Green → Refactor**, and each phase that changes code produces its own commit.
+Each unit of work follows **Red → Green → Refactor**. Red happens locally to drive the change. Shared history should remain green and reviewable.
 
 ### 1. Red — Write a failing test
 
-Write the smallest test that describes the next behavior increment. Run it and confirm it fails.
+Write the smallest test that describes the next behavior increment. Run it and confirm it fails for the expected reason.
 
 ```bash
 npm run test           # must see the new test fail
 ```
 
-**Commit** with message: `test: <what the test asserts>`
-
-Why commit a failing test? It records intent before implementation, makes the change reviewable in isolation, and ensures the test actually exercises something (not tautologically passing).
+Do not require a failing-test commit in shared history. Capture the failing output in local notes, terminal transcript, or the PR description when it adds review value.
 
 ### 2. Green — Make it pass
 
@@ -31,7 +29,7 @@ Write the minimum code to make the failing test pass. Do not refactor, optimize,
 npm run test           # all tests pass
 ```
 
-**Commit** with message: `feat: <what behavior was added>` or `bug: <what was fixed>`
+**Commit** with message: `feat: <what behavior was added>` or `fix: <what was fixed>`
 
 ### 3. Refactor — Clean up
 
@@ -41,7 +39,7 @@ Improve structure, naming, duplication, or readability without changing behavior
 npm run test           # still passing after refactoring
 ```
 
-**Commit** with message: `dev: refactor <what changed>` (only if there are meaningful changes — skip if Green code was already clean)
+**Commit** with message: `refactor: <what changed>` (only if there are meaningful changes — skip if Green code was already clean)
 
 ### 4. Repeat
 
@@ -52,20 +50,20 @@ Return to step 1 for the next behavior increment.
 ### What makes a commit atomic
 
 - It contains exactly one logical change
-- The repo is in a valid state after the commit (tests pass, lint passes, builds)
+- It leaves the branch in a valid, shareable state after the commit (`npm run test` passes; run lint/format/build checks before push or when the change touches those surfaces)
 - The commit message explains *why*, not just *what*
 
 ### Commit sequence for a typical feature
 
+Tests may live in the same commit as the Green change when a separate test-only commit would leave shared history red. Use a standalone `test:` commit only when it remains green.
+
 ```
-test: verify UUID collision returns Error status
 feat: detect UUID collisions during scan
-dev: extract collision check into dedicated function
-test: verify duplicate UUID across renamed notes
-feat: handle collision when source note was renamed
+refactor: extract collision check into dedicated function
+fix: preserve collision detection after note rename
 ```
 
-Each commit is independently reviewable and revertable.
+Each shared commit is independently reviewable and revertable.
 
 ### When to run lint
 
@@ -81,9 +79,10 @@ When an LLM is implementing via this procedure:
 
 1. **State the test intent** before writing it — describe what behavior the test captures and why it matters.
 2. **Show the failing test output** — confirm the test fails for the right reason (assertion failure on the expected behavior, not a syntax error or import failure).
-3. **Minimize the Green step** — resist adding code beyond what the test requires. Premature generalization is the most common LLM failure mode.
-4. **Pause for review** between cycles if the human is reviewing live. Don't batch multiple Red→Green→Refactor cycles without checkpoint.
-5. **Flag uncertainty** — if the next test to write is unclear, ask rather than guess. A wrong test is worse than no test.
+3. **Keep shared history green** — failing tests may exist locally during Red, but commits prepared for review should pass.
+4. **Minimize the Green step** — resist adding code beyond what the test requires. Premature generalization is the most common LLM failure mode.
+5. **Pause for review** between cycles if the human is reviewing live. Don't batch multiple Red→Green→Refactor cycles without checkpoint.
+6. **Flag uncertainty** — if the next test to write is unclear, ask rather than guess. A wrong test is worse than no test.
 
 ## Guidance for Human Developers
 

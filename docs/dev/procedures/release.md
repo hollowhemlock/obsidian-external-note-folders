@@ -9,12 +9,13 @@ This procedure defines how releases are generated, reviewed, and published in th
   - version bump in `package.json`
   - version bump in `manifest.json`
   - generated `CHANGELOG.md`
-- When the release PR is merged, Release Please creates a GitHub release and tag.
+- When the release PR is merged, Release Please creates a GitHub release and tag (without a `v` prefix).
 - `publish-obsidian-assets` runs on release publish and:
   - builds artifacts
   - validates tag version equals `manifest.json` version
   - updates and commits `versions.json` on `main`
   - uploads `main.js`, `styles.css`, `manifest.json`, `versions.json` to the release
+- `versions.json` is updated after the release is published; it is not expected to change in the release PR itself.
 
 ## Human Workflow
 
@@ -25,8 +26,9 @@ This procedure defines how releases are generated, reviewed, and published in th
    - accurate changelog entries
    - expected files changed only
 4. Merge the release PR.
-5. Confirm GitHub release exists and assets are attached.
-6. Verify `versions.json` was updated on `main`.
+5. Confirm the GitHub release was created and release assets are attached.
+6. Confirm the `publish-obsidian-assets` workflow completed successfully.
+7. Verify `versions.json` was updated on `main`.
 
 ## LLM Agent Workflow
 
@@ -47,5 +49,5 @@ This procedure defines how releases are generated, reviewed, and published in th
 
 ## Conventions
 
-- Use conventional commits (`feat`, `fix`, `docs`, `test`, `refactor`, `dev`, etc.).
+- Use the enforced conventional commit types from repo policy: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
 - Treat release PRs as reviewable artifacts, not auto-merge by default.

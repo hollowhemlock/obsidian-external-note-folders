@@ -13,7 +13,7 @@
 ## Release Impact
 
 - [ ] No release impact
-- [ ] Patch (`fix` / `bug`)
+- [ ] Patch (`fix`)
 - [ ] Minor (`feat`)
 - [ ] Breaking (`!` or `BREAKING CHANGE`)
 
