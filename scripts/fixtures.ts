@@ -68,7 +68,6 @@ function getAbsolutePath(relativePath: string): string {
 }
 
 async function main(): Promise<void> {
-  // eslint-disable-next-line no-magic-numbers -- standard argv offset
   const mode = parseMode(process.argv.slice(2));
   await syncSandbox(mode);
 }
@@ -109,9 +108,7 @@ async function syncSandbox(mode: SyncMode): Promise<void> {
   if (mode === 'full') {
     await fullReplaceDirectory(fixtureVaultPath, sandboxVaultPath);
   } else {
-    // eslint-disable-next-line obsidianmd/hardcoded-config-path -- filesystem path, not runtime Vault access
     await clearDirectoryChildren(sandboxVaultPath, new Set(['.obsidian']));
-    // eslint-disable-next-line obsidianmd/hardcoded-config-path -- filesystem path, not runtime Vault access
     await copyDirectoryChildren(fixtureVaultPath, sandboxVaultPath, new Set(['.obsidian']));
   }
 

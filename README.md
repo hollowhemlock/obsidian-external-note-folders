@@ -1,6 +1,40 @@
 # External Note Folders
 
-This is a plugin for [Obsidian](https://obsidian.md/) that Associate Obsidian vault notes with lazily created folders under an external root using UUIDs, preserving stable associations across moves and reorganizations.
+This is a plugin for [Obsidian](https://obsidian.md/) that associates Obsidian vault notes with lazily created folders under an external root using UUIDs, preserving stable associations across moves and reorganizations.
+
+## What It Does
+
+External Note Folders links a markdown note to an external folder by storing a canonical UUID in the note's `exf` frontmatter field and writing the same UUID to a `.exf` marker file in the external folder.
+
+Phase 0 supports:
+
+- Assigning an external folder identifier to the active note.
+- Opening the note's bound external folder.
+- Creating a bound external folder on first open when no binding exists.
+- Verifying vault and external-root integrity.
+
+Phase 0 does not rename, move, delete, or reconcile existing external folders after a note is renamed or moved. Reconcile is planned for a later phase and must remain explicit.
+
+## Commands
+
+- `Assign external folder identifier`: Adds an `exf` UUID to the active markdown note if one is missing. It never creates or changes external folders.
+- `Open external folder`: Ensures the active note has an `exf` UUID, creates the derived external folder when needed, writes its `.exf` marker, and opens the folder in the system file manager.
+- `Verify external folders`: Scans vault frontmatter and the configured external root, then shows grouped `OK`, `Unavailable`, `Warning`, and `Error` results.
+
+## Safety Model
+
+- The vault is the source of truth for note identity.
+- Missing external folders are normal and are reported as `Unavailable`, not as integrity errors.
+- Duplicate UUIDs, malformed `.exf` markers, invalid `exf` frontmatter, external-root access failures, and occupied target paths block mutating commands.
+- The plugin does not delete vault files, external folders, or `.exf` markers.
+- The plugin does not auto-rename folders to resolve conflicts.
+- External-root scans skip symlinks, junctions, and reparse points by default.
+
+## Known Limitations
+
+- Reconcile is not implemented in Phase 0, so external folders are not moved when notes are renamed or reorganized.
+- Concurrent UUID assignment across unsynced devices can create orphan external folders.
+- Sync tool conflicts in note frontmatter or external marker files are outside the plugin's repair scope; `Verify external folders` surfaces the resulting state.
 
 ## Contributor Guide
 
@@ -92,6 +126,8 @@ For more details, refer to the [documentation](https://github.com/mnaoumov/obsid
   from committed fixture data.
 - Run `npm run fixtures:refresh-sandbox` to refresh note/external-root content while preserving
   `sandbox/vault/.obsidian`.
+- `npm run test:integration` uses `fixtures:refresh-sandbox` so it can run while the sandbox vault
+  is open in Obsidian.
 - Run `npm run fixtures:open-fixture` or `npm run fixtures:open-sandbox` to open either test vault
   directly in Obsidian.
 - Run `npm run vault:open -- <vault-path>` to open a specific vault path.

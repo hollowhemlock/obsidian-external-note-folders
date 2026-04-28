@@ -1,7 +1,8 @@
 import type { App } from 'obsidian';
 
-import { getExfFrontmatterValue } from '../core/frontmatter.ts';
 import type { VaultScanResult } from '../core/verify.ts';
+
+import { getExfFrontmatterValue } from '../core/frontmatter.ts';
 
 export function scanVault(app: App): VaultScanResult {
   const bindings = new Map<string, string>();

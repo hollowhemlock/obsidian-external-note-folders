@@ -36,7 +36,9 @@ Adopt a dedicated **Obsidian CLI integration test lane** with these constraints:
   - refresh sandbox from committed fixture
   - build plugin artifacts
   - install plugin artifacts into sandbox `.obsidian/plugins/<plugin-id>`
-- Integration tests must assert CLI runtime is Obsidian `>=1.12.0`
+- Integration tests must assert CLI command exposure when the CLI runtime responds
+- If the local CLI binary is absent, disabled, or times out, the integration lane reports the
+  unavailable environment and does not fail the default local validation path
 - On Windows, CLI execution uses `Obsidian.com` (not `Obsidian.exe`) when available
 - CI integration job runs on `self-hosted` runners labeled `obsidian-cli`
 
@@ -52,6 +54,8 @@ Adopt a dedicated **Obsidian CLI integration test lane** with these constraints:
 ### Negative / Trade-offs
 - Requires prepared local or self-hosted environment with Obsidian CLI enabled
 - Integration lane is slower than unit-only CI
+- Some Obsidian CLI builds do not expose a stable `version` command, so version assertions are
+  weaker than command-surface assertions
 
 ## Pros and Cons of the Options
 

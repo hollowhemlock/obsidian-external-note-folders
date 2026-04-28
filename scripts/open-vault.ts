@@ -26,7 +26,6 @@ function buildOpenCommand(uri: string): string {
 }
 
 async function main(): Promise<void> {
-  // eslint-disable-next-line no-magic-numbers -- standard argv offset
   const input = process.argv[2];
   if (input === '--help' || input === '-h') {
     printUsage();

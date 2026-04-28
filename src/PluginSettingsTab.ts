@@ -1,11 +1,13 @@
 import path from 'node:path';
-
 import {
   PluginSettingTab,
   Setting
 } from 'obsidian';
 
 import type { Plugin } from './Plugin.ts';
+
+const EXAMPLE_WINDOWS_EXTERNAL_ROOT = 'C:\\ExternalNoteFolders';
+const TEXT_INPUT_VISIBLE_SIZE = 48;
 
 export class PluginSettingsTab extends PluginSettingTab {
   public constructor(app: Plugin['app'], private readonly plugin: Plugin) {
@@ -16,8 +18,6 @@ export class PluginSettingsTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl('h2', { text: 'External Note Folders' });
-
     const validationMessageEl = containerEl.createEl('p', {
       cls: 'setting-item-description'
     });
@@ -27,13 +27,16 @@ export class PluginSettingsTab extends PluginSettingTab {
       .setDesc('Absolute path used for bound external folders and .exf markers.')
       .addText((text) => {
         text
-          .setPlaceholder('C:\\ExternalNoteFolders')
+          .setPlaceholder(EXAMPLE_WINDOWS_EXTERNAL_ROOT)
           .setValue(this.plugin.settings.externalRootPath)
           .onChange((value) => {
-            void this.handleExternalRootChanged(value, validationMessageEl);
+            this.handleExternalRootChanged(value, validationMessageEl).catch((error: unknown) => {
+              const message = error instanceof Error ? error.message : 'Unable to save external root setting.';
+              validationMessageEl.setText(message);
+            });
           });
 
-        text.inputEl.size = 48;
+        text.inputEl.size = TEXT_INPUT_VISIBLE_SIZE;
       });
   }
 

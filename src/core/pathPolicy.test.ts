@@ -1,5 +1,4 @@
 import path from 'node:path';
-
 import {
   describe,
   expect,
@@ -49,9 +48,9 @@ describe('path policy', () => {
   });
 
   it('rejects candidate paths that escape the configured root', () => {
-    expect(() => assertPathIsWithinRoot(path.resolve('X:/ExternalRoot'), path.resolve('X:/'))).toThrow(
-      'escapes the configured root'
-    );
+    expect(() => {
+      assertPathIsWithinRoot(path.resolve('X:/ExternalRoot'), path.resolve('X:/'));
+    }).toThrow('escapes the configured root');
   });
 
   it('normalizes paths for identity comparisons', () => {

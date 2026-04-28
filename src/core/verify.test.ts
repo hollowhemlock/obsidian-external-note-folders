@@ -4,11 +4,12 @@ import {
   it
 } from 'vitest';
 
-import {
-  buildVerifyReport,
-  type ExternalScanResult,
-  type VaultScanResult
+import type {
+  ExternalScanResult,
+  VaultScanResult
 } from './verify.ts';
+
+import { buildVerifyReport } from './verify.ts';
 
 const VALID_UUID = '123e4567-e89b-42d3-a456-426614174000';
 
@@ -16,8 +17,8 @@ describe('verify report builder', () => {
   it('classifies ok, unavailable, warning, and error states', () => {
     const vaultScan: VaultScanResult = {
       bindings: new Map([
-        [VALID_UUID, 'Notes/Alpha.md'],
-        ['123e4567-e89b-42d3-a456-426614174001', 'Notes/Beta.md']
+        ['123e4567-e89b-42d3-a456-426614174001', 'Notes/Beta.md'],
+        [VALID_UUID, 'Notes/Alpha.md']
       ]),
       duplicatePaths: new Map(),
       invalidFrontmatter: [
@@ -30,8 +31,8 @@ describe('verify report builder', () => {
     const externalScan: ExternalScanResult = {
       accessErrors: [],
       bindings: new Map([
-        [VALID_UUID, 'X:\\External\\Notes\\Alpha'],
-        ['123e4567-e89b-42d3-a456-426614174999', 'X:\\External\\Orphan']
+        ['123e4567-e89b-42d3-a456-426614174999', 'X:\\External\\Orphan'],
+        [VALID_UUID, 'X:\\External\\Notes\\Alpha']
       ]),
       duplicatePaths: new Map(),
       malformedMarkers: [],

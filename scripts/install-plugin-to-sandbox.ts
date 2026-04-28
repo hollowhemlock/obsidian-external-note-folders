@@ -8,9 +8,9 @@ import {
 import path from 'node:path';
 import { resolvePathFromRoot } from 'obsidian-dev-utils/ScriptUtils/Root';
 
-type Manifest = {
+interface Manifest {
   id: string;
-};
+}
 
 const CANDIDATE_ARTIFACT_PATHS = {
   mainJs: ['main.js', 'dist/build/main.js'],
@@ -20,24 +20,6 @@ const CANDIDATE_ARTIFACT_PATHS = {
 
 const SANDBOX_VAULT_RELATIVE_PATH = 'test/fixtures/sandbox/vault';
 const COMMUNITY_PLUGINS_RELATIVE_PATH = '.obsidian/community-plugins.json';
-
-function resolvePath(relativePath: string): string {
-  return resolvePathFromRoot(relativePath) ?? path.resolve(process.cwd(), relativePath);
-}
-
-async function findArtifact(relativePaths: readonly string[]): Promise<string> {
-  for (const relativePath of relativePaths) {
-    const absolutePath = resolvePath(relativePath);
-    try {
-      await access(absolutePath);
-      return absolutePath;
-    } catch {
-      // try the next candidate
-    }
-  }
-
-  throw new Error(`Artifact not found. Tried: ${relativePaths.join(', ')}`);
-}
 
 async function ensureCommunityPluginEnabled(vaultPath: string, pluginId: string): Promise<void> {
   const communityPluginsPath = path.join(vaultPath, COMMUNITY_PLUGINS_RELATIVE_PATH);
@@ -52,12 +34,26 @@ async function ensureCommunityPluginEnabled(vaultPath: string, pluginId: string)
   await writeFile(communityPluginsPath, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
 }
 
+async function findArtifact(relativePaths: readonly string[]): Promise<string> {
+  for (const relativePath of relativePaths) {
+    const absolutePath = resolvePath(relativePath);
+    try {
+      await access(absolutePath);
+      return absolutePath;
+    } catch {
+      // Try the next candidate
+    }
+  }
+
+  throw new Error(`Artifact not found. Tried: ${relativePaths.join(', ')}`);
+}
+
 async function main(): Promise<void> {
   const manifestPath = await findArtifact(CANDIDATE_ARTIFACT_PATHS.manifestJson);
   const mainJsPath = await findArtifact(CANDIDATE_ARTIFACT_PATHS.mainJs);
   const stylesCssPath = await findArtifact(CANDIDATE_ARTIFACT_PATHS.stylesCss);
 
-  const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as Manifest;
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as unknown as Manifest;
   const sandboxVaultPath = resolvePath(SANDBOX_VAULT_RELATIVE_PATH);
 
   const pluginPath = path.join(sandboxVaultPath, '.obsidian', 'plugins', manifest.id);
@@ -70,6 +66,10 @@ async function main(): Promise<void> {
   await ensureCommunityPluginEnabled(sandboxVaultPath, manifest.id);
 
   console.log(`Installed plugin '${manifest.id}' to sandbox: ${pluginPath}`);
+}
+
+function resolvePath(relativePath: string): string {
+  return resolvePathFromRoot(relativePath) ?? path.resolve(process.cwd(), relativePath);
 }
 
 // eslint-disable-next-line no-void -- script entry point

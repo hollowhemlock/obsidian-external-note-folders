@@ -7,7 +7,6 @@ import {
 } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-
 import {
   afterEach,
   describe,
@@ -16,7 +15,6 @@ import {
 } from 'vitest';
 
 import { EXF_MARKER_FILE_NAME } from '../core/contracts.ts';
-
 import { ensureBoundExternalFolder } from './boundExternalFolder.ts';
 
 const VALID_UUID = '123e4567-e89b-42d3-a456-426614174000';
@@ -26,10 +24,10 @@ describe('bound external folder mutations', () => {
   const tempDirectories: string[] = [];
 
   afterEach(async () => {
-    await Promise.all(tempDirectories.map(async (directoryPath) => {
+    const directoriesToRemove = tempDirectories.splice(0);
+    await Promise.all(directoriesToRemove.map(async (directoryPath) => {
       await rm(directoryPath, { force: true, recursive: true });
     }));
-    tempDirectories.length = 0;
   });
 
   it('creates a derived folder and writes a marker', async () => {

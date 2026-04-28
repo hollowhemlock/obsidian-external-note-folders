@@ -1,3 +1,4 @@
+import { execFile } from 'node:child_process';
 import {
   access,
   lstat,
@@ -7,8 +8,6 @@ import {
   writeFile
 } from 'node:fs/promises';
 import path from 'node:path';
-
-import { execFile } from 'node:child_process';
 
 import { EXF_MARKER_FILE_NAME } from '../core/contracts.ts';
 import {
@@ -74,7 +73,7 @@ export async function openExternalFolderInFileManager(folderPath: string): Promi
   await new Promise<void>((resolve, reject) => {
     execFile(command.file, [...command.arguments, folderPath], (error) => {
       if (error) {
-        reject(error);
+        reject(toError(error));
         return;
       }
 
@@ -127,7 +126,28 @@ function getOpenCommand(): { arguments: string[]; file: string } {
   };
 }
 
-async function tryLstat(targetPath: string) {
+function isMissingFileError(error: unknown): boolean {
+  return (
+    typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && error.code === 'ENOENT'
+  );
+}
+
+function toError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+
+  if (typeof error === 'string') {
+    return new Error(error);
+  }
+
+  return new Error('Unable to open external folder.');
+}
+
+async function tryLstat(targetPath: string): Promise<Awaited<ReturnType<typeof lstat>> | null> {
   try {
     return await lstat(targetPath);
   } catch {
@@ -153,13 +173,4 @@ async function writeMarker(boundFolderPath: string, uuid: string): Promise<void>
 
     throw error;
   }
-}
-
-function isMissingFileError(error: unknown): boolean {
-  return (
-    typeof error === 'object'
-    && error !== null
-    && 'code' in error
-    && error.code === 'ENOENT'
-  );
 }

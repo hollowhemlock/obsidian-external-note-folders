@@ -5,16 +5,15 @@ import {
   Plugin as ObsidianPlugin
 } from 'obsidian';
 
+import type { PluginSettings } from './PluginSettings.ts';
+
 import {
   buildVerifyReport,
   summarizeVerifyReport
 } from './core/verify.ts';
 import { assignUuidToNote } from './obsidian/assignUuidToNote.ts';
 import { scanVault } from './obsidian/scanVault.ts';
-import {
-  DEFAULT_SETTINGS,
-  type PluginSettings
-} from './PluginSettings.ts';
+import { DEFAULT_SETTINGS } from './PluginSettings.ts';
 import { PluginSettingsTab } from './PluginSettingsTab.ts';
 import {
   ensureBoundExternalFolder,
@@ -22,6 +21,12 @@ import {
 } from './storage/boundExternalFolder.ts';
 import { scanExternalRoot } from './storage/scanExternalRoot.ts';
 import { VerifyReportModal } from './VerifyReportModal.ts';
+
+interface ScanContext {
+  externalScan: Awaited<ReturnType<typeof scanExternalRoot>>;
+  vaultScan: ReturnType<typeof scanVault>;
+  verifyReport: ReturnType<typeof buildVerifyReport>;
+}
 
 export class Plugin extends ObsidianPlugin {
   public settings: PluginSettings = DEFAULT_SETTINGS;
@@ -36,15 +41,19 @@ export class Plugin extends ObsidianPlugin {
 
     this.addCommand({
       callback: () => {
-        void this.runAssignUuidCommand();
+        this.runAssignUuidCommand().catch((error: unknown) => {
+          this.showUnexpectedError(error);
+        });
       },
       id: 'assign-external-folder-uuid',
-      name: 'Assign external folder UUID'
+      name: 'Assign external folder identifier'
     });
 
     this.addCommand({
       callback: () => {
-        void this.runVerifyCommand();
+        this.runVerifyCommand().catch((error: unknown) => {
+          this.showUnexpectedError(error);
+        });
       },
       id: 'verify-external-folders',
       name: 'Verify external folders'
@@ -52,7 +61,9 @@ export class Plugin extends ObsidianPlugin {
 
     this.addCommand({
       callback: () => {
-        void this.runOpenExternalFolderCommand();
+        this.runOpenExternalFolderCommand().catch((error: unknown) => {
+          this.showUnexpectedError(error);
+        });
       },
       id: 'open-external-folder',
       name: 'Open external folder'
@@ -63,44 +74,44 @@ export class Plugin extends ObsidianPlugin {
     await this.saveData(this.settings);
   }
 
-  private async loadSettings(): Promise<void> {
-    const loadedData = await this.loadData();
-    this.settings = {
-      ...DEFAULT_SETTINGS,
-      ...(loadedData as Partial<PluginSettings> | null)
-    };
-  }
-
-  private async collectScanContext() {
+  private async collectScanContext(): Promise<ScanContext> {
     const vaultScan = scanVault(this.app);
     const externalScan = await scanExternalRoot(this.settings.externalRootPath);
     return {
       externalScan,
-      verifyReport: buildVerifyReport(vaultScan, externalScan),
-      vaultScan
+      vaultScan,
+      verifyReport: buildVerifyReport(vaultScan, externalScan)
     };
   }
 
   private getActiveMarkdownFile(): null | TFile {
     const activeFile = this.app.workspace.getActiveFile();
-    if (!activeFile || activeFile.extension !== 'md') {
+    if (activeFile?.extension !== 'md') {
       return null;
     }
 
     return activeFile;
   }
 
+  private async loadSettings(): Promise<void> {
+    const loadedData = (await this.loadData()) as null | Partial<PluginSettings>;
+    this.settings = {
+      ...DEFAULT_SETTINGS,
+      ...loadedData
+    };
+  }
+
   private async runAssignUuidCommand(): Promise<void> {
     const activeFile = this.getActiveMarkdownFile();
     if (!activeFile) {
-      new Notice('Open a markdown note to assign an external folder UUID.');
+      new Notice('Open a markdown note to assign an external folder identifier.');
       return;
     }
 
     await this.runMutatingCommand('assign an external folder UUID', async () => {
       const { verifyReport } = await this.collectScanContext();
       if (verifyReport.hasIntegrityErrors) {
-        new Notice('Cannot assign a UUID while integrity errors exist. Run Verify for details.');
+        new Notice('Cannot assign an identifier while integrity errors exist. Run the verify command for details.');
         new VerifyReportModal(this.app, verifyReport, false).open();
         return;
       }
@@ -108,16 +119,34 @@ export class Plugin extends ObsidianPlugin {
       try {
         const outcome = await assignUuidToNote(this.app, activeFile);
         if (outcome.kind === 'assigned') {
-          new Notice(`Assigned external folder UUID to ${activeFile.path}.`);
+          new Notice(`Assigned external folder identifier to ${activeFile.path}.`);
           return;
         }
 
-        new Notice(`Note already has an external folder UUID: ${outcome.uuid}`);
+        new Notice(`Note already has an external folder identifier: ${outcome.uuid}`);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Failed to assign UUID.';
         new Notice(message);
       }
     });
+  }
+
+  private async runMutatingCommand(
+    actionDescription: string,
+    operation: () => Promise<void>
+  ): Promise<void> {
+    if (this.isMutationInProgress) {
+      new Notice(`Cannot ${actionDescription} while another mutating command is already running.`);
+      return;
+    }
+
+    this.isMutationInProgress = true;
+    try {
+      await operation();
+    } finally {
+      this.isMutationInProgress = false;
+      this.mutationSequence += 1;
+    }
   }
 
   private async runOpenExternalFolderCommand(): Promise<void> {
@@ -130,7 +159,7 @@ export class Plugin extends ObsidianPlugin {
     await this.runMutatingCommand('open an external folder', async () => {
       const initialScanContext = await this.collectScanContext();
       if (initialScanContext.verifyReport.hasIntegrityErrors) {
-        new Notice('Cannot open an external folder while integrity errors exist. Run Verify for details.');
+        new Notice('Cannot open an external folder while integrity errors exist. Run the verify command for details.');
         new VerifyReportModal(this.app, initialScanContext.verifyReport, false).open();
         return;
       }
@@ -139,7 +168,7 @@ export class Plugin extends ObsidianPlugin {
         const uuidOutcome = await assignUuidToNote(this.app, activeFile);
         const refreshedScanContext = await this.collectScanContext();
         if (refreshedScanContext.verifyReport.hasIntegrityErrors) {
-          new Notice('Cannot create an external folder while integrity errors exist. Run Verify for details.');
+          new Notice('Cannot create an external folder while integrity errors exist. Run the verify command for details.');
           new VerifyReportModal(this.app, refreshedScanContext.verifyReport, false).open();
           return;
         }
@@ -165,27 +194,14 @@ export class Plugin extends ObsidianPlugin {
     });
   }
 
-  private async runMutatingCommand(
-    actionDescription: string,
-    operation: () => Promise<void>
-  ): Promise<void> {
-    if (this.isMutationInProgress) {
-      new Notice(`Cannot ${actionDescription} while another mutating command is already running.`);
-      return;
-    }
-
-    this.isMutationInProgress = true;
-    try {
-      await operation();
-    } finally {
-      this.isMutationInProgress = false;
-      this.mutationSequence += 1;
-    }
-  }
-
   private async runVerifyCommand(): Promise<void> {
     const { verifyReport } = await this.collectScanContext();
     new Notice(summarizeVerifyReport(verifyReport));
     new VerifyReportModal(this.app, verifyReport, this.isMutationInProgress).open();
+  }
+
+  private showUnexpectedError(error: unknown): void {
+    const message = error instanceof Error ? error.message : 'Command failed.';
+    new Notice(message);
   }
 }

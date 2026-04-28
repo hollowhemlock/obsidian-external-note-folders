@@ -15,7 +15,6 @@ import {
 import { resolvePathFromRoot } from 'obsidian-dev-utils/ScriptUtils/Root';
 
 /** Relative path to the on-repo sandbox vault's .obsidian config directory. */
-// eslint-disable-next-line obsidianmd/hardcoded-config-path -- filesystem path, not runtime Vault access
 const DEV_VAULT_PATH = 'test/fixtures/sandbox/vault/.obsidian';
 /** Relative path to the dev build output directory. */
 const DEV_DIST_PATH = 'dist/dev';

@@ -1,3 +1,11 @@
+export interface ExternalScanResult {
+  accessErrors: ScanIssue[];
+  bindings: Map<string, string>;
+  duplicatePaths: Map<string, string[]>;
+  malformedMarkers: ScanIssue[];
+  rootPath: string;
+}
+
 export interface ScanIssue {
   location: string;
   message: string;
@@ -7,14 +15,6 @@ export interface VaultScanResult {
   bindings: Map<string, string>;
   duplicatePaths: Map<string, string[]>;
   invalidFrontmatter: ScanIssue[];
-}
-
-export interface ExternalScanResult {
-  accessErrors: ScanIssue[];
-  bindings: Map<string, string>;
-  duplicatePaths: Map<string, string[]>;
-  malformedMarkers: ScanIssue[];
-  rootPath: string;
 }
 
 export interface VerifyReport {
@@ -65,10 +65,10 @@ export function buildVerifyReport(
   }
 
   const summaryText = [
-    `${errors.length} error(s)`,
-    `${warnings.length} warning(s)`,
-    `${unavailable.length} unavailable`,
-    `${ok.length} ok`
+    `${String(errors.length)} error(s)`,
+    `${String(warnings.length)} warning(s)`,
+    `${String(unavailable.length)} unavailable`,
+    `${String(ok.length)} ok`
   ].join(', ');
 
   return {

@@ -1,3 +1,5 @@
+import type { Dirent } from 'node:fs';
+
 import {
   readdir,
   readFile,
@@ -5,9 +7,10 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 
+import type { ExternalScanResult } from '../core/verify.ts';
+
 import { EXF_MARKER_FILE_NAME } from '../core/contracts.ts';
 import { parseExfMarker } from '../core/marker.ts';
-import type { ExternalScanResult } from '../core/verify.ts';
 
 export async function scanExternalRoot(externalRootPath: string): Promise<ExternalScanResult> {
   const trimmedRootPath = externalRootPath.trim();
@@ -51,6 +54,34 @@ export async function scanExternalRoot(externalRootPath: string): Promise<Extern
   return result;
 }
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown filesystem error.';
+}
+
+async function readDirectoryEntries(directoryPath: string): Promise<Dirent[]> {
+  return readdir(directoryPath, {
+    encoding: 'utf8',
+    withFileTypes: true
+  });
+}
+
+function registerBinding(
+  bindings: Map<string, string>,
+  duplicatePaths: Map<string, string[]>,
+  uuid: string,
+  folderPath: string
+): void {
+  const existingPath = bindings.get(uuid);
+  if (!existingPath) {
+    bindings.set(uuid, folderPath);
+    return;
+  }
+
+  const duplicateSet = new Set<string>(duplicatePaths.get(uuid) ?? [existingPath]);
+  duplicateSet.add(folderPath);
+  duplicatePaths.set(uuid, [...duplicateSet].sort());
+}
+
 async function walkDirectory(
   directoryPath: string,
   result: ExternalScanResult
@@ -92,32 +123,4 @@ async function walkDirectory(
       });
     }
   }
-}
-
-async function readDirectoryEntries(directoryPath: string) {
-  return readdir(directoryPath, {
-    encoding: 'utf8',
-    withFileTypes: true
-  });
-}
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Unknown filesystem error.';
-}
-
-function registerBinding(
-  bindings: Map<string, string>,
-  duplicatePaths: Map<string, string[]>,
-  uuid: string,
-  folderPath: string
-): void {
-  const existingPath = bindings.get(uuid);
-  if (!existingPath) {
-    bindings.set(uuid, folderPath);
-    return;
-  }
-
-  const duplicateSet = new Set<string>(duplicatePaths.get(uuid) ?? [existingPath]);
-  duplicateSet.add(folderPath);
-  duplicatePaths.set(uuid, [...duplicateSet].sort());
 }
