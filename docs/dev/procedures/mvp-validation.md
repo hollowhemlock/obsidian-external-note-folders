@@ -2,6 +2,8 @@
 
 This procedure defines the repeatable validation flow for work implementing `docs/dev/plans/mvp.md`.
 
+Use `docs/dev/procedures/mvp-implementation-workflow.md` before coding to define scope, sequencing, status tracking, and mutation safety expectations. Use this procedure after or during implementation to collect validation evidence.
+
 ## When to Use
 
 Use this procedure for any change that affects:

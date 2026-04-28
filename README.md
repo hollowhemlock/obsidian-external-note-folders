@@ -56,6 +56,7 @@ Local enforcement uses Husky `commit-msg` hook (installed by `npm install` via `
 ### Development policy references
 
 - TDD workflow: `docs/dev/procedures/tdd-workflow.md`
+- MVP implementation workflow: `docs/dev/procedures/mvp-implementation-workflow.md`
 - Review gate policy: `docs/dev/procedures/commit-pull-request-merge-review-gate.md`
 - MVP validation: `docs/dev/procedures/mvp-validation.md`
 - ADR index: `docs/dev/adr/README.md`
