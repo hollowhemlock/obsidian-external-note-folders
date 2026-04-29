@@ -3,6 +3,7 @@
 - `fixture`: committed baseline test data.
   - `fixture/vault`: baseline Obsidian vault.
   - `fixture/external-root`: baseline external root.
+- `fixture/vault/Smoke Test.md`: concise manual smoke test note copied into sandbox vaults.
 - `sandbox`: disposable working copy (ignored in git except `.gitkeep`).
   - `sandbox/vault`: runtime vault copy.
   - `sandbox/external-root`: runtime external-root copy.
