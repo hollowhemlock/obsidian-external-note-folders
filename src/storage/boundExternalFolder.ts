@@ -1,4 +1,7 @@
-import { execFile } from 'node:child_process';
+import {
+  execFile,
+  spawn
+} from 'node:child_process';
 import {
   access,
   lstat,
@@ -70,6 +73,15 @@ export async function openExternalFolderInFileManager(folderPath: string): Promi
   await access(folderPath);
 
   const command = getOpenCommand();
+  if (command.detached) {
+    const childProcess = spawn(command.file, [...command.arguments, folderPath], {
+      detached: true,
+      stdio: 'ignore'
+    });
+    childProcess.unref();
+    return;
+  }
+
   await new Promise<void>((resolve, reject) => {
     execFile(command.file, [...command.arguments, folderPath], (error) => {
       if (error) {
@@ -105,10 +117,11 @@ async function assertSafeCreationPath(externalRootPath: string, targetFolderPath
   throw new Error(`Derived external folder path is already occupied: ${targetFolderPath}`);
 }
 
-function getOpenCommand(): { arguments: string[]; file: string } {
+function getOpenCommand(): { arguments: string[]; detached: boolean; file: string } {
   if (process.platform === 'win32') {
     return {
       arguments: [],
+      detached: true,
       file: 'explorer.exe'
     };
   }
@@ -116,12 +129,14 @@ function getOpenCommand(): { arguments: string[]; file: string } {
   if (process.platform === 'darwin') {
     return {
       arguments: [],
+      detached: false,
       file: 'open'
     };
   }
 
   return {
     arguments: [],
+    detached: false,
     file: 'xdg-open'
   };
 }
