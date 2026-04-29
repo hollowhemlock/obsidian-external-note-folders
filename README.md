@@ -13,7 +13,7 @@ Phase 0 supports:
 - Creating a bound external folder on first open when no binding exists.
 - Verifying vault and external-root integrity.
 
-Phase 0 does not rename, move, delete, or reconcile existing external folders after a note is renamed or moved. Reconcile is planned for a later phase and must remain explicit.
+Phase 0 does not rename, move, delete, or reconcile existing external folders after a note is renamed or moved. Phase 0.5 will add a read-only drift report so users can find likely renamed or moved external folders without changing anything. Mutating reconcile is planned for a later phase and must remain explicit.
 
 ## Commands
 
@@ -33,6 +33,7 @@ Phase 0 does not rename, move, delete, or reconcile existing external folders af
 ## Known Limitations
 
 - Reconcile is not implemented in Phase 0, so external folders are not moved when notes are renamed or reorganized.
+- Phase 0.5 is planned as a report-only reconciliation aid. It will help identify likely matches, but it will not repair, move, rename, relink, or delete external folders.
 - Concurrent UUID assignment across unsynced devices can create orphan external folders.
 - Sync tool conflicts in note frontmatter or external marker files are outside the plugin's repair scope; `Verify external folders` surfaces the resulting state.
 

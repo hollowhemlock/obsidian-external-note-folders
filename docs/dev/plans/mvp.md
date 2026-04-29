@@ -2,12 +2,14 @@
 
 This plan defines a safe, minimal MVP aligned with ADR-0001 through ADR-0014.
 
-The plan is split into two phases:
+The plan is split into three phases:
 
 - **Phase 0** delivers the core value: UUID-linked external folders you can
   open from any note, plus a verification report. No reconcile.
-- **Phase 1** adds reconcile to keep external folder names in sync when notes
-  move or rename.
+- **Phase 0.5** adds a read-only reconciliation report for drift caused by note
+  renames or moves. It suggests likely matches but never mutates anything.
+- **Phase 1** adds explicit reconcile execution to keep external folder names in
+  sync when notes move or rename.
 
 ---
 
@@ -276,10 +278,84 @@ Reference:
 
 ---
 
+## Phase 0.5 — Read-Only Reconciliation Report
+
+Phase 0.5 exists because external folders may contain unique authoritative files.
+Before any mutating reconcile behavior ships, users need a safe way to inspect
+rename/move drift and identify likely matches without risking external data.
+
+### 1. Scope and Invariants
+
+- [ ] Read-only only: no vault frontmatter writes, external folder creation,
+      external folder moves, marker writes, marker edits, or deletions
+- [ ] Treat external folder contents as authoritative user data, never as a
+      disposable mirror
+- [ ] Preserve Phase 0 safety model: malformed markers, duplicate UUIDs,
+      boundary failures, and access failures are reported as errors
+- [ ] Do not infer external-to-vault mutations from folder names
+
+### 2. Reconciliation Report Command
+
+- [ ] Add command: `Report external folder drift`
+- [ ] Scan vault markdown notes and configured external root
+- [ ] Derive expected external folder path for each note using the current path
+      policy
+- [ ] Report notes whose UUID is bound to an existing external folder at a
+      non-expected path
+- [ ] Report notes whose expected external folder is missing
+- [ ] Report bound external folders whose UUID is not present in the vault
+- [ ] Report unmarked external folders that occupy expected target paths
+- [ ] Report likely matches between missing expected folders and existing
+      orphan/unexpected folders
+
+### 3. Match Heuristics
+
+- [ ] Prefer UUID-backed matches over name-only matches
+- [ ] Suggest same-parent rename matches when an existing folder is near the
+      expected folder path
+- [ ] Suggest normalized basename matches for case, punctuation, space, dash,
+      and Unicode normalization differences
+- [ ] Optional fuzzy scoring is advisory only and must show confidence/rationale
+- [ ] Never auto-select an action from a heuristic match
+
+### 4. UX and Logging
+
+- [ ] Show grouped report modal with counts and actionable sections
+- [ ] Include a copyable text/markdown report for support and manual cleanup
+- [ ] Log a structured console summary with the `[external-note-folders]` prefix
+- [ ] Clearly label the command as read-only
+- [ ] Explain that external folders may contain unique files and should be
+      backed up before manual repair
+
+### 5. Testing
+
+- [ ] Unit tests:
+  - [ ] drift classifier for expected, unexpected, missing, orphaned, occupied,
+        and error states
+  - [ ] match heuristics for same-parent rename and normalized basename cases
+  - [ ] assurance that the report path calls no mutation functions
+- [ ] Integration/manual matrix:
+  - [ ] note renamed after external folder creation
+  - [ ] note moved after external folder creation
+  - [ ] orphan bound folder
+  - [ ] unmarked occupied expected path
+  - [ ] malformed marker blocks confidence but still appears in report
+
+### Phase 0.5 Done Criteria
+
+- [ ] Report command is read-only by construction and test coverage
+- [ ] Users can identify likely renamed/moved external folders without any
+      automatic mutation
+- [ ] Report output is copyable from the UI or console
+- [ ] README documents that Phase 0.5 reports drift but does not repair it
+
+---
+
 ## Phase 1 — Reconcile
 
-Phase 1 adds reconcile to keep external folder paths in sync when vault notes
-move or rename. Ship after Phase 0 is validated by real usage.
+Phase 1 adds explicit reconcile execution to keep external folder paths in sync
+when vault notes move or rename. Ship after Phase 0.5 is validated by real
+usage, because external folders may contain unique authoritative files.
 
 ### 1. Filesystem Mutation Layer (additions)
 
