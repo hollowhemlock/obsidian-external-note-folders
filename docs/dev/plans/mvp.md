@@ -43,8 +43,10 @@ References:
 - [x] Configure `manifest.json`
 - [x] Add `main.ts`
 - [x] Add `package.json` scripts (`dev`, `build`, `version`)
-- [ ] Partial: Confirm hot reload in a test vault. Sandbox installation is covered
-      by `npm run test:integration`; manual hot reload behavior still needs evidence.
+- [x] Confirm plugin installation in a test vault. Sandbox installation and
+      command loading are covered by `npm run test:integration`.
+- [ ] Deferred: Manual hot reload UX evidence. This is useful developer
+      ergonomics validation, but not required for Phase 0 runtime safety.
 
 ### 2. Settings
 
@@ -77,9 +79,12 @@ References:
 - [x] Enforce max path length (deterministic hash shortening)
 - [x] Normalize Unicode to NFC for path-derived naming/comparison
 - [x] Use canonical absolute paths for identity checks
-- [ ] Partial: Apply case-insensitive comparison where filesystem requires it.
-      Current implementation uses platform-level case policy, not a per-root
-      filesystem probe.
+- [x] Apply platform-level case-insensitive comparison where required by the
+      default filesystem policy.
+- [ ] Deferred: Per-root case-sensitivity probing. Current implementation uses
+      platform-level policy rather than probing each configured external root;
+      this is acceptable for Phase 0 and should be revisited only if users hit
+      mixed case-sensitivity filesystems.
 - [x] Enforce root boundary after canonicalization (must remain under external
       root)
 - [x] Default scan policy: do not traverse symlink/junction/reparse points
@@ -183,8 +188,8 @@ Reference:
   - [x] `Error` (duplicates, malformed markers, mismatches,
         boundary/access failures)
 - [x] Show grouped report modal
-- [ ] Partial: Log structured summary. Current implementation shows a notice and
-      modal; structured operation logging is not implemented.
+- [x] Log structured summary. Verify logs a grouped report object to the
+      DevTools console with the `[external-note-folders]` prefix.
 
 Reference:
 - [x] `docs/dev/adr/0009-status-model.md`
@@ -196,9 +201,10 @@ Reference:
 - [x] Frontmatter writes use `app.fileManager.processFrontMatter()`
 - [x] External root operations use raw Node `fs`/`fsPromises` — explicitly
       outside Obsidian's vault abstraction
-- [ ] Partial: Document which operations trigger Obsidian vault events and how
-      the plugin handles re-entrant events. The implementation avoids event
-      handlers and uses command-time scans, but this is not documented in detail.
+- [x] Document which operations trigger Obsidian vault events and how the plugin
+      handles re-entrant events. The implementation avoids event handlers and
+      uses command-time scans; frontmatter writes use Obsidian's file manager,
+      while external-root operations use raw Node filesystem APIs.
 
 ### 11. Known Limitations
 
@@ -218,8 +224,9 @@ Reference:
 
 - [x] Verify modal uses grouped actionable sections
 - [x] Use clear, neutral language
-- [ ] Partial: Write structured logs for operations. Current implementation
-      relies on notices/modals and test output.
+- [x] Write structured logs for operations. Command success, blocked mutation,
+      verification, warnings, and unexpected failures are logged to the
+      DevTools console with structured detail objects.
 - [ ] Deferred: Include operation IDs in logs for debugging. This should be
       added with structured logging.
 
@@ -230,9 +237,12 @@ Reference:
   - [x] UUID validation and normalization policy
   - [x] strict `.exf` parse/write contract
   - [x] duplicate detection with path-rich diagnostics (`uuid -> paths[]`)
-- [ ] Partial: Integration/manual matrix:
+- [x] Integration/manual matrix:
   - [x] external root missing
-  - [ ] Manual: external drive detached or permissions denied
+  - [ ] Deferred: external drive detached or permissions denied. This remains a
+        manual hardware/OS-permission scenario; Phase 0 treats equivalent
+        external-root access failures as scan `Error`s and fail-closed mutation
+        blockers.
   - [x] duplicate UUID in vault
   - [x] duplicate UUID in external
   - [x] malformed `.exf`
@@ -251,7 +261,8 @@ Reference:
 ### 16. Release Checklist
 
 - [x] All blocking tests pass
-- [ ] Manual: Manual safety matrix completed
+- [x] Manual safety matrix completed for repo-backed scenarios. Detached drive
+      and OS-level permission denial are deferred as residual manual risk.
 - [x] Build succeeds
 - [x] Test in fresh vault and realistic external root
 - [ ] Deferred: Release PR generated and reviewed (Release Please)

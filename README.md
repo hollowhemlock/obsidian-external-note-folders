@@ -30,6 +30,18 @@ Phase 0 does not rename, move, delete, or reconcile existing external folders af
 - The plugin does not auto-rename folders to resolve conflicts.
 - External-root scans skip symlinks, junctions, and reparse points by default.
 
+## Obsidian Boundary
+
+Vault note reads use Obsidian's metadata cache, and `exf` frontmatter writes use
+Obsidian's file manager. External-root scans, folder creation, marker writes,
+and file-manager launches use Node filesystem/process APIs because they operate
+outside the vault.
+
+The plugin does not register vault event handlers or background watchers in
+Phase 0. Commands perform fresh scans at command time and serialize mutating
+work, so re-entrant vault events are not used to trigger automatic repair or
+reconciliation.
+
 ## Known Limitations
 
 - Reconcile is not implemented in Phase 0, so external folders are not moved when notes are renamed or reorganized.
