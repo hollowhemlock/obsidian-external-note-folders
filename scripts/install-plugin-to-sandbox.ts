@@ -39,13 +39,6 @@ async function ensureCommunityPluginEnabled(vaultPath: string, pluginId: string)
   await writeFile(communityPluginsPath, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
 }
 
-async function writeSandboxPluginSettings(pluginPath: string, externalRootPath: string): Promise<void> {
-  const settings: SandboxPluginSettings = {
-    externalRootPath
-  };
-  await writeFile(path.join(pluginPath, 'data.json'), `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
-}
-
 async function findArtifact(relativePaths: readonly string[]): Promise<string> {
   for (const relativePath of relativePaths) {
     const absolutePath = resolvePath(relativePath);
@@ -85,6 +78,13 @@ async function main(): Promise<void> {
 
 function resolvePath(relativePath: string): string {
   return resolvePathFromRoot(relativePath) ?? path.resolve(process.cwd(), relativePath);
+}
+
+async function writeSandboxPluginSettings(pluginPath: string, externalRootPath: string): Promise<void> {
+  const settings: SandboxPluginSettings = {
+    externalRootPath
+  };
+  await writeFile(path.join(pluginPath, 'data.json'), `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
 }
 
 // eslint-disable-next-line no-void -- script entry point

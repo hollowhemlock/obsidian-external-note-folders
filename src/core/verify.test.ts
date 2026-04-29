@@ -45,11 +45,32 @@ describe('verify report builder', () => {
       'Invalid frontmatter at Notes/Gamma.md: must be a canonical lowercase UUID.'
     ]);
     expect(report.ok).toEqual(['Notes/Alpha.md -> X:\\External\\Notes\\Alpha']);
+    expect(report.okRows).toEqual([
+      {
+        externalFolder: 'Notes/Alpha',
+        notePath: 'Notes/Alpha.md',
+        uuid: VALID_UUID
+      }
+    ]);
     expect(report.unavailable).toEqual([
       'Notes/Beta.md (123e4567-e89b-42d3-a456-426614174001) has no bound external folder.'
     ]);
+    expect(report.unavailableRows).toEqual([
+      {
+        externalFolder: null,
+        notePath: 'Notes/Beta.md',
+        uuid: '123e4567-e89b-42d3-a456-426614174001'
+      }
+    ]);
     expect(report.warnings).toEqual([
       'X:\\External\\Orphan (123e4567-e89b-42d3-a456-426614174999) is orphaned.'
+    ]);
+    expect(report.warningRows).toEqual([
+      {
+        externalFolder: 'Orphan',
+        notePath: null,
+        uuid: '123e4567-e89b-42d3-a456-426614174999'
+      }
     ]);
   });
 
@@ -76,8 +97,11 @@ describe('verify report builder', () => {
 
     expect(report.classificationOmitted).toBe(true);
     expect(report.ok).toEqual([]);
+    expect(report.okRows).toEqual([]);
     expect(report.unavailable).toEqual([]);
+    expect(report.unavailableRows).toEqual([]);
     expect(report.warnings).toEqual([]);
+    expect(report.warningRows).toEqual([]);
     expect(report.errors).toEqual([
       'External root access error at X:\\External: External root is not configured.'
     ]);

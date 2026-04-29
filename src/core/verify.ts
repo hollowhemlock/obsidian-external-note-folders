@@ -22,9 +22,18 @@ export interface VerifyReport {
   errors: string[];
   hasIntegrityErrors: boolean;
   ok: string[];
+  okRows: VerifyTableRow[];
   summaryText: string;
   unavailable: string[];
+  unavailableRows: VerifyTableRow[];
+  warningRows: VerifyTableRow[];
   warnings: string[];
+}
+
+export interface VerifyTableRow {
+  externalFolder: null | string;
+  notePath: null | string;
+  uuid: string;
 }
 
 export function buildVerifyReport(
@@ -44,22 +53,40 @@ export function buildVerifyReport(
 
   const classificationOmitted = externalScan.accessErrors.length > 0;
   const ok: string[] = [];
+  const okRows: VerifyTableRow[] = [];
   const unavailable: string[] = [];
+  const unavailableRows: VerifyTableRow[] = [];
   const warnings: string[] = [];
+  const warningRows: VerifyTableRow[] = [];
 
   if (!classificationOmitted) {
     for (const [uuid, notePath] of sortEntries(vaultScan.bindings)) {
       const boundFolderPath = externalScan.bindings.get(uuid);
       if (boundFolderPath) {
         ok.push(`${notePath} -> ${boundFolderPath}`);
+        okRows.push({
+          externalFolder: toExternalRelativePath(externalScan.rootPath, boundFolderPath),
+          notePath,
+          uuid
+        });
       } else {
         unavailable.push(`${notePath} (${uuid}) has no bound external folder.`);
+        unavailableRows.push({
+          externalFolder: null,
+          notePath,
+          uuid
+        });
       }
     }
 
     for (const [uuid, boundFolderPath] of sortEntries(externalScan.bindings)) {
       if (!vaultScan.bindings.has(uuid)) {
         warnings.push(`${boundFolderPath} (${uuid}) is orphaned.`);
+        warningRows.push({
+          externalFolder: toExternalRelativePath(externalScan.rootPath, boundFolderPath),
+          notePath: null,
+          uuid
+        });
       }
     }
   }
@@ -76,8 +103,11 @@ export function buildVerifyReport(
     errors,
     hasIntegrityErrors: errors.length > 0,
     ok: ok.sort(),
+    okRows: sortRows(okRows),
     summaryText,
     unavailable: unavailable.sort(),
+    unavailableRows: sortRows(unavailableRows),
+    warningRows: sortRows(warningRows),
     warnings: warnings.sort()
   };
 }
@@ -93,6 +123,34 @@ function formatDuplicateErrors(scopeLabel: string, duplicatePaths: Map<string, s
   });
 }
 
+function normalizeDisplayPath(input: string): string {
+  return input.replace(/\\/gu, '/');
+}
+
 function sortEntries<T>(map: Map<string, T>): [string, T][] {
   return [...map.entries()].sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey));
+}
+
+function sortRows(rows: VerifyTableRow[]): VerifyTableRow[] {
+  return rows.sort((left, right) => {
+    const leftKey = `${left.notePath ?? ''}\0${left.externalFolder ?? ''}\0${left.uuid}`;
+    const rightKey = `${right.notePath ?? ''}\0${right.externalFolder ?? ''}\0${right.uuid}`;
+    return leftKey.localeCompare(rightKey);
+  });
+}
+
+function toExternalRelativePath(externalRootPath: string, folderPath: string): string {
+  const normalizedRootPath = normalizeDisplayPath(externalRootPath).replace(/\/+$/u, '');
+  const normalizedFolderPath = normalizeDisplayPath(folderPath);
+
+  if (normalizedFolderPath === normalizedRootPath) {
+    return '.';
+  }
+
+  const rootPrefix = `${normalizedRootPath}/`;
+  if (normalizedFolderPath.startsWith(rootPrefix)) {
+    return normalizedFolderPath.slice(rootPrefix.length);
+  }
+
+  return normalizedFolderPath;
 }

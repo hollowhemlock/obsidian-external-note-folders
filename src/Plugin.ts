@@ -28,6 +28,10 @@ interface ScanContext {
   verifyReport: ReturnType<typeof buildVerifyReport>;
 }
 
+interface VaultAdapterWithBasePath {
+  getBasePath: () => string;
+}
+
 const LOG_PREFIX = '[external-note-folders]';
 
 export class Plugin extends ObsidianPlugin {
@@ -93,6 +97,15 @@ export class Plugin extends ObsidianPlugin {
     }
 
     return activeFile;
+  }
+
+  private getVaultRootPath(): string {
+    const adapter = this.app.vault.adapter as Partial<VaultAdapterWithBasePath>;
+    if (typeof adapter.getBasePath === 'function') {
+      return adapter.getBasePath();
+    }
+
+    return this.app.vault.getName();
   }
 
   private async loadSettings(): Promise<void> {
@@ -247,6 +260,11 @@ export class Plugin extends ObsidianPlugin {
   }
 
   private async runVerifyCommand(): Promise<void> {
+    this.logInfo('verify started', {
+      externalRootPath: this.settings.externalRootPath,
+      vaultRootPath: this.getVaultRootPath()
+    });
+
     const { verifyReport } = await this.collectScanContext();
     new Notice(summarizeVerifyReport(verifyReport));
     this.logInfo('verify complete', { report: verifyReport });

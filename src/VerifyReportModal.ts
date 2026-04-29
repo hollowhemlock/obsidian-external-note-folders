@@ -1,6 +1,9 @@
 import { Modal } from 'obsidian';
 
-import type { VerifyReport } from './core/verify.ts';
+import type {
+  VerifyReport,
+  VerifyTableRow
+} from './core/verify.ts';
 
 export class VerifyReportModal extends Modal {
   public constructor(
@@ -34,13 +37,42 @@ export class VerifyReportModal extends Modal {
       });
     }
 
-    this.renderSection(contentEl, 'Errors', this.verifyReport.errors, 'No integrity errors detected.');
-    this.renderSection(contentEl, 'Warnings', this.verifyReport.warnings, 'No orphan bound folders detected.');
-    this.renderSection(contentEl, 'Unavailable', this.verifyReport.unavailable, 'No missing bound folders detected.');
-    this.renderSection(contentEl, 'OK', this.verifyReport.ok, 'No healthy bindings were discovered.');
+    this.renderTextSection(contentEl, 'Errors', this.verifyReport.errors, 'No integrity errors detected.');
+    this.renderTableSection(contentEl, 'Warnings', this.verifyReport.warningRows, 'No orphan bound folders detected.');
+    this.renderTableSection(contentEl, 'Unavailable', this.verifyReport.unavailableRows, 'No missing bound folders detected.');
+    this.renderTableSection(contentEl, 'OK', this.verifyReport.okRows, 'No healthy bindings were discovered.');
   }
 
-  private renderSection(
+  private renderTableSection(
+    containerEl: HTMLElement,
+    title: string,
+    rows: readonly VerifyTableRow[],
+    emptyMessage: string
+  ): void {
+    containerEl.createEl('h3', { text: title });
+    if (rows.length === 0) {
+      containerEl.createEl('p', { text: emptyMessage });
+      return;
+    }
+
+    const tableEl = containerEl.createEl('table');
+    tableEl.addClass('external-note-folders-verify-table');
+
+    const headerRowEl = tableEl.createEl('thead').createEl('tr');
+    headerRowEl.createEl('th', { text: 'Vault file' });
+    headerRowEl.createEl('th', { text: 'External folder' });
+    headerRowEl.createEl('th', { text: 'UUID' });
+
+    const bodyEl = tableEl.createEl('tbody');
+    for (const row of rows) {
+      const rowEl = bodyEl.createEl('tr');
+      rowEl.createEl('td', { text: row.notePath ?? '-' });
+      rowEl.createEl('td', { text: row.externalFolder ?? '-' });
+      rowEl.createEl('td', { text: row.uuid });
+    }
+  }
+
+  private renderTextSection(
     containerEl: HTMLElement,
     title: string,
     items: readonly string[],
