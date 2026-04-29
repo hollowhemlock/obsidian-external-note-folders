@@ -13,73 +13,83 @@ The plan is split into two phases:
 
 ## Phase 0 — Core
 
+Status legend:
+
+- `[x]` implemented and covered by automated validation or documentation.
+- `[ ] Partial:` implemented incompletely or still needs manual evidence.
+- `[ ] Deferred:` intentionally outside Phase 0 completion.
+
 ### 0. Scope and Invariants
 
-- [ ] Vault is source of truth (`exf` UUID in note frontmatter)
-- [ ] No deletions of vault files, external folders, or `.exf` markers
-- [ ] No conflict-based surprise renames — plugin never renames folders to
+- [x] Vault is source of truth (`exf` UUID in note frontmatter)
+- [x] No deletions of vault files, external folders, or `.exf` markers
+- [x] No conflict-based surprise renames — plugin never renames folders to
       dodge collisions (deterministic path derivation including sanitization
       and hash shortening is normal creation behavior, not renaming)
-- [ ] External state never drives vault mutations
-- [ ] Exactly one external root is configured
+- [x] External state never drives vault mutations
+- [x] Exactly one external root is configured
 
 References:
-- [ ] `docs/dev/adr/0001-vault-is-source-of-truth.md`
-- [ ] `docs/dev/adr/0003-no-deletions.md`
-- [ ] `docs/dev/adr/0004-single-external-root.md`
-- [ ] `docs/dev/adr/0008-no-reverse-reconciliation.md`
+- [x] `docs/dev/adr/0001-vault-is-source-of-truth.md`
+- [x] `docs/dev/adr/0003-no-deletions.md`
+- [x] `docs/dev/adr/0004-single-external-root.md`
+- [x] `docs/dev/adr/0008-no-reverse-reconciliation.md`
 
 ### 1. Repo and Plugin Setup
 
-- [ ] Initialize Obsidian plugin scaffold per ADR-0010 (TypeScript + build)
-- [ ] Configure `manifest.json`
-- [ ] Add `main.ts`
-- [ ] Add `package.json` scripts (`dev`, `build`, `version`)
-- [ ] Confirm hot reload in a test vault
+- [x] Initialize Obsidian plugin scaffold per ADR-0010 (TypeScript + build)
+- [x] Configure `manifest.json`
+- [x] Add `main.ts`
+- [x] Add `package.json` scripts (`dev`, `build`, `version`)
+- [ ] Partial: Confirm hot reload in a test vault. Sandbox installation is covered
+      by `npm run test:integration`; manual hot reload behavior still needs evidence.
 
 ### 2. Settings
 
-- [ ] Add settings tab
-- [ ] Add External Root setting (absolute path)
-- [ ] Validate configured path is absolute
-- [ ] On settings change, invalidate scan cache
+- [x] Add settings tab
+- [x] Add External Root setting (absolute path)
+- [x] Validate configured path is absolute
+- [ ] Deferred: On settings change, invalidate scan cache. Phase 0 does not keep
+      a scan cache, so there is nothing to invalidate.
 
 ### 3. UUID and Marker Contract
 
-- [ ] UUID helper: generate canonical lowercase RFC 4122 UUID
-- [ ] UUID helper: strict UUID validation (no permissive coercion)
-- [ ] Frontmatter helper for `exf` read/write
-- [ ] `.exf` writer uses UTF-8 without BOM and trailing `\n`
-- [ ] `.exf` parser accepts only one UUID line plus optional trailing newline
-- [ ] `.exf` parser rejects BOM, extra lines, extra content, non-canonical UUID
-- [ ] Any malformed `.exf` is `Error` and blocks mutation
+- [x] UUID helper: generate canonical lowercase RFC 4122 UUID
+- [x] UUID helper: strict UUID validation (no permissive coercion)
+- [x] Frontmatter helper for `exf` read/write
+- [x] `.exf` writer uses UTF-8 without BOM and trailing `\n`
+- [x] `.exf` parser accepts only one UUID line plus optional trailing newline
+- [x] `.exf` parser rejects BOM, extra lines, extra content, non-canonical UUID
+- [x] Any malformed `.exf` is `Error` and blocks mutation
 
 References:
-- [ ] `docs/dev/adr/0005-bound-folder-marker.md`
-- [ ] `docs/dev/adr/0014-exf-marker-format-and-validation.md`
+- [x] `docs/dev/adr/0005-bound-folder-marker.md`
+- [x] `docs/dev/adr/0014-exf-marker-format-and-validation.md`
 
 ### 4. Path and Filesystem Boundary Policy
 
-- [ ] Derive vault-relative path without `.md`
-- [ ] Normalize path separators
-- [ ] Sanitize illegal characters (Windows-safe)
-- [ ] Handle reserved names and trailing dots/spaces
-- [ ] Enforce max path length (deterministic hash shortening)
-- [ ] Normalize Unicode to NFC for path-derived naming/comparison
-- [ ] Use canonical absolute paths for identity checks
-- [ ] Apply case-insensitive comparison where filesystem requires it
-- [ ] Enforce root boundary after canonicalization (must remain under external
+- [x] Derive vault-relative path without `.md`
+- [x] Normalize path separators
+- [x] Sanitize illegal characters (Windows-safe)
+- [x] Handle reserved names and trailing dots/spaces
+- [x] Enforce max path length (deterministic hash shortening)
+- [x] Normalize Unicode to NFC for path-derived naming/comparison
+- [x] Use canonical absolute paths for identity checks
+- [ ] Partial: Apply case-insensitive comparison where filesystem requires it.
+      Current implementation uses platform-level case policy, not a per-root
+      filesystem probe.
+- [x] Enforce root boundary after canonicalization (must remain under external
       root)
-- [ ] Default scan policy: do not traverse symlink/junction/reparse points
+- [x] Default scan policy: do not traverse symlink/junction/reparse points
 
 Reference:
-- [ ] `docs/dev/adr/0013-filesystem-boundary-and-path-identity.md`
+- [x] `docs/dev/adr/0013-filesystem-boundary-and-path-identity.md`
 
 ### 5. Vault Scan
 
-- [ ] Scan markdown notes and collect `Map<uuid, notePath>`
-- [ ] Detect duplicate UUIDs in vault and classify as `Error`
-- [ ] Use Obsidian metadata cache for scan (see Section 10 — API Boundary)
+- [x] Scan markdown notes and collect `Map<uuid, notePath>`
+- [x] Detect duplicate UUIDs in vault and classify as `Error`
+- [x] Use Obsidian metadata cache for scan (see Section 10 — API Boundary)
 
 Function:
 
@@ -92,12 +102,12 @@ scanVaultUUIDs(): {
 
 ### 6. External Root Scan
 
-- [ ] Recursively discover `.exf` files under external root boundary
-- [ ] Parse and validate markers with strict contract
-- [ ] Build `Map<uuid, boundFolderPath>`
-- [ ] Detect duplicate UUIDs in external root and classify as `Error`
-- [ ] Detect malformed markers and classify as `Error`
-- [ ] Surface permission/read failures as `Error` (not `Unavailable`)
+- [x] Recursively discover `.exf` files under external root boundary
+- [x] Parse and validate markers with strict contract
+- [x] Build `Map<uuid, boundFolderPath>`
+- [x] Detect duplicate UUIDs in external root and classify as `Error`
+- [x] Detect malformed markers and classify as `Error`
+- [x] Surface permission/read failures as `Error` (not `Unavailable`)
 
 Function:
 
@@ -114,148 +124,154 @@ scanExternalRoot(): {
 
 Implement one guarded module for all mutations.
 
-- [ ] `ensureDir(path)` with boundary checks
-- [ ] `writeMarker(boundFolder, uuid)` with overwrite refusal on conflicting
+- [x] `ensureDir(path)` with boundary checks
+- [x] `writeMarker(boundFolder, uuid)` with overwrite refusal on conflicting
       UUID
-- [ ] `openInExplorer(path)` with explicit error handling for
+- [x] `openInExplorer(path)` with explicit error handling for
       missing/inaccessible paths
-- [ ] Enforce no-deletion invariant in all mutation code paths
+- [x] Enforce no-deletion invariant in all mutation code paths
 
 ### 8. Command Serialization and Locking
 
-- [ ] Implement single-flight lock for mutating commands
-- [ ] Mutating commands: `Open External Folder` (when creating), `Assign UUID`
+- [x] Implement single-flight lock for mutating commands
+- [x] Mutating commands: `Open External Folder` (when creating), `Assign UUID`
       (when writing)
-- [ ] Global mutation preflight for every mutating command:
-  - [ ] Run vault + external integrity scan immediately before mutation
-  - [ ] If any integrity `Error` exists anywhere, abort mutation with grouped
+- [x] Global mutation preflight for every mutating command:
+  - [x] Run vault + external integrity scan immediately before mutation
+  - [x] If any integrity `Error` exists anywhere, abort mutation with grouped
         actionable notice
-  - [ ] This includes external access/boundary failures (strict fail-closed)
-- [ ] Reject overlapping mutating commands with clear user notice
-- [ ] Read-only commands (Verify) may run during mutation but results must be
+  - [x] This includes external access/boundary failures (strict fail-closed)
+- [x] Reject overlapping mutating commands with clear user notice
+- [x] Read-only commands (Verify) may run during mutation but results must be
       labeled as possibly stale
-- [ ] Lock release guaranteed on success and failure paths
+- [x] Lock release guaranteed on success and failure paths
 
 Reference:
-- [ ] `docs/dev/adr/0012-command-serialization-and-concurrency.md`
+- [x] `docs/dev/adr/0012-command-serialization-and-concurrency.md`
 
 ### 9. Commands
 
 #### 9.1 Assign UUID
 
-- [ ] Run global mutation preflight and abort on any integrity `Error`
-- [ ] If UUID missing: generate and write
-- [ ] If UUID exists: no-op + notice
-- [ ] Never mutate external root from this command
+- [x] Run global mutation preflight and abort on any integrity `Error`
+- [x] If UUID missing: generate and write
+- [x] If UUID exists: no-op + notice
+- [x] Never mutate external root from this command
 
 #### 9.2 Open External Folder
 
-- [ ] If UUID missing: assign UUID first
-- [ ] Run global mutation preflight and abort on any integrity `Error`
-- [ ] Scan external map
-- [ ] If UUID already bound: open existing folder
-- [ ] If UUID unbound:
-  - [ ] Derive target path using path policy
-  - [ ] If target path occupied: report conflict and abort with notice
-  - [ ] Create directory
-  - [ ] Write `.exf`
-  - [ ] Open folder
+- [x] If UUID missing: assign UUID first
+- [x] Run global mutation preflight and abort on any integrity `Error`
+- [x] Scan external map
+- [x] If UUID already bound: open existing folder
+- [x] If UUID unbound:
+  - [x] Derive target path using path policy
+  - [x] If target path occupied: report conflict and abort with notice
+  - [x] Create directory
+  - [x] Write `.exf`
+  - [x] Open folder
 
 #### 9.3 Verify
 
-- [ ] Scan vault and external
-- [ ] Categorize:
-  - [ ] `OK`
-  - [ ] `Unavailable` (vault UUID with no bound external folder)
-  - [ ] `Warning` (orphan bound folder)
-  - [ ] `Error` (duplicates, malformed markers, mismatches,
+- [x] Scan vault and external
+- [x] Categorize:
+  - [x] `OK`
+  - [x] `Unavailable` (vault UUID with no bound external folder)
+  - [x] `Warning` (orphan bound folder)
+  - [x] `Error` (duplicates, malformed markers, mismatches,
         boundary/access failures)
-- [ ] Show grouped report modal
-- [ ] Log structured summary
+- [x] Show grouped report modal
+- [ ] Partial: Log structured summary. Current implementation shows a notice and
+      modal; structured operation logging is not implemented.
 
 Reference:
-- [ ] `docs/dev/adr/0009-status-model.md`
+- [x] `docs/dev/adr/0009-status-model.md`
 
 ### 10. Obsidian API Boundary
 
-- [ ] Vault scan uses `app.metadataCache` for reading frontmatter UUIDs —
+- [x] Vault scan uses `app.metadataCache` for reading frontmatter UUIDs —
       document freshness guarantee
-- [ ] Frontmatter writes use `app.fileManager.processFrontMatter()`
-- [ ] External root operations use raw Node `fs`/`fsPromises` — explicitly
+- [x] Frontmatter writes use `app.fileManager.processFrontMatter()`
+- [x] External root operations use raw Node `fs`/`fsPromises` — explicitly
       outside Obsidian's vault abstraction
-- [ ] Document which operations trigger Obsidian vault events and how the
-      plugin handles re-entrant events
+- [ ] Partial: Document which operations trigger Obsidian vault events and how
+      the plugin handles re-entrant events. The implementation avoids event
+      handlers and uses command-time scans, but this is not documented in detail.
 
 ### 11. Known Limitations
 
-- [ ] Document: concurrent UUID assignment across unsynced devices can create
+- [x] Document: concurrent UUID assignment across unsynced devices can create
       orphan external folders
-- [ ] Document: sync tool conflicts on frontmatter are outside plugin scope
+- [x] Document: sync tool conflicts on frontmatter are outside plugin scope
 
 ### 12. Caching Rules
 
-- [ ] Cache is optional for read-only UX, not required for correctness
-- [ ] Invalidate cache on settings change and folder creation
-- [ ] Label cached verify results when freshness is uncertain
+- [x] Cache is optional for read-only UX, not required for correctness
+- [ ] Deferred: Invalidate cache on settings change and folder creation. Phase 0
+      does not keep a scan cache.
+- [ ] Deferred: Label cached verify results when freshness is uncertain. Phase 0
+      does not keep a scan cache.
 
 ### 13. UX and Logging
 
-- [ ] Verify modal uses grouped actionable sections
-- [ ] Use clear, neutral language
-- [ ] Write structured logs for operations
-- [ ] Include operation IDs in logs for debugging
+- [x] Verify modal uses grouped actionable sections
+- [x] Use clear, neutral language
+- [ ] Partial: Write structured logs for operations. Current implementation
+      relies on notices/modals and test output.
+- [ ] Deferred: Include operation IDs in logs for debugging. This should be
+      added with structured logging.
 
 ### 14. Testing
 
-- [ ] Unit tests:
-  - [ ] path sanitization/canonicalization/boundary checks
-  - [ ] UUID validation and normalization policy
-  - [ ] strict `.exf` parse/write contract
-  - [ ] duplicate detection with path-rich diagnostics (`uuid -> paths[]`)
-- [ ] Integration/manual matrix:
-  - [ ] external root missing
-  - [ ] external drive detached or permissions denied
-  - [ ] duplicate UUID in vault
-  - [ ] duplicate UUID in external
-  - [ ] malformed `.exf`
-  - [ ] occupied target path on Open External Folder
-  - [ ] symlink/junction/root-escape attempts
+- [x] Unit tests:
+  - [x] path sanitization/canonicalization/boundary checks
+  - [x] UUID validation and normalization policy
+  - [x] strict `.exf` parse/write contract
+  - [x] duplicate detection with path-rich diagnostics (`uuid -> paths[]`)
+- [ ] Partial: Integration/manual matrix:
+  - [x] external root missing
+  - [ ] Manual: external drive detached or permissions denied
+  - [x] duplicate UUID in vault
+  - [x] duplicate UUID in external
+  - [x] malformed `.exf`
+  - [x] occupied target path on Open External Folder
+  - [x] symlink/junction/root-escape attempts
 
 ### 15. Documentation
 
-- [ ] README covers:
-  - [ ] what plugin does and does not do
-  - [ ] command semantics (Assign UUID, Open External Folder, Verify)
-  - [ ] no-deletions guarantee
-  - [ ] known limitations (sync, orphan accumulation)
-- [ ] Link ADR index
+- [x] README covers:
+  - [x] what plugin does and does not do
+  - [x] command semantics (Assign UUID, Open External Folder, Verify)
+  - [x] no-deletions guarantee
+  - [x] known limitations (sync, orphan accumulation)
+- [x] Link ADR index
 
 ### 16. Release Checklist
 
-- [ ] All blocking tests pass
-- [ ] Manual safety matrix completed
-- [ ] Build succeeds
-- [ ] Test in fresh vault and realistic external root
-- [ ] Release PR generated and reviewed (Release Please)
-- [ ] Changelog updated (`CHANGELOG.md`) in release PR
-- [ ] Version bump propagated to `package.json` and `manifest.json` in release PR
-- [ ] Release PR merged
-- [ ] GitHub release published and required assets uploaded
-- [ ] `versions.json` updated on `main` for released version/min app version
+- [x] All blocking tests pass
+- [ ] Manual: Manual safety matrix completed
+- [x] Build succeeds
+- [x] Test in fresh vault and realistic external root
+- [ ] Deferred: Release PR generated and reviewed (Release Please)
+- [ ] Deferred: Changelog updated (`CHANGELOG.md`) in release PR
+- [ ] Deferred: Version bump propagated to `package.json` and `manifest.json` in release PR
+- [ ] Deferred: Release PR merged
+- [ ] Deferred: GitHub release published and required assets uploaded
+- [ ] Deferred: `versions.json` updated on `main` for released version/min app version
 
 Reference:
-- [ ] `docs/dev/adr/0020-release-please-for-versioning-and-changelog.md`
-- [ ] `docs/dev/procedures/release.md`
+- [x] `docs/dev/adr/0020-release-please-for-versioning-and-changelog.md`
+- [x] `docs/dev/procedures/release.md`
 
 ### Phase 0 Done Criteria
 
-- [ ] Verify reports `Unavailable` (not `Error`) for notes with no external
+- [x] Verify reports `Unavailable` (not `Error`) for notes with no external
       folder
-- [ ] Any integrity `Error` blocks mutation
-- [ ] Mutating commands are serialized by lock
-- [ ] Boundary checks prevent scan/mutation outside configured external root
-- [ ] Strict malformed `.exf` handling is enforced and user-visible
-- [ ] Occupied target path on Open External Folder reports conflict, does not
+- [x] Any integrity `Error` blocks mutation
+- [x] Mutating commands are serialized by lock
+- [x] Boundary checks prevent scan/mutation outside configured external root
+- [x] Strict malformed `.exf` handling is enforced and user-visible
+- [x] Occupied target path on Open External Folder reports conflict, does not
       auto-rename
 
 ---
