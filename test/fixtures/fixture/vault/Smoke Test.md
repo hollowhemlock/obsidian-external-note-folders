@@ -4,10 +4,8 @@ Use this note for a quick manual pass in the sandbox vault.
 
 ## Setup
 
-- Run `npm run fixtures:new-sandbox`.
-- Run `npm run build`.
-- Run `jiti scripts/install-plugin-to-sandbox.ts`.
-- Open `test/fixtures/sandbox/vault` in Obsidian.
+- Run `npm run integration:prepare`.
+- Run `npm run fixtures:open-sandbox`.
 - Confirm the plugin setting points to `test/fixtures/sandbox/external-root`.
 
 ## Commands
