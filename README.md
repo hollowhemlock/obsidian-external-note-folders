@@ -109,15 +109,17 @@ To install the latest beta release of this plugin (regardless if it is available
 
 ## Debugging
 
-By default, debug messages for this plugin are hidden.
+The plugin writes command outcomes and verification summaries to the Obsidian DevTools console with
+the prefix `[external-note-folders]`. Normal outcome logs use `console.debug`, so enable `Verbose`
+logs in the console settings to see them. Warnings and errors are always shown by default.
 
-To show them, run the following command in the `DevTools Console`:
+To inspect logs, open `Developer Tools` in Obsidian and filter the console for:
 
-```js
-window.DEBUG.enable('external-note-folders');
+```text
+[external-note-folders]
 ```
 
-For more details, refer to the [documentation](https://github.com/mnaoumov/obsidian-dev-utils/blob/main/docs/debugging.md).
+The plugin does not use `window.DEBUG`.
 
 ## Development Fixtures
 
