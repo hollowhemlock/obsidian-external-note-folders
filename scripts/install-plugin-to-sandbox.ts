@@ -12,6 +12,10 @@ interface Manifest {
   id: string;
 }
 
+interface SandboxPluginSettings {
+  externalRootPath: string;
+}
+
 const CANDIDATE_ARTIFACT_PATHS = {
   mainJs: ['main.js', 'dist/build/main.js'],
   manifestJson: ['manifest.json', 'dist/build/manifest.json'],
@@ -19,6 +23,7 @@ const CANDIDATE_ARTIFACT_PATHS = {
 };
 
 const SANDBOX_VAULT_RELATIVE_PATH = 'test/fixtures/sandbox/vault';
+const SANDBOX_EXTERNAL_ROOT_RELATIVE_PATH = 'test/fixtures/sandbox/external-root';
 const COMMUNITY_PLUGINS_RELATIVE_PATH = '.obsidian/community-plugins.json';
 
 async function ensureCommunityPluginEnabled(vaultPath: string, pluginId: string): Promise<void> {
@@ -32,6 +37,13 @@ async function ensureCommunityPluginEnabled(vaultPath: string, pluginId: string)
 
   parsed.push(pluginId);
   await writeFile(communityPluginsPath, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
+}
+
+async function writeSandboxPluginSettings(pluginPath: string, externalRootPath: string): Promise<void> {
+  const settings: SandboxPluginSettings = {
+    externalRootPath
+  };
+  await writeFile(path.join(pluginPath, 'data.json'), `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
 }
 
 async function findArtifact(relativePaths: readonly string[]): Promise<string> {
@@ -55,6 +67,7 @@ async function main(): Promise<void> {
 
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as unknown as Manifest;
   const sandboxVaultPath = resolvePath(SANDBOX_VAULT_RELATIVE_PATH);
+  const sandboxExternalRootPath = resolvePath(SANDBOX_EXTERNAL_ROOT_RELATIVE_PATH);
 
   const pluginPath = path.join(sandboxVaultPath, '.obsidian', 'plugins', manifest.id);
   await mkdir(pluginPath, { recursive: true });
@@ -64,8 +77,10 @@ async function main(): Promise<void> {
   await copyFile(manifestPath, path.join(pluginPath, 'manifest.json'));
 
   await ensureCommunityPluginEnabled(sandboxVaultPath, manifest.id);
+  await writeSandboxPluginSettings(pluginPath, sandboxExternalRootPath);
 
   console.log(`Installed plugin '${manifest.id}' to sandbox: ${pluginPath}`);
+  console.log(`Configured sandbox external root: ${sandboxExternalRootPath}`);
 }
 
 function resolvePath(relativePath: string): string {
