@@ -1,7 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import {
   access,
-  readFile
+  mkdir,
+  readFile,
+  writeFile
 } from 'node:fs/promises';
 import path from 'node:path';
 import { resolvePathFromRoot } from 'obsidian-dev-utils/ScriptUtils/Root';
@@ -27,6 +29,14 @@ type Manifest = {
 const CLI_TIMEOUT_MILLISECONDS = 3_000;
 const COMMAND_REGISTRATION_ATTEMPTS = 1;
 const COMMAND_REGISTRATION_RETRY_DELAY_MILLISECONDS = 500;
+const DRIFT_MATRIX_PREFIX = `Phase-0-5-Cli-${Date.now().toString()}`;
+const DRIFT_UUIDS = {
+  malformedReference: '123e4567-e89b-42d3-a456-426614174204',
+  moved: '123e4567-e89b-42d3-a456-426614174201',
+  occupied: '123e4567-e89b-42d3-a456-426614174202',
+  orphan: '123e4567-e89b-42d3-a456-426614174203',
+  renamed: '123e4567-e89b-42d3-a456-426614174200'
+};
 const WINDOWS_CLI_CANDIDATES = [
   'Obsidian.com',
   'obsidian.com',
@@ -46,6 +56,16 @@ function formatCliResult(result: CliResult): string {
 
 function isEnvironmentUnavailable(result: CliResult): boolean {
   return result.status === null || result.stdout.includes('Command line interface is not enabled.');
+}
+
+function assertCliAvailable(result: CliResult): boolean {
+  if (isEnvironmentUnavailable(result)) {
+    console.warn(`Skipping Obsidian CLI assertions because the CLI environment is unavailable.\n${formatCliResult(result)}`);
+    return false;
+  }
+
+  expect(result.status, formatCliResult(result)).toBe(0);
+  return true;
 }
 
 function getCliCandidates(): string[] {
@@ -98,6 +118,10 @@ function runCli(args: readonly string[], vaultPath: string): CliResult {
   };
 }
 
+function runSandboxCli(args: readonly string[]): CliResult {
+  return runCli(args, resolvePath('test/fixtures/sandbox/vault'));
+}
+
 async function delay(milliseconds: number): Promise<void> {
   await new Promise<void>((resolve) => {
     setTimeout(resolve, milliseconds);
@@ -117,6 +141,23 @@ async function waitForPluginCommands(pluginId: string, vaultPath: string): Promi
   }
 
   return latestResult;
+}
+
+async function createCliNote(notePath: string, uuid: string): Promise<void> {
+  const createResult = runSandboxCli([
+    'create',
+    `path=${notePath}`,
+    `content=---\nexf: ${uuid}\n---\n\nCLI drift matrix note.`,
+    'overwrite'
+  ]);
+  expect(createResult.status, formatCliResult(createResult)).toBe(0);
+}
+
+async function writeMarker(externalFolderRelativePath: string, markerContent: string): Promise<void> {
+  const externalRootPath = resolvePath('test/fixtures/sandbox/external-root');
+  const folderPath = path.join(externalRootPath, externalFolderRelativePath);
+  await mkdir(folderPath, { recursive: true });
+  await writeFile(path.join(folderPath, '.exf'), markerContent, 'utf8');
 }
 
 describe('obsidian CLI integration', () => {
@@ -190,5 +231,58 @@ describe('obsidian CLI integration', () => {
     expect(combinedOutput).toContain(`${pluginId}:open-external-folder`);
     expect(combinedOutput).toContain(`${pluginId}:report-external-folder-drift`);
     expect(combinedOutput).not.toContain(`${pluginId}:verify-external-folders`);
+  });
+
+  it('executes the read-only drift report command against CLI-created drift scenarios', async () => {
+    const commandsResult = await waitForPluginCommands(pluginId, sandboxVaultPath);
+    if (!assertCliAvailable(commandsResult)) {
+      return;
+    }
+
+    const matrixFolder = DRIFT_MATRIX_PREFIX;
+    const renamedNotePath = `${matrixFolder}/Renamed/New Name.md`;
+    const movedNotePath = `${matrixFolder}/Moved/New Place/Move Me.md`;
+    const occupiedNotePath = `${matrixFolder}/Occupied/Target.md`;
+
+    await createCliNote(renamedNotePath, DRIFT_UUIDS.renamed);
+    await createCliNote(movedNotePath, DRIFT_UUIDS.moved);
+    await createCliNote(occupiedNotePath, DRIFT_UUIDS.occupied);
+
+    await writeMarker(`${matrixFolder}/Renamed/Old Name`, `${DRIFT_UUIDS.renamed}\n`);
+    await writeMarker(`${matrixFolder}/Moved/Old Place/Move Me`, `${DRIFT_UUIDS.moved}\n`);
+    await writeMarker(`${matrixFolder}/Orphan`, `${DRIFT_UUIDS.orphan}\n`);
+    await mkdir(path.join(resolvePath('test/fixtures/sandbox/external-root'), matrixFolder, 'Occupied', 'Target'), { recursive: true });
+    await writeMarker(`${matrixFolder}/Malformed`, `${DRIFT_UUIDS.malformedReference.toUpperCase()}\n`);
+
+    const debugResult = runCli(['dev:debug', 'on'], sandboxVaultPath);
+    expect(debugResult.status, formatCliResult(debugResult)).toBe(0);
+    runCli(['dev:console', 'clear'], sandboxVaultPath);
+    runCli([
+      'eval',
+      'code=document.querySelectorAll(".modal-close-button").forEach((button) => button.click())'
+    ], sandboxVaultPath);
+
+    const commandResult = runCli(['command', `id=${pluginId}:report-external-folder-drift`], sandboxVaultPath);
+    expect(commandResult.status, formatCliResult(commandResult)).toBe(0);
+
+    const modalResult = runCli(['dev:dom', 'selector=.modal', 'text'], sandboxVaultPath);
+    expect(modalResult.status, formatCliResult(modalResult)).toBe(0);
+    expect(modalResult.stdout).toContain('External folder drift report');
+    expect(modalResult.stdout).toContain(
+      '1 error(s), 2 unexpected path(s), 1 missing expected folder(s), 1 orphan folder(s), 1 occupied target(s), 3 suggestion(s)'
+    );
+    expect(modalResult.stdout).toContain(renamedNotePath);
+    expect(modalResult.stdout).toContain(`${matrixFolder}/Renamed/Old Name`);
+    expect(modalResult.stdout).toContain(movedNotePath);
+    expect(modalResult.stdout).toContain(`${matrixFolder}/Moved/Old Place/Move Me`);
+    expect(modalResult.stdout).toContain(`${matrixFolder}/Orphan`);
+    expect(modalResult.stdout).toContain(`${matrixFolder}/Occupied/Target`);
+    expect(modalResult.stdout).toContain('Unmarked folder occupies expected path.');
+    expect(modalResult.stdout).toContain('Malformed marker at');
+
+    const consoleResult = runCli(['dev:console', 'level=debug', 'limit=10'], sandboxVaultPath);
+    expect(consoleResult.status, formatCliResult(consoleResult)).toBe(0);
+    expect(consoleResult.stdout).toContain('[external-note-folders] drift report started');
+    expect(consoleResult.stdout).toContain('[external-note-folders] drift report complete');
   });
 });

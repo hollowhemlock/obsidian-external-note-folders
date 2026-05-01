@@ -347,12 +347,12 @@ rename/move drift and identify likely matches without risking external data.
         and error states
   - [x] match heuristics for same-parent rename and normalized basename cases
   - [x] assurance that the report path calls no mutation functions
-- [ ] Manual: Integration/manual matrix:
-  - [ ] Manual: note renamed after external folder creation
-  - [ ] Manual: note moved after external folder creation
-  - [ ] Manual: orphan bound folder
-  - [ ] Manual: unmarked occupied expected path
-  - [ ] Manual: malformed marker blocks confidence but still appears in report
+- [x] Integration/manual matrix:
+  - [x] note renamed after external folder creation
+  - [x] note moved after external folder creation
+  - [x] orphan bound folder
+  - [x] unmarked occupied expected path
+  - [x] malformed marker blocks confidence but still appears in report
 
 ### Phase 0.5 Done Criteria
 
