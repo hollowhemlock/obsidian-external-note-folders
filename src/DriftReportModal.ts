@@ -18,6 +18,7 @@ export class DriftReportModal extends Modal {
   public override onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
+    contentEl.addClass('external-note-folders-wide-modal');
 
     contentEl.createEl('h2', { text: 'External folder drift report' });
     contentEl.createEl('p', { text: this.driftReport.summaryText });

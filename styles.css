@@ -1,3 +1,8 @@
+.modal:has(.external-note-folders-wide-modal) {
+  width: min(1100px, 92vw);
+  max-width: 92vw;
+}
+
 .external-note-folders-verify-table {
   display: block;
   overflow-x: auto;

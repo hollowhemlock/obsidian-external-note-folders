@@ -17,6 +17,7 @@ export class VerifyReportModal extends Modal {
   public override onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
+    contentEl.addClass('external-note-folders-wide-modal');
 
     contentEl.createEl('h2', { text: 'Verify external folders' });
     contentEl.createEl('p', {
