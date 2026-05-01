@@ -115,10 +115,6 @@ export function buildVerifyReport(
   };
 }
 
-export function summarizeVerifyReport(report: VerifyReport): string {
-  return `Verify complete: ${report.summaryText}.`;
-}
-
 function formatDuplicateErrors(scopeLabel: string, duplicatePaths: Map<string, string[]>): string[] {
   return sortEntries(duplicatePaths).map(([uuid, paths]) => {
     const sortedPaths = [...paths].sort().join(', ');

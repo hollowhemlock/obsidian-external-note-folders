@@ -188,6 +188,7 @@ describe('obsidian CLI integration', () => {
     const combinedOutput = `${commandsResult.stdout}\n${commandsResult.stderr}`;
     expect(combinedOutput).toContain(`${pluginId}:assign-external-folder-uuid`);
     expect(combinedOutput).toContain(`${pluginId}:open-external-folder`);
-    expect(combinedOutput).toContain(`${pluginId}:verify-external-folders`);
+    expect(combinedOutput).toContain(`${pluginId}:report-external-folder-drift`);
+    expect(combinedOutput).not.toContain(`${pluginId}:verify-external-folders`);
   });
 });

@@ -8,10 +8,7 @@ import {
 import type { PluginSettings } from './PluginSettings.ts';
 
 import { buildDriftReport } from './core/driftReport.ts';
-import {
-  buildVerifyReport,
-  summarizeVerifyReport
-} from './core/verify.ts';
+import { buildVerifyReport } from './core/verify.ts';
 import { DriftReportModal } from './DriftReportModal.ts';
 import { assignUuidToNote } from './obsidian/assignUuidToNote.ts';
 import { scanVault } from './obsidian/scanVault.ts';
@@ -55,16 +52,6 @@ export class Plugin extends ObsidianPlugin {
       },
       id: 'assign-external-folder-uuid',
       name: 'Assign external folder identifier'
-    });
-
-    this.addCommand({
-      callback: () => {
-        this.runVerifyCommand().catch((error: unknown) => {
-          this.showUnexpectedError(error);
-        });
-      },
-      id: 'verify-external-folders',
-      name: 'Verify external folders'
     });
 
     this.addCommand({
@@ -282,18 +269,6 @@ export class Plugin extends ObsidianPlugin {
     new Notice(`External folder drift report complete: ${driftReport.summaryText}.`);
     this.logInfo('drift report complete', { report: driftReport });
     new DriftReportModal(this.app, driftReport).open();
-  }
-
-  private async runVerifyCommand(): Promise<void> {
-    this.logInfo('verify started', {
-      externalRootPath: this.settings.externalRootPath,
-      vaultRootPath: this.getVaultRootPath()
-    });
-
-    const { verifyReport } = await this.collectScanContext();
-    new Notice(summarizeVerifyReport(verifyReport));
-    this.logInfo('verify complete', { report: verifyReport });
-    new VerifyReportModal(this.app, verifyReport, this.isMutationInProgress).open();
   }
 
   private showUnexpectedError(error: unknown): void {
