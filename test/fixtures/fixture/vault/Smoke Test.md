@@ -6,7 +6,7 @@ Use this note for a quick manual pass in the sandbox vault.
 
 - Run `npm run integration:prepare`.
 - Run `npm run fixtures:open-sandbox`.
-- Confirm the plugin setting is prefilled with `test/fixtures/sandbox/external-root`.
+- Confirm the plugin setting is prefilled with the full path varient of `test/fixtures/sandbox/external-root`.
 
 ## Commands
 

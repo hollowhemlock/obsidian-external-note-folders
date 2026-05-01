@@ -24,7 +24,7 @@ export class PluginSettingsTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('External root')
-      .setDesc('Absolute path used for bound external folders and .exf markers.')
+      .setDesc('Absolute path containing bound external folders and their associated .exf markers.')
       .addText((text) => {
         text
           .setPlaceholder(EXAMPLE_WINDOWS_EXTERNAL_ROOT)
