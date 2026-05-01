@@ -1,6 +1,9 @@
+import { toExternalRelativeDisplayPath } from './displayPath.ts';
+
 export interface ExternalScanResult {
   accessErrors: ScanIssue[];
   bindings: Map<string, string>;
+  directories: string[];
   duplicatePaths: Map<string, string[]>;
   malformedMarkers: ScanIssue[];
   rootPath: string;
@@ -65,7 +68,7 @@ export function buildVerifyReport(
       if (boundFolderPath) {
         ok.push(`${notePath} -> ${boundFolderPath}`);
         okRows.push({
-          externalFolder: toExternalRelativePath(externalScan.rootPath, boundFolderPath),
+          externalFolder: toExternalRelativeDisplayPath(externalScan.rootPath, boundFolderPath),
           notePath,
           uuid
         });
@@ -83,7 +86,7 @@ export function buildVerifyReport(
       if (!vaultScan.bindings.has(uuid)) {
         warnings.push(`${boundFolderPath} (${uuid}) is orphaned.`);
         warningRows.push({
-          externalFolder: toExternalRelativePath(externalScan.rootPath, boundFolderPath),
+          externalFolder: toExternalRelativeDisplayPath(externalScan.rootPath, boundFolderPath),
           notePath: null,
           uuid
         });
@@ -123,10 +126,6 @@ function formatDuplicateErrors(scopeLabel: string, duplicatePaths: Map<string, s
   });
 }
 
-function normalizeDisplayPath(input: string): string {
-  return input.replace(/\\/gu, '/');
-}
-
 function sortEntries<T>(map: Map<string, T>): [string, T][] {
   return [...map.entries()].sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey));
 }
@@ -137,20 +136,4 @@ function sortRows(rows: VerifyTableRow[]): VerifyTableRow[] {
     const rightKey = `${right.notePath ?? ''}\0${right.externalFolder ?? ''}\0${right.uuid}`;
     return leftKey.localeCompare(rightKey);
   });
-}
-
-function toExternalRelativePath(externalRootPath: string, folderPath: string): string {
-  const normalizedRootPath = normalizeDisplayPath(externalRootPath).replace(/\/+$/u, '');
-  const normalizedFolderPath = normalizeDisplayPath(folderPath);
-
-  if (normalizedFolderPath === normalizedRootPath) {
-    return '.';
-  }
-
-  const rootPrefix = `${normalizedRootPath}/`;
-  if (normalizedFolderPath.startsWith(rootPrefix)) {
-    return normalizedFolderPath.slice(rootPrefix.length);
-  }
-
-  return normalizedFolderPath;
 }

@@ -20,6 +20,7 @@ Phase 0 does not rename, move, delete, or reconcile existing external folders af
 - `Assign external folder identifier`: Adds an `exf` UUID to the active markdown note if one is missing. It never creates or changes external folders.
 - `Open external folder`: Ensures the active note has an `exf` UUID, creates the derived external folder when needed, writes its `.exf` marker, and opens the folder in the system file manager.
 - `Verify external folders`: Scans vault frontmatter and the configured external root, then shows grouped `OK`, `Unavailable`, `Warning`, and `Error` results.
+- `Report external folder drift`: Read-only report that compares current note-derived external folder paths against existing external folders, highlights missing/orphaned/unexpected/occupied paths, and suggests likely matches.
 
 ## Safety Model
 
@@ -45,7 +46,7 @@ reconciliation.
 ## Known Limitations
 
 - Reconcile is not implemented in Phase 0, so external folders are not moved when notes are renamed or reorganized.
-- Phase 0.5 is planned as a report-only reconciliation aid. It will help identify likely matches, but it will not repair, move, rename, relink, or delete external folders.
+- Phase 0.5 is a report-only reconciliation aid. It helps identify likely matches, but it does not repair, move, rename, relink, or delete external folders.
 - Concurrent UUID assignment across unsynced devices can create orphan external folders.
 - Sync tool conflicts in note frontmatter or external marker files are outside the plugin's repair scope; `Verify external folders` surfaces the resulting state.
 

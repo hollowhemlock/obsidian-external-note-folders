@@ -23,3 +23,10 @@
   font-family: var(--font-monospace);
   font-size: var(--font-ui-small);
 }
+
+.external-note-folders-report-textarea {
+  width: 100%;
+  min-height: 220px;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+}

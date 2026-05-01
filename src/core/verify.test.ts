@@ -34,6 +34,11 @@ describe('verify report builder', () => {
         ['123e4567-e89b-42d3-a456-426614174999', 'X:\\External\\Orphan'],
         [VALID_UUID, 'X:\\External\\Notes\\Alpha']
       ]),
+      directories: [
+        'X:\\External\\Notes',
+        'X:\\External\\Notes\\Alpha',
+        'X:\\External\\Orphan'
+      ],
       duplicatePaths: new Map(),
       malformedMarkers: [],
       rootPath: 'X:\\External'
@@ -88,6 +93,7 @@ describe('verify report builder', () => {
         }
       ],
       bindings: new Map(),
+      directories: [],
       duplicatePaths: new Map(),
       malformedMarkers: [],
       rootPath: 'X:\\External'

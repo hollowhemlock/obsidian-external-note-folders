@@ -7,10 +7,12 @@ import {
 
 import type { PluginSettings } from './PluginSettings.ts';
 
+import { buildDriftReport } from './core/driftReport.ts';
 import {
   buildVerifyReport,
   summarizeVerifyReport
 } from './core/verify.ts';
+import { DriftReportModal } from './DriftReportModal.ts';
 import { assignUuidToNote } from './obsidian/assignUuidToNote.ts';
 import { scanVault } from './obsidian/scanVault.ts';
 import { DEFAULT_SETTINGS } from './PluginSettings.ts';
@@ -63,6 +65,16 @@ export class Plugin extends ObsidianPlugin {
       },
       id: 'verify-external-folders',
       name: 'Verify external folders'
+    });
+
+    this.addCommand({
+      callback: () => {
+        this.runReportExternalFolderDriftCommand().catch((error: unknown) => {
+          this.showUnexpectedError(error);
+        });
+      },
+      id: 'report-external-folder-drift',
+      name: 'Report external folder drift'
     });
 
     this.addCommand({
@@ -257,6 +269,19 @@ export class Plugin extends ObsidianPlugin {
         this.logError('open external folder failed', error, { notePath: activeFile.path });
       }
     });
+  }
+
+  private async runReportExternalFolderDriftCommand(): Promise<void> {
+    this.logInfo('drift report started', {
+      externalRootPath: this.settings.externalRootPath,
+      vaultRootPath: this.getVaultRootPath()
+    });
+
+    const { externalScan, vaultScan } = await this.collectScanContext();
+    const driftReport = buildDriftReport(vaultScan, externalScan);
+    new Notice(`External folder drift report complete: ${driftReport.summaryText}.`);
+    this.logInfo('drift report complete', { report: driftReport });
+    new DriftReportModal(this.app, driftReport).open();
   }
 
   private async runVerifyCommand(): Promise<void> {

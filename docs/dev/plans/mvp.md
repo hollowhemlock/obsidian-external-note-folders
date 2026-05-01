@@ -297,68 +297,70 @@ rename/move drift and identify likely matches without risking external data.
 
 ### 1. Scope and Invariants
 
-- [ ] Read-only only: no vault frontmatter writes, external folder creation,
+- [x] Read-only only: no vault frontmatter writes, external folder creation,
       external folder moves, marker writes, marker edits, or deletions
-- [ ] Treat external folder contents as authoritative user data, never as a
+- [x] Treat external folder contents as authoritative user data, never as a
       disposable mirror
-- [ ] Preserve Phase 0 safety model: malformed markers, duplicate UUIDs,
+- [x] Preserve Phase 0 safety model: malformed markers, duplicate UUIDs,
       boundary failures, and access failures are reported as errors
-- [ ] Do not infer external-to-vault mutations from folder names
+- [x] Do not infer external-to-vault mutations from folder names
 
 ### 2. Reconciliation Report Command
 
-- [ ] Add command: `Report external folder drift`
-- [ ] Scan vault markdown notes and configured external root
-- [ ] Derive expected external folder path for each note using the current path
+- [x] Add command: `Report external folder drift`
+- [x] Scan vault markdown notes and configured external root
+- [x] Derive expected external folder path for each note using the current path
       policy
-- [ ] Report notes whose UUID is bound to an existing external folder at a
+- [x] Report notes whose UUID is bound to an existing external folder at a
       non-expected path
-- [ ] Report notes whose expected external folder is missing
-- [ ] Report bound external folders whose UUID is not present in the vault
-- [ ] Report unmarked external folders that occupy expected target paths
-- [ ] Report likely matches between missing expected folders and existing
+- [x] Report notes whose expected external folder is missing
+- [x] Report bound external folders whose UUID is not present in the vault
+- [x] Report unmarked external folders that occupy expected target paths
+- [x] Report likely matches between missing expected folders and existing
       orphan/unexpected folders
 
 ### 3. Match Heuristics
 
-- [ ] Prefer UUID-backed matches over name-only matches
-- [ ] Suggest same-parent rename matches when an existing folder is near the
+- [x] Prefer UUID-backed matches over name-only matches
+- [x] Suggest same-parent rename matches when an existing folder is near the
       expected folder path
-- [ ] Suggest normalized basename matches for case, punctuation, space, dash,
+- [x] Suggest normalized basename matches for case, punctuation, space, dash,
       and Unicode normalization differences
-- [ ] Optional fuzzy scoring is advisory only and must show confidence/rationale
-- [ ] Never auto-select an action from a heuristic match
+- [ ] Deferred: Optional fuzzy scoring. Current implementation uses conservative
+      exact heuristics and confidence/rationale labels; fuzzy scoring can be
+      added later if simple matches are insufficient.
+- [x] Never auto-select an action from a heuristic match
 
 ### 4. UX and Logging
 
-- [ ] Show grouped report modal with counts and actionable sections
-- [ ] Include a copyable text/markdown report for support and manual cleanup
-- [ ] Log a structured console summary with the `[external-note-folders]` prefix
-- [ ] Clearly label the command as read-only
-- [ ] Explain that external folders may contain unique files and should be
+- [x] Show grouped report modal with counts and actionable sections
+- [x] Include a copyable text/markdown report for support and manual cleanup
+- [x] Log a structured console summary with the `[external-note-folders]` prefix
+- [x] Clearly label the command as read-only
+- [x] Explain that external folders may contain unique files and should be
       backed up before manual repair
 
 ### 5. Testing
 
-- [ ] Unit tests:
-  - [ ] drift classifier for expected, unexpected, missing, orphaned, occupied,
+- [x] Unit tests:
+  - [x] drift classifier for expected, unexpected, missing, orphaned, occupied,
         and error states
-  - [ ] match heuristics for same-parent rename and normalized basename cases
-  - [ ] assurance that the report path calls no mutation functions
-- [ ] Integration/manual matrix:
-  - [ ] note renamed after external folder creation
-  - [ ] note moved after external folder creation
-  - [ ] orphan bound folder
-  - [ ] unmarked occupied expected path
-  - [ ] malformed marker blocks confidence but still appears in report
+  - [x] match heuristics for same-parent rename and normalized basename cases
+  - [x] assurance that the report path calls no mutation functions
+- [ ] Manual: Integration/manual matrix:
+  - [ ] Manual: note renamed after external folder creation
+  - [ ] Manual: note moved after external folder creation
+  - [ ] Manual: orphan bound folder
+  - [ ] Manual: unmarked occupied expected path
+  - [ ] Manual: malformed marker blocks confidence but still appears in report
 
 ### Phase 0.5 Done Criteria
 
-- [ ] Report command is read-only by construction and test coverage
-- [ ] Users can identify likely renamed/moved external folders without any
+- [x] Report command is read-only by construction and test coverage
+- [x] Users can identify likely renamed/moved external folders without any
       automatic mutation
-- [ ] Report output is copyable from the UI or console
-- [ ] README documents that Phase 0.5 reports drift but does not repair it
+- [x] Report output is copyable from the UI or console
+- [x] README documents that Phase 0.5 reports drift but does not repair it
 
 ---
 

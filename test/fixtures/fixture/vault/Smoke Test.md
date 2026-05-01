@@ -13,6 +13,7 @@ Use this note for a quick manual pass in the sandbox vault.
 - `Assign external folder identifier`: run on this note and confirm an `exf` value appears in frontmatter.
 - `Open external folder`: run on this note and confirm the system file manager opens the matching external folder.
 - `Verify external folders`: run after opening the folder and confirm this note appears as healthy or no integrity errors are reported.
+- `Report external folder drift`: run after opening the folder and confirm it reports no unexpected path for this note.
 
 ## Quick Rename Check
 

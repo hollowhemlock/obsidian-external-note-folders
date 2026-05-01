@@ -17,6 +17,7 @@ export async function scanExternalRoot(externalRootPath: string): Promise<Extern
   const result: ExternalScanResult = {
     accessErrors: [],
     bindings: new Map<string, string>(),
+    directories: [],
     duplicatePaths: new Map<string, string[]>(),
     malformedMarkers: [],
     rootPath: trimmedRootPath
@@ -104,6 +105,7 @@ async function walkDirectory(
     }
 
     if (entry.isDirectory()) {
+      result.directories.push(entryPath);
       await walkDirectory(entryPath, result);
       continue;
     }
