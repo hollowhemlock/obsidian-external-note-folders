@@ -24,11 +24,13 @@ npm run format:check
 npm run test
 ```
 
-Also run this when the change touches fixture-driven flows, raw filesystem integration, or Obsidian command wiring:
+Also run this when the change touches fixture-driven flows, raw filesystem integration, or Obsidian command wiring and a prepared Obsidian CLI environment is available:
 
 ```bash
 npm run test:integration
 ```
+
+If no local Obsidian CLI environment or `self-hosted` + `obsidian-cli` runner is available, record the skip reason in the PR instead of treating the integration lane as a required PR check.
 
 ## Fixture Setup
 

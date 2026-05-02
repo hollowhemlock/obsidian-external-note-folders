@@ -43,7 +43,7 @@ Last generated: 2026-05-02
 | [ADR-0018](0018-test-vault-fixtures-live-in-repo.md) | Proposed | 2026-02-20 | Test Vault and External-Root Fixtures Live In-Repo | `external-root`, `testing`, `vault-model` | Before adding or changing test strategy and fixtures. |
 | [ADR-0019](0019-vitest-as-test-runner.md) | Accepted | 2026-02-20 | Vitest as Test Runner | `testing` | Before adding or changing test strategy and fixtures. |
 | [ADR-0020](0020-release-please-for-versioning-and-changelog.md) | Accepted | 2026-03-03 | Use Release Please for Versioning and Changelog | `release` | Before changing release automation or version policy. |
-| [ADR-0021](0021-obsidian-cli-integration-testing.md) | Accepted | 2026-03-03 | Require Obsidian CLI Integration Testing (v1.12+) | `testing`, `tooling` | Before adding or changing test strategy and fixtures. |
+| [ADR-0021](0021-obsidian-cli-integration-testing.md) | Accepted | 2026-03-03 | Use Manual Obsidian CLI Integration Testing (v1.12+) | `testing`, `tooling` | Before adding or changing test strategy and fixtures. |
 
 ## Discovery Tips
 - Search by tags first, then scan "When to read".

@@ -2,14 +2,6 @@ name: obsidian-cli-integration
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - 'src/**'
-      - 'scripts/**'
-      - 'test/**'
-      - 'package.json'
-      - 'vitest.integration.config.ts'
-      - '.github/workflows/obsidian-cli-integration.yml'
 
 jobs:
   integration:

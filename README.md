@@ -68,7 +68,7 @@ reconciliation.
 - `npm run lint`
 - `npm run format:check`
 - `npm run test`
-- `npm run test:integration`
+- `npm run test:integration` (requires a prepared Obsidian CLI environment)
 - `npm run test:watch`
 - `npm run fixtures:new-sandbox`
 - `npm run fixtures:refresh-sandbox`
@@ -142,7 +142,8 @@ The plugin does not use `window.DEBUG`.
 - Run `npm run fixtures:refresh-sandbox` to refresh note/external-root content while preserving
   `sandbox/vault/.obsidian`.
 - `npm run test:integration` uses `fixtures:refresh-sandbox` so it can run while the sandbox vault
-  is open in Obsidian.
+  is open in Obsidian. The GitHub integration workflow is manual-only and requires an online
+  self-hosted runner labeled `obsidian-cli`.
 - Run `npm run fixtures:open-fixture` or `npm run fixtures:open-sandbox` to open either test vault
   directly in Obsidian.
 - Run `npm run vault:open -- <vault-path>` to open a specific vault path.

@@ -4,7 +4,7 @@ date: "2026-03-03"
 decision-makers: "Maintainers"
 ---
 
-# Require Obsidian CLI Integration Testing (v1.12+)
+# Use Manual Obsidian CLI Integration Testing (v1.12+)
 
 ## Context and Problem Statement
 
@@ -28,7 +28,7 @@ This project needs an integration requirement that validates plugin behavior wit
 
 ## Decision Outcome
 
-Adopt a dedicated **Obsidian CLI integration test lane** with these constraints:
+Adopt a dedicated **manual Obsidian CLI integration test lane** with these constraints:
 
 - Integration tests live under `test/integration/**/*.integration.test.ts`
 - Integration tests run via `npm run test:integration`
@@ -40,19 +40,21 @@ Adopt a dedicated **Obsidian CLI integration test lane** with these constraints:
 - If the local CLI binary is absent, disabled, or times out, the integration lane reports the
   unavailable environment and does not fail the default local validation path
 - On Windows, CLI execution uses `Obsidian.com` (not `Obsidian.exe`) when available
-- CI integration job runs on `self-hosted` runners labeled `obsidian-cli`
+- CI integration job is `workflow_dispatch` only and runs on `self-hosted` runners labeled `obsidian-cli`
+- Do not make the integration job a required pull request status check unless an online matching runner is available
 
 ### Consequences
 
 ### Positive
 - Real command-path validation through Obsidian CLI
-- Stronger confidence before release for vault-level workflows
+- Stronger confidence before release for vault-level workflows when a prepared runner or local environment is available
 
 ### Neutral
 - Adds maintenance for integration scripts/workflow/docs
 
 ### Negative / Trade-offs
 - Requires prepared local or self-hosted environment with Obsidian CLI enabled
+- Manual GitHub runs stay queued until a matching `self-hosted` + `obsidian-cli` runner is online
 - Integration lane is slower than unit-only CI
 - Some Obsidian CLI builds do not expose a stable `version` command, so version assertions are
   weaker than command-surface assertions

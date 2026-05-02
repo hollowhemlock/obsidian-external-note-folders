@@ -81,7 +81,7 @@ Phase 0 is not complete until all of these are true:
 
 - Every Phase 0 checklist item is classified as `done` or explicitly `deferred`.
 - `npm run lint`, `npm run format:check`, `npm run test`, and `npm run build` pass.
-- `npm run test:integration` passes or the pull request records why it was skipped.
+- `npm run test:integration` passes in a prepared Obsidian CLI environment, or the pull request records why it was skipped.
 - The required scenario matrix in `mvp-validation.md` has been executed or explicitly deferred with risk notes.
 - README describes current user behavior, no-deletion guarantees, command semantics, and known limitations.
 - Review evidence satisfies `commit-pull-request-merge-review-gate.md`.
