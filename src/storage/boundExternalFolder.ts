@@ -165,8 +165,12 @@ function toError(error: unknown): Error {
 async function tryLstat(targetPath: string): Promise<Awaited<ReturnType<typeof lstat>> | null> {
   try {
     return await lstat(targetPath);
-  } catch {
-    return null;
+  } catch (error: unknown) {
+    if (isMissingFileError(error)) {
+      return null;
+    }
+
+    throw error;
   }
 }
 

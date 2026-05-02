@@ -146,7 +146,7 @@ export class Plugin extends ObsidianPlugin {
     await this.runMutatingCommand('assign an external folder UUID', async () => {
       const { verifyReport } = await this.collectScanContext();
       if (verifyReport.hasIntegrityErrors) {
-        new Notice('Cannot assign an identifier while integrity errors exist. Run the verify command for details.');
+        new Notice('Cannot assign an identifier while integrity errors exist. Review the opened report for details.');
         this.logWarn('assign UUID blocked by integrity errors', { report: verifyReport });
         new VerifyReportModal(this.app, verifyReport, false).open();
         return;
@@ -204,7 +204,7 @@ export class Plugin extends ObsidianPlugin {
     await this.runMutatingCommand('open an external folder', async () => {
       const initialScanContext = await this.collectScanContext();
       if (initialScanContext.verifyReport.hasIntegrityErrors) {
-        new Notice('Cannot open an external folder while integrity errors exist. Run the verify command for details.');
+        new Notice('Cannot open an external folder while integrity errors exist. Review the opened report for details.');
         this.logWarn('open external folder blocked by integrity errors', {
           report: initialScanContext.verifyReport
         });
@@ -216,7 +216,7 @@ export class Plugin extends ObsidianPlugin {
         const uuidOutcome = await assignUuidToNote(this.app, activeFile);
         const refreshedScanContext = await this.collectScanContext();
         if (refreshedScanContext.verifyReport.hasIntegrityErrors) {
-          new Notice('Cannot create an external folder while integrity errors exist. Run the verify command for details.');
+          new Notice('Cannot create an external folder while integrity errors exist. Review the opened report for details.');
           this.logWarn('external folder creation blocked by refreshed integrity errors', {
             notePath: activeFile.path,
             report: refreshedScanContext.verifyReport,

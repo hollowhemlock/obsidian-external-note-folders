@@ -11,9 +11,9 @@ Phase 0 supports:
 - Assigning an external folder identifier to the active note.
 - Opening the note's bound external folder.
 - Creating a bound external folder on first open when no binding exists.
-- Verifying vault and external-root integrity.
+- Integrity preflights before mutating commands.
 
-Phase 0 does not rename, move, delete, or reconcile existing external folders after a note is renamed or moved. Phase 0.5 will add a read-only drift report so users can find likely renamed or moved external folders without changing anything. Mutating reconcile is planned for a later phase and must remain explicit.
+Phase 0 does not rename, move, delete, or reconcile existing external folders after a note is renamed or moved. Phase 0.5 adds a read-only drift report so users can find likely renamed or moved external folders without changing anything. Mutating reconcile is planned for a later phase and must remain explicit.
 
 ## Commands
 

@@ -4,8 +4,6 @@
 }
 
 .external-note-folders-verify-table {
-  display: block;
-  overflow-x: auto;
   width: 100%;
   border-collapse: collapse;
 }

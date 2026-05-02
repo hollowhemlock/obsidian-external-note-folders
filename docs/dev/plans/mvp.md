@@ -149,8 +149,8 @@ Implement one guarded module for all mutations.
         actionable notice
   - [x] This includes external access/boundary failures (strict fail-closed)
 - [x] Reject overlapping mutating commands with clear user notice
-- [x] Read-only commands (Verify) may run during mutation but results must be
-      labeled as possibly stale
+- [x] Read-only reports may run during mutation but results must be labeled as
+      possibly stale
 - [x] Lock release guaranteed on success and failure paths
 
 Reference:
@@ -178,7 +178,7 @@ Reference:
   - [x] Write `.exf`
   - [x] Open folder
 
-#### 9.3 Verify
+#### 9.3 Integrity Preflight Report
 
 - [x] Scan vault and external
 - [x] Categorize:
@@ -188,8 +188,8 @@ Reference:
   - [x] `Error` (duplicates, malformed markers, mismatches,
         boundary/access failures)
 - [x] Show grouped report modal
-- [x] Log structured summary. Verify logs a grouped report object to the
-      DevTools console with the `[external-note-folders]` prefix.
+- [x] Log structured summary. Integrity preflights log grouped report objects
+      to the DevTools console with the `[external-note-folders]` prefix.
 
 Reference:
 - [x] `docs/dev/adr/0009-status-model.md`
@@ -222,7 +222,7 @@ Reference:
 
 ### 13. UX and Logging
 
-- [x] Verify modal uses grouped actionable sections
+- [x] Integrity report modal uses grouped actionable sections
 - [x] Use clear, neutral language
 - [x] Write structured logs for operations. Command success, blocked mutation,
       verification, warnings, and unexpected failures are logged to the
@@ -253,7 +253,7 @@ Reference:
 
 - [x] README covers:
   - [x] what plugin does and does not do
-  - [x] command semantics (Assign UUID, Open External Folder, Verify)
+  - [x] command semantics (Assign UUID, Open External Folder, Report external folder drift)
   - [x] no-deletions guarantee
   - [x] known limitations (sync, orphan accumulation)
 - [x] Link ADR index
@@ -278,8 +278,8 @@ Reference:
 
 ### Phase 0 Done Criteria
 
-- [x] Verify reports `Unavailable` (not `Error`) for notes with no external
-      folder
+- [x] Integrity reports mark notes with no external folder as `Unavailable`
+      (not `Error`)
 - [x] Any integrity `Error` blocks mutation
 - [x] Mutating commands are serialized by lock
 - [x] Boundary checks prevent scan/mutation outside configured external root
@@ -463,5 +463,5 @@ Reference:
 
 ADR-0007 (accepted) defines a Regenerate UUID command with re-association
 semantics and safe-abort mode. This is deferred past Phase 1. Until then,
-users can manually edit the `exf` frontmatter field to change a UUID; Verify
-will surface the consequences (orphaned bound folder, new Unavailable status).
+users can manually edit the `exf` frontmatter field to change a UUID; integrity
+preflights and drift reports will surface the consequences (orphaned bound folder, new Unavailable status).

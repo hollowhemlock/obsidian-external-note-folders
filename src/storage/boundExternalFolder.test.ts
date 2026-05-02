@@ -76,6 +76,18 @@ describe('bound external folder mutations', () => {
     })).rejects.toThrow('already occupied');
   });
 
+  it('fails closed when a derived path cannot be safely inspected', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    await writeFile(path.join(externalRootPath, 'Projects'), '', 'utf8');
+
+    await expect(ensureBoundExternalFolder({
+      existingBindings: new Map(),
+      externalRootPath,
+      notePath: 'Projects/Alpha.md',
+      uuid: VALID_UUID
+    })).rejects.toThrow();
+  });
+
   it('rejects derived paths already bound to another uuid', async () => {
     const externalRootPath = await createTempRoot(tempDirectories);
     const existingFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
