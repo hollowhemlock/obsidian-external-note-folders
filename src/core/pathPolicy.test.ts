@@ -37,9 +37,10 @@ describe('path policy', () => {
   });
 
   it('shortens overly long paths deterministically', () => {
+    const externalRootPath = path.join(path.parse(process.cwd()).root, 'ExternalRoot');
     const derivedPath = deriveExternalFolderPath(
       `Projects/${'A'.repeat(120)}.md`,
-      path.resolve('X:/ExternalRoot'),
+      externalRootPath,
       60
     );
 
