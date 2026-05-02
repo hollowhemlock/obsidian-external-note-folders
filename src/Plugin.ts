@@ -8,16 +8,19 @@ import {
 import type { PluginSettings } from './PluginSettings.ts';
 
 import { buildDriftReport } from './core/driftReport.ts';
+import { buildReconcilePlan } from './core/reconcilePlan.ts';
 import { buildVerifyReport } from './core/verify.ts';
 import { DriftReportModal } from './DriftReportModal.ts';
 import { assignUuidToNote } from './obsidian/assignUuidToNote.ts';
 import { scanVault } from './obsidian/scanVault.ts';
 import { DEFAULT_SETTINGS } from './PluginSettings.ts';
 import { PluginSettingsTab } from './PluginSettingsTab.ts';
+import { ReconcilePlanModal } from './ReconcilePlanModal.ts';
 import {
   ensureBoundExternalFolder,
   openExternalFolderInFileManager
 } from './storage/boundExternalFolder.ts';
+import { executeReconcilePlan } from './storage/reconcileExecutor.ts';
 import { scanExternalRoot } from './storage/scanExternalRoot.ts';
 import { VerifyReportModal } from './VerifyReportModal.ts';
 
@@ -73,6 +76,16 @@ export class Plugin extends ObsidianPlugin {
       id: 'open-external-folder',
       name: 'Open external folder'
     });
+
+    this.addCommand({
+      callback: () => {
+        this.runReconcileCommand().catch((error: unknown) => {
+          this.showUnexpectedError(error);
+        });
+      },
+      id: 'reconcile-external-folders',
+      name: 'Reconcile external folders'
+    });
   }
 
   public async saveSettings(): Promise<void> {
@@ -96,6 +109,10 @@ export class Plugin extends ObsidianPlugin {
     }
 
     return activeFile;
+  }
+
+  private getJournalRootPath(): string {
+    return `${this.getVaultRootPath()}/${this.app.vault.configDir}/plugins/${this.manifest.id}/journal`;
   }
 
   private getVaultRootPath(): string {
@@ -255,6 +272,62 @@ export class Plugin extends ObsidianPlugin {
         new Notice(message);
         this.logError('open external folder failed', error, { notePath: activeFile.path });
       }
+    });
+  }
+
+  private async runReconcileCommand(): Promise<void> {
+    this.logInfo('reconcile dry-run started', {
+      externalRootPath: this.settings.externalRootPath,
+      vaultRootPath: this.getVaultRootPath()
+    });
+
+    const { externalScan, vaultScan } = await this.collectScanContext();
+    const plan = buildReconcilePlan({
+      externalScan,
+      mutationSequence: this.mutationSequence,
+      vaultScan
+    });
+
+    new Notice(`Reconcile dry-run complete: ${plan.summaryText}.`);
+    this.logInfo('reconcile dry-run complete', { plan });
+    new ReconcilePlanModal(this.app, plan, async () => {
+      try {
+        await this.runReconcileExecuteCommand(plan);
+      } catch (error: unknown) {
+        this.showUnexpectedError(error);
+      }
+    }).open();
+  }
+
+  private async runReconcileExecuteCommand(plan: ReturnType<typeof buildReconcilePlan>): Promise<void> {
+    await this.runMutatingCommand('execute reconcile', async () => {
+      if (plan.hasGlobalErrors) {
+        new Notice('Cannot execute reconcile while integrity errors exist. Review the dry-run plan for details.');
+        this.logWarn('reconcile execution blocked by global errors', { plan });
+        return;
+      }
+
+      if (plan.mutationSequence !== this.mutationSequence) {
+        new Notice('Cannot execute reconcile from a stale dry-run plan. Run reconcile again.');
+        this.logWarn('reconcile execution blocked by stale plan', {
+          currentMutationSequence: this.mutationSequence,
+          planMutationSequence: plan.mutationSequence
+        });
+        return;
+      }
+
+      const result = await executeReconcilePlan({
+        journalRootPath: this.getJournalRootPath(),
+        plan
+      });
+      if (result.succeeded) {
+        new Notice(`Reconcile execution complete. Journal: ${result.journalPath}`);
+        this.logInfo('reconcile execution complete', { result });
+        return;
+      }
+
+      new Notice(`Reconcile stopped after a failed move. Journal: ${result.journalPath}`);
+      this.logWarn('reconcile execution stopped after failure', { result });
     });
   }
 
