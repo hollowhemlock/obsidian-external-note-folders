@@ -1,27 +1,50 @@
 # Architecture Decision Records
 
+This index is optimized for fast human and LLM retrieval.
+
+Last generated: 2026-05-02
+
 ## Procedures
-- **[review-checklist.md](review-checklist.md)** — Use when reviewing an ADR before accepting it.
-- **[0000-template.md](0000-template.md)** — Template for new ADRs.
+- **[review-checklist.md](review-checklist.md)** - Use when reviewing an ADR before accepting it.
+- **[0000-template.md](0000-template.md)** - Template for new ADRs.
 
-## Records
+## Tag Legend
+- `vault-model`: source-of-truth, identity, UUID rules
+- `external-root`: external folder path and marker contracts
+- `reconcile`: planning/execution/journal/recovery flow
+- `safety`: trust boundaries and destructive-operation constraints
+- `status-model`: user-visible health/status semantics
+- `architecture`: core vs adapter boundaries
+- `testing`: test strategy, fixtures, and runners
+- `release`: versioning/changelog/release automation
+- `tooling`: build/runtime/testing tool decisions
 
-- [ADR-0001](0001-vault-is-source-of-truth.md) - Vault is source of truth
-- [ADR-0002](0002-missing-external-is-normal.md) - Missing external is normal (Unavailable)
-- [ADR-0003](0003-no-deletions.md) - No deletions (trust boundary)
-- [ADR-0004](0004-single-external-root.md) - Single external root
-- [ADR-0005](0005-bound-folder-marker.md) - Bound folder marker (`.exf`)
-- [ADR-0006](0006-reconcile-is-explicit.md) - Reconcile is explicit (dry-run default)
-- [ADR-0007](0007-uuid-regeneration-and-manual-edits.md) - UUID regeneration & manual edits
-- [ADR-0008](0008-no-reverse-reconciliation.md) - No reverse reconciliation (external never drives vault)
-- [ADR-0009](0009-status-model.md) - Status model (OK / Unavailable / Warning / Error)
-- [ADR-0010](0010-use-generator-obsidian-plugin.md) - Use generator-obsidian-plugin
-- [ADR-0011](0011-reconcile-execution-safety-model.md) - Reconcile execution safety model (ordering, journal, recovery)
-- [ADR-0012](0012-command-serialization-and-concurrency.md) - Command serialization and concurrency boundaries
-- [ADR-0013](0013-filesystem-boundary-and-path-identity.md) - Filesystem boundary and path identity policy
-- [ADR-0014](0014-exf-marker-format-and-validation.md) - `.exf` marker format and validation contract
-- [ADR-0015](0015-external-folder-path-derivation.md) - External folder path derivation rule
-- [ADR-0016](0016-layered-architecture-core-vs-obsidian-adapter.md) - Layered architecture (core engine vs Obsidian adapter)
-- [ADR-0017](0017-testing-strategy-by-boundary.md) - Testing strategy by boundary (core, adapter, integration)
-- [ADR-0018](0018-test-vault-fixtures-live-in-repo.md) - Test vault and external-root fixtures live in-repo
-- [ADR-0019](0019-vitest-as-test-runner.md) - Vitest as test runner
+## ADR Index
+
+| ADR | Status | Date | Scope | Tags | When to read |
+|---|---|---|---|---|---|
+| [ADR-0001](0001-vault-is-source-of-truth.md) | Accepted | 2026-02-14 | Vault Is the Source of Truth | `vault-model` | Before changing identity or source-of-truth assumptions. |
+| [ADR-0002](0002-missing-external-is-normal.md) | Accepted | 2026-02-14 | Missing External Folders Are Normal | `external-root` | Before changing external folder derivation and marker rules. |
+| [ADR-0003](0003-no-deletions.md) | Accepted | 2026-02-14 | No Deletions (Trust Boundary) | `safety` | Before changing trust boundaries or destructive behavior. |
+| [ADR-0004](0004-single-external-root.md) | Accepted | 2026-02-14 | Single External Root | `external-root` | Before changing external folder derivation and marker rules. |
+| [ADR-0005](0005-bound-folder-marker.md) | Accepted | 2026-02-14 | Bound Folders Are Defined by a Root Marker File (`.exf`) | `external-root` | Before changing external folder derivation and marker rules. |
+| [ADR-0006](0006-reconcile-is-explicit.md) | Accepted | 2026-02-14 | Reconcile Is Explicit and Dry-Run by Default | `reconcile` | Before changing reconcile planning/execution behavior. |
+| [ADR-0007](0007-uuid-regeneration-and-manual-edits.md) | Accepted | 2026-02-14 | UUID Regeneration and Manual UUID Edits | `vault-model` | Before changing identity or source-of-truth assumptions. |
+| [ADR-0008](0008-no-reverse-reconciliation.md) | Accepted | 2026-02-14 | No Reverse Reconciliation (External Does Not Drive Vault) | `external-root`, `vault-model` | Before changing external folder derivation and marker rules. |
+| [ADR-0009](0009-status-model.md) | Accepted | 2026-02-14 | Explicit Status Model (OK / Unavailable / Warning / Error) | `status-model` | Before changing user-visible health/status semantics. |
+| [ADR-0010](0010-use-generator-obsidian-plugin.md) | Accepted | 2026-02-15 | Use generator-obsidian-plugin for Project Scaffolding | `tooling` | Before changing build/integration tool choices. |
+| [ADR-0011](0011-reconcile-execution-safety-model.md) | Accepted | 2026-02-19 | Reconcile Execution Safety Model (Ordering, Journal, Recovery) | `reconcile` | Before changing reconcile planning/execution behavior. |
+| [ADR-0012](0012-command-serialization-and-concurrency.md) | Accepted | 2026-02-19 | Command Serialization and Concurrency Boundaries | `reconcile` | Before changing reconcile planning/execution behavior. |
+| [ADR-0013](0013-filesystem-boundary-and-path-identity.md) | Accepted | 2026-02-19 | Filesystem Boundary and Path Identity Policy | `external-root`, `safety` | Before changing trust boundaries or destructive behavior. |
+| [ADR-0014](0014-exf-marker-format-and-validation.md) | Accepted | 2026-02-19 | `.exf` Marker Format and Validation Contract | `external-root` | Before changing external folder derivation and marker rules. |
+| [ADR-0015](0015-external-folder-path-derivation.md) | Accepted | 2026-02-19 | External Folder Path Derivation Rule | `external-root` | Before changing external folder derivation and marker rules. |
+| [ADR-0016](0016-layered-architecture-core-vs-obsidian-adapter.md) | Proposed | 2026-02-20 | Layered Architecture (Core Engine vs Obsidian Adapter) | `architecture` | Before crossing core/adapter boundaries. |
+| [ADR-0017](0017-testing-strategy-by-boundary.md) | Proposed | 2026-02-20 | Testing Strategy by Boundary (Core, Adapter, Integration) | `architecture`, `safety`, `testing` | Before adding or changing test strategy and fixtures. |
+| [ADR-0018](0018-test-vault-fixtures-live-in-repo.md) | Proposed | 2026-02-20 | Test Vault and External-Root Fixtures Live In-Repo | `external-root`, `testing`, `vault-model` | Before adding or changing test strategy and fixtures. |
+| [ADR-0019](0019-vitest-as-test-runner.md) | Accepted | 2026-02-20 | Vitest as Test Runner | `testing` | Before adding or changing test strategy and fixtures. |
+| [ADR-0020](0020-release-please-for-versioning-and-changelog.md) | Accepted | 2026-03-03 | Use Release Please for Versioning and Changelog | `release` | Before changing release automation or version policy. |
+| [ADR-0021](0021-obsidian-cli-integration-testing.md) | Accepted | 2026-03-03 | Use Manual Obsidian CLI Integration Testing (v1.12+) | `testing`, `tooling` | Before adding or changing test strategy and fixtures. |
+
+## Discovery Tips
+- Search by tags first, then scan "When to read".
+- If a change crosses boundaries, read all ADRs matching each boundary tag.

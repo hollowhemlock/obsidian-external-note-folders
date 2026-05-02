@@ -1,0 +1,57 @@
+name: commit-message-lint
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  conventional-commits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit messages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            RANGE="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          else
+            if [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
+              RANGE="${{ github.sha }}~1..${{ github.sha }}"
+            else
+              RANGE="${{ github.event.before }}..${{ github.sha }}"
+            fi
+          fi
+
+          echo "Linting commit messages in range: $RANGE"
+          mapfile -t MESSAGES < <(git log --format=%s "$RANGE")
+
+          if [[ "${#MESSAGES[@]}" -eq 0 ]]; then
+            echo "No commits found in range; skipping."
+            exit 0
+          fi
+
+          PATTERN='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?(!)?: .+'
+          FAILED=0
+
+          for MSG in "${MESSAGES[@]}"; do
+            if [[ "$MSG" =~ ^Merge\  ]]; then
+              continue
+            fi
+
+            if [[ ! "$MSG" =~ $PATTERN ]]; then
+              echo "Invalid commit message: $MSG"
+              FAILED=1
+            fi
+          done
+
+          if [[ "$FAILED" -ne 0 ]]; then
+            echo "Commit message lint failed. Expected: <type>(optional-scope)!: <description>"
+            exit 1
+          fi

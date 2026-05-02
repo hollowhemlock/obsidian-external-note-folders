@@ -1,10 +1,12 @@
-# ADR-0011: Reconcile Execution Safety Model (Ordering, Journal, Recovery)
+---
+status: "Accepted"
+date: "2026-02-19"
+decision-makers: "Maintainers"
+---
 
-**Status:** Accepted
-**Date:** 2026-02-19
-**Participants:** Maintainers
+# Reconcile Execution Safety Model (Ordering, Journal, Recovery)
 
-## Context
+## Context and Problem Statement
 
 Reconcile can move existing external bound folders to new target paths derived from vault state.
 Interrupted execution (process crash, power loss, permission error) can leave partial filesystem state.
@@ -17,7 +19,13 @@ No-delete is necessary but not sufficient for trust if recovery is ambiguous.
 - Ensure retries are safe (idempotent where possible)
 - Stay aligned with explicit reconcile and no-deletion constraints
 
-## Decision
+## Considered Options
+
+* No journal; rely on in-memory flow only
+* Full transactional filesystem abstraction
+* Journal with pending/applied/failed state machine and resume/abort UX
+
+## Decision Outcome
 
 Reconcile execution uses an audit journal and relies on re-scan for recovery.
 
@@ -50,28 +58,7 @@ are in their old locations. A fresh scan sees the actual state and generates a
 correct plan for the remaining moves. The journal adds auditability but is not
 needed for correctness.
 
-## Alternatives Considered
-
-### A. No journal; rely on in-memory flow only
-- Pros: Less code and storage
-- Cons: No audit trail for debugging or support
-- Why rejected/accepted: Rejected; auditability is valuable even without
-  recovery semantics
-
-### B. Full transactional filesystem abstraction
-- Pros: Stronger atomic model
-- Cons: Not practical cross-platform for directory-tree moves
-- Why rejected/accepted: Rejected for MVP complexity and OS limitations
-
-### C. Journal with pending/applied/failed state machine and resume/abort UX
-- Pros: Explicit recovery decisions after interruption
-- Cons: Significant implementation complexity for a recovery path that re-scan
-  already handles; resume/abort UX is confusing for users who don't understand
-  journal state
-- Why rejected/accepted: Rejected; re-scan provides correct recovery with less
-  complexity and better UX
-
-## Consequences
+### Consequences
 
 ### Positive
 - Clear audit trail for debugging and support
@@ -85,18 +72,41 @@ needed for correctness.
 - No explicit "pick up where you left off" — user must re-confirm a new plan
   after interruption
 
-## Non-Goals
+## Pros and Cons of the Options
+
+### No journal; rely on in-memory flow only
+- Pros: Less code and storage
+- Cons: No audit trail for debugging or support
+- Why rejected/accepted: Rejected; auditability is valuable even without
+  recovery semantics
+
+### Full transactional filesystem abstraction
+- Pros: Stronger atomic model
+- Cons: Not practical cross-platform for directory-tree moves
+- Why rejected/accepted: Rejected for MVP complexity and OS limitations
+
+### Journal with pending/applied/failed state machine and resume/abort UX
+- Pros: Explicit recovery decisions after interruption
+- Cons: Significant implementation complexity for a recovery path that re-scan
+  already handles; resume/abort UX is confusing for users who don't understand
+  journal state
+- Why rejected/accepted: Rejected; re-scan provides correct recovery with less
+  complexity and better UX
+
+## More Information
+
+### Non-Goals
 
 - Providing true ACID transactions across arbitrary filesystem operations
 - Automatic rollback of all partially applied moves in every failure mode
 - Resume/replay of interrupted reconcile runs
 
-## Future Considerations
+### Future Considerations
 
 If journal format changes, migration must preserve old run readability.
 Future auto-reconcile features must keep the same journaled execution guarantees.
 
-## References
+### References
 
 - [ADR-0003](0003-no-deletions.md)
 - [ADR-0006](0006-reconcile-is-explicit.md)

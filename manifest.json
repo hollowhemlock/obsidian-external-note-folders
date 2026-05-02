@@ -5,6 +5,7 @@
 
   "id": "external-note-folders",
   "isDesktopOnly": true,
+  "minAppVersion": "1.8.0",
   "name": "External Note Folders",
   "version": "0.0.0"
 }

@@ -1,10 +1,12 @@
-# ADR-0015: External Folder Path Derivation Rule
+---
+status: "Accepted"
+date: "2026-02-19"
+decision-makers: "Maintainers"
+---
 
-**Status:** Accepted
-**Date:** 2026-02-19
-**Participants:** Maintainers
+# External Folder Path Derivation Rule
 
-## Context
+## Context and Problem Statement
 
 Reconcile must compute a target external path for each note's bound folder. ADR-0006 states that
 reconcile "moves existing bound folders to match current vault structure", but without a defined
@@ -17,7 +19,13 @@ derivation rule, "match vault structure" is ambiguous and implementations may di
 - Path collisions between notes must be detectable before any move is executed
 - Must work correctly across Windows/macOS/Linux filesystems
 
-## Decision
+## Considered Options
+
+* Flat structure named by note title only
+* UUID-named flat structure
+* User-configurable derivation templates
+
+## Decision Outcome
 
 The external folder path for a note is derived from its vault-relative path with the `.md`
 extension removed:
@@ -38,30 +46,7 @@ Reconcile uses the derived path as the target when moving bound folders. A note 
 containing vault folder has changed will produce a new derived path, making a move visible in the
 dry-run output.
 
-## Alternatives Considered
-
-### A. Flat structure named by note title only
-
-- Pros: Simple — always one directory level deep; no vault hierarchy to mirror
-- Cons: Title-only collisions are common (same title in different vault folders); loses
-  meaningful grouping that vault structure provides
-- Why rejected: Collision rate unacceptable for any non-trivial vault
-
-### B. UUID-named flat structure
-
-- Pros: No collisions; no reconcile moves needed when notes are renamed or moved
-- Cons: External root is opaque to direct filesystem navigation; contradicts the "match vault
-  structure" framing of reconcile (ADR-0006)
-- Why rejected: Defeats the purpose of human-readable external organization
-
-### C. User-configurable derivation templates
-
-- Pros: Maximum flexibility per vault or per-note
-- Cons: Significant configuration complexity; unclear collision semantics for custom templates;
-  harder to document and support
-- Why rejected: Not MVP; adds configuration surface without demonstrated user demand
-
-## Consequences
+### Consequences
 
 ### Positive
 
@@ -80,17 +65,42 @@ dry-run output.
   unexpected external folder names
 - Deep vault hierarchies produce deep external hierarchies (no flattening option in MVP)
 
-## Non-Goals
+## Pros and Cons of the Options
+
+### Flat structure named by note title only
+
+- Pros: Simple — always one directory level deep; no vault hierarchy to mirror
+- Cons: Title-only collisions are common (same title in different vault folders); loses
+  meaningful grouping that vault structure provides
+- Why rejected: Collision rate unacceptable for any non-trivial vault
+
+### UUID-named flat structure
+
+- Pros: No collisions; no reconcile moves needed when notes are renamed or moved
+- Cons: External root is opaque to direct filesystem navigation; contradicts the "match vault
+  structure" framing of reconcile (ADR-0006)
+- Why rejected: Defeats the purpose of human-readable external organization
+
+### User-configurable derivation templates
+
+- Pros: Maximum flexibility per vault or per-note
+- Cons: Significant configuration complexity; unclear collision semantics for custom templates;
+  harder to document and support
+- Why rejected: Not MVP; adds configuration surface without demonstrated user demand
+
+## More Information
+
+### Non-Goals
 
 - Customizable path derivation templates on a per-note or per-folder basis
 - Automatic disambiguation suffixes for duplicate-name collisions
 
-## Future Considerations
+### Future Considerations
 
 If a configurable derivation rule is added later, it must define collision semantics explicitly
 and remain independent of the UUID identity mechanism (which lives in `.exf`, not the path).
 
-## References
+### References
 
 - [ADR-0004](0004-single-external-root.md)
 - [ADR-0006](0006-reconcile-is-explicit.md)

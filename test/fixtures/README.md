@@ -3,6 +3,7 @@
 - `fixture`: committed baseline test data.
   - `fixture/vault`: baseline Obsidian vault.
   - `fixture/external-root`: baseline external root.
+- `fixture/vault/Smoke Test.md`: concise manual smoke test note copied into sandbox vaults.
 - `sandbox`: disposable working copy (ignored in git except `.gitkeep`).
   - `sandbox/vault`: runtime vault copy.
   - `sandbox/external-root`: runtime external-root copy.
@@ -45,8 +46,22 @@ Open any vault path in Obsidian:
 npm run vault:open -- test/fixtures/sandbox/vault
 ```
 
+Prepare and run Obsidian CLI integration tests:
+
+```powershell
+npm run test:integration
+```
+
+Run only the integration tests (assumes sandbox and plugin artifacts are already prepared):
+
+```powershell
+npm run test:integration:watch
+```
+
 ## Notes
 
 - `fixtures:refresh-sandbox` is useful during hot-reload sessions because it keeps the sandbox
   `.obsidian` state while restoring vault content and external-root content from fixture.
 - Tests/scripts should mutate sandbox paths, not fixture paths.
+- On Windows, CLI tests should use `Obsidian.com` (not `Obsidian.exe`) and require Command line interface
+  to be enabled in Obsidian Settings -> General.

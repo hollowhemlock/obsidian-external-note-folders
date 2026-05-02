@@ -1,281 +1,279 @@
-import type {
-  Editor,
-  MarkdownPostProcessorContext,
-  ObsidianProtocolData,
-  TAbstractFile
-} from 'obsidian';
-import type { ExtractPluginSettingsWrapper } from 'obsidian-dev-utils/obsidian/Plugin/PluginTypesBase';
-import type { MaybeReturn } from 'obsidian-dev-utils/Type';
-import type { ReadonlyDeep } from 'type-fest';
+import type { TFile } from 'obsidian';
 
 import {
-  MarkdownView,
-  Notice
+  Notice,
+  Plugin as ObsidianPlugin
 } from 'obsidian';
-import { convertAsyncToSync } from 'obsidian-dev-utils/Async';
-import { getDebugger } from 'obsidian-dev-utils/Debug';
-import { alert } from 'obsidian-dev-utils/obsidian/Modals/Alert';
-import { confirm } from 'obsidian-dev-utils/obsidian/Modals/Confirm';
-import { prompt } from 'obsidian-dev-utils/obsidian/Modals/Prompt';
-import { selectItem } from 'obsidian-dev-utils/obsidian/Modals/SelectItem';
-import { PluginBase } from 'obsidian-dev-utils/obsidian/Plugin/PluginBase';
 
-import type { PluginTypes } from './PluginTypes.ts';
+import type { PluginSettings } from './PluginSettings.ts';
 
-import { sampleStateField } from './EditorExtensions/SampleStateField.ts';
-import { sampleViewPlugin } from './EditorExtensions/SampleViewPlugin.ts';
-import { SampleEditorSuggest } from './EditorSuggests/SampleEditorSuggest.ts';
-import { SampleModal } from './Modals/SampleModal.ts';
-import { PluginSettingsManager } from './PluginSettingsManager.ts';
+import { buildDriftReport } from './core/driftReport.ts';
+import { buildVerifyReport } from './core/verify.ts';
+import { DriftReportModal } from './DriftReportModal.ts';
+import { assignUuidToNote } from './obsidian/assignUuidToNote.ts';
+import { scanVault } from './obsidian/scanVault.ts';
+import { DEFAULT_SETTINGS } from './PluginSettings.ts';
 import { PluginSettingsTab } from './PluginSettingsTab.ts';
 import {
-  SAMPLE_REACT_VIEW_TYPE,
-  SampleReactView
-} from './Views/SampleReactView.tsx';
-import {
-  SAMPLE_SVELTE_VIEW_TYPE,
-  SampleSvelteView
-} from './Views/SampleSvelteView.ts';
-import {
-  SAMPLE_VIEW_TYPE,
-  SampleView
-} from './Views/SampleView.ts';
+  ensureBoundExternalFolder,
+  openExternalFolderInFileManager
+} from './storage/boundExternalFolder.ts';
+import { scanExternalRoot } from './storage/scanExternalRoot.ts';
+import { VerifyReportModal } from './VerifyReportModal.ts';
 
-export class Plugin extends PluginBase<PluginTypes> {
-  protected override createSettingsManager(): PluginSettingsManager {
-    return new PluginSettingsManager(this);
-  }
+interface ScanContext {
+  externalScan: Awaited<ReturnType<typeof scanExternalRoot>>;
+  vaultScan: ReturnType<typeof scanVault>;
+  verifyReport: ReturnType<typeof buildVerifyReport>;
+}
 
-  protected override createSettingsTab(): null | PluginSettingsTab {
-    return new PluginSettingsTab(this);
-  }
+interface VaultAdapterWithBasePath {
+  getBasePath: () => string;
+}
 
-  protected override async onLayoutReady(): Promise<void> {
-    await super.onLayoutReady();
-    new Notice('This is executed after all plugins are loaded');
-    await this.openView(SAMPLE_VIEW_TYPE);
-    await this.openView(SAMPLE_SVELTE_VIEW_TYPE);
-    await this.openView(SAMPLE_REACT_VIEW_TYPE);
-  }
+const LOG_PREFIX = '[external-note-folders]';
 
-  protected override async onloadImpl(): Promise<void> {
-    await super.onloadImpl();
-    this.addCommand({
-      callback: this.runSampleCommand.bind(this),
-      id: 'sample-command',
-      name: 'Sample command'
-    });
+export class Plugin extends ObsidianPlugin {
+  public settings: PluginSettings = DEFAULT_SETTINGS;
+
+  private isMutationInProgress = false;
+  private mutationSequence = 0;
+
+  public override async onload(): Promise<void> {
+    await this.loadSettings();
+
+    this.addSettingTab(new PluginSettingsTab(this.app, this));
 
     this.addCommand({
-      editorCallback: this.runSampleEditorCommand.bind(this),
-      id: 'sample-editor-command',
-      name: 'Sample editor command'
+      callback: () => {
+        this.runAssignUuidCommand().catch((error: unknown) => {
+          this.showUnexpectedError(error);
+        });
+      },
+      id: 'assign-external-folder-uuid',
+      name: 'Assign external folder identifier'
     });
 
     this.addCommand({
-      checkCallback: this.runSampleCommandWithCheck.bind(this),
-      id: 'sample-command-with-check',
-      name: 'Sample command with check'
+      callback: () => {
+        this.runReportExternalFolderDriftCommand().catch((error: unknown) => {
+          this.showUnexpectedError(error);
+        });
+      },
+      id: 'report-external-folder-drift',
+      name: 'Report external folder drift'
     });
 
-    this.addRibbonIcon('dice', 'Sample ribbon icon', this.runSampleRibbonIconCommand.bind(this));
-
-    this.addStatusBarItem().setText('Sample status bar item');
-
-    this.registerDomEvent(document, 'dblclick', this.handleSampleDomEvent.bind(this));
-
-    this.registerEditorExtension([sampleViewPlugin, sampleStateField]);
-
-    this.registerEditorSuggest(new SampleEditorSuggest(this.app));
-
-    this.registerEvent(this.app.vault.on('create', this.handleSampleEvent.bind(this)));
-
-    this.registerExtensions(['sample-extension-1', 'sample-extension-2'], SAMPLE_VIEW_TYPE);
-
-    this.registerHoverLinkSource(SAMPLE_VIEW_TYPE, {
-      defaultMod: true,
-      display: this.manifest.name
+    this.addCommand({
+      callback: () => {
+        this.runOpenExternalFolderCommand().catch((error: unknown) => {
+          this.showUnexpectedError(error);
+        });
+      },
+      id: 'open-external-folder',
+      name: 'Open external folder'
     });
-
-    const INTERVAL_IN_MILLISECONDS = 60_000;
-    this.registerInterval(window.setInterval(this.handleSampleIntervalTick.bind(this), INTERVAL_IN_MILLISECONDS));
-
-    this.registerMarkdownCodeBlockProcessor('sample-code-block-processor', this.handleSampleCodeBlockProcessor.bind(this));
-
-    this.registerMarkdownPostProcessor(this.handleSampleMarkdownPostProcessor.bind(this));
-
-    this.registerObsidianProtocolHandler('sample-action', this.handleSampleObsidianProtocolHandler.bind(this));
-
-    this.registerView(SAMPLE_VIEW_TYPE, (leaf) => new SampleView(leaf));
-    this.registerView(SAMPLE_SVELTE_VIEW_TYPE, (leaf) => new SampleSvelteView(leaf));
-    this.registerView(SAMPLE_REACT_VIEW_TYPE, (leaf) => new SampleReactView(leaf));
-
-    this.registerModalCommands();
   }
 
-  protected override async onLoadSettings(
-    loadedSettings: ReadonlyDeep<ExtractPluginSettingsWrapper<PluginTypes>>,
-    isInitialLoad: boolean
-  ): Promise<void> {
-    await super.onLoadSettings(loadedSettings, isInitialLoad);
-    if (loadedSettings.settings.textSetting === 'bar') {
-      new Notice('Sample text setting is bar');
+  public async saveSettings(): Promise<void> {
+    await this.saveData(this.settings);
+  }
+
+  private async collectScanContext(): Promise<ScanContext> {
+    const vaultScan = scanVault(this.app);
+    const externalScan = await scanExternalRoot(this.settings.externalRootPath);
+    return {
+      externalScan,
+      vaultScan,
+      verifyReport: buildVerifyReport(vaultScan, externalScan)
+    };
+  }
+
+  private getActiveMarkdownFile(): null | TFile {
+    const activeFile = this.app.workspace.getActiveFile();
+    if (activeFile?.extension !== 'md') {
+      return null;
     }
+
+    return activeFile;
   }
 
-  protected override async onSaveSettings(
-    newSettings: ReadonlyDeep<ExtractPluginSettingsWrapper<PluginTypes>>,
-    oldSettings: ReadonlyDeep<ExtractPluginSettingsWrapper<PluginTypes>>,
-    context: unknown
-  ): Promise<void> {
-    await super.onSaveSettings(newSettings, oldSettings, context);
-    if (newSettings.settings.textSetting === 'baz' && oldSettings.settings.textSetting === 'bar') {
-      new Notice('Sample text setting is changed from bar to baz');
+  private getVaultRootPath(): string {
+    const adapter = this.app.vault.adapter as Partial<VaultAdapterWithBasePath>;
+    if (typeof adapter.getBasePath === 'function') {
+      return adapter.getBasePath();
     }
+
+    return this.app.vault.getName();
   }
 
-  protected override async onunloadImpl(): Promise<void> {
-    await super.onunloadImpl();
-    new Notice('Sample plugin is being unloaded');
+  private async loadSettings(): Promise<void> {
+    const loadedData = (await this.loadData()) as null | Partial<PluginSettings>;
+    this.settings = {
+      ...DEFAULT_SETTINGS,
+      ...loadedData
+    };
   }
 
-  private handleSampleCodeBlockProcessor(source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
-    getDebugger('handleSampleCodeBlockProcessor')(source, el, ctx);
-    el.setText('Sample code block processor');
+  private logError(message: string, error: unknown, details?: Record<string, unknown>): void {
+    console.error(LOG_PREFIX, message, {
+      ...details,
+      error: error instanceof Error
+        ? {
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        }
+        : error
+    });
   }
 
-  private handleSampleDomEvent(evt: MouseEvent): void {
-    const tagName = evt.target instanceof HTMLElement ? evt.target.tagName : '';
-    new Notice(`Sample DOM event: ${tagName}`);
+  private logInfo(message: string, details?: Record<string, unknown>): void {
+    console.debug(LOG_PREFIX, message, details ?? {});
   }
 
-  private handleSampleEvent(file: TAbstractFile): void {
-    if (!this.app.workspace.layoutReady) {
+  private logWarn(message: string, details?: Record<string, unknown>): void {
+    console.warn(LOG_PREFIX, message, details ?? {});
+  }
+
+  private async runAssignUuidCommand(): Promise<void> {
+    const activeFile = this.getActiveMarkdownFile();
+    if (!activeFile) {
+      new Notice('Open a markdown note to assign an external folder identifier.');
       return;
     }
 
-    new Notice(`Sample event: ${file.name}`);
-  }
+    await this.runMutatingCommand('assign an external folder UUID', async () => {
+      const { verifyReport } = await this.collectScanContext();
+      if (verifyReport.hasIntegrityErrors) {
+        new Notice('Cannot assign an identifier while integrity errors exist. Review the opened report for details.');
+        this.logWarn('assign UUID blocked by integrity errors', { report: verifyReport });
+        new VerifyReportModal(this.app, verifyReport, false).open();
+        return;
+      }
 
-  private handleSampleIntervalTick(): void {
-    new Notice('Sample interval tick');
-  }
-
-  private handleSampleMarkdownPostProcessor(el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
-    getDebugger('handleSampleMarkdownPostProcessor')(el, ctx);
-    if (el.hasClass('el-h6')) {
-      el.setText('Sample markdown post processor');
-    }
-  }
-
-  private handleSampleObsidianProtocolHandler(params: ObsidianProtocolData): void {
-    new Notice(`Sample obsidian protocol handler: ${params.action}`);
-  }
-
-  private async openView(viewType: string): Promise<void> {
-    await this.app.workspace.ensureSideLeaf(viewType, 'right');
-  }
-
-  private registerModalCommands(): void {
-    this.addCommand({
-      callback: this.showSampleModal.bind(this),
-      id: 'show-sample-modal',
-      name: 'Show Sample Modal'
-    });
-
-    this.addCommand({
-      callback: convertAsyncToSync(this.showAlert.bind(this)),
-      id: 'show-alert-modal',
-      name: 'Show Alert Modal'
-    });
-
-    this.addCommand({
-      callback: convertAsyncToSync(this.showConfirm.bind(this)),
-      id: 'show-confirm-modal',
-      name: 'Show Confirm Modal'
-    });
-
-    this.addCommand({
-      callback: convertAsyncToSync(this.showPrompt.bind(this)),
-      id: 'show-prompt-modal',
-      name: 'Show Prompt Modal'
-    });
-
-    this.addCommand({
-      callback: convertAsyncToSync(this.showSelectItem.bind(this)),
-      id: 'show-select-item-modal',
-      name: 'Show Select Item Modal'
-    });
-  }
-
-  private runSampleCommand(): void {
-    new Notice('Sample command');
-  }
-
-  private runSampleCommandWithCheck(checking: boolean): boolean {
-    const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!markdownView) {
-      return false;
-    }
-
-    if (!checking) {
-      new Notice('Sample command with check');
-    }
-
-    return true;
-  }
-
-  private runSampleEditorCommand(editor: Editor): void {
-    editor.replaceSelection('Sample Editor Command');
-  }
-
-  private runSampleRibbonIconCommand(): void {
-    new Notice('Sample ribbon icon command');
-  }
-
-  private async showAlert(): Promise<void> {
-    await alert({
-      app: this.app,
-      message: 'Sample alert message',
-      title: 'Sample alert title'
-    });
-  }
-
-  private async showConfirm(): Promise<void> {
-    const result = await confirm({
-      app: this.app,
-      message: 'Sample confirm message',
-      title: 'Sample confirm title'
-    });
-
-    new Notice(`Sample confirm result: ${String(result)}`);
-  }
-
-  private async showPrompt(): Promise<void> {
-    await prompt({
-      app: this.app,
-      defaultValue: 'Sample prompt default value',
-      placeholder: 'Sample prompt placeholder',
-      title: 'Sample prompt title',
-      valueValidator: (value): MaybeReturn<string> => {
-        const MIN_LENGTH = 30;
-        if (value.length < MIN_LENGTH) {
-          return `Value must be at least ${String(MIN_LENGTH)} characters long`;
+      try {
+        const outcome = await assignUuidToNote(this.app, activeFile);
+        if (outcome.kind === 'assigned') {
+          new Notice(`Assigned external folder identifier to ${activeFile.path}.`);
+          this.logInfo('assigned external folder identifier', {
+            notePath: activeFile.path,
+            uuid: outcome.uuid
+          });
+          return;
         }
+
+        new Notice(`Note already has an external folder identifier: ${outcome.uuid}`);
+        this.logInfo('note already has external folder identifier', {
+          notePath: activeFile.path,
+          uuid: outcome.uuid
+        });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to assign UUID.';
+        new Notice(message);
+        this.logError('assign UUID failed', error, { notePath: activeFile.path });
       }
     });
   }
 
-  private showSampleModal(): void {
-    new SampleModal(this.app).open();
+  private async runMutatingCommand(
+    actionDescription: string,
+    operation: () => Promise<void>
+  ): Promise<void> {
+    if (this.isMutationInProgress) {
+      new Notice(`Cannot ${actionDescription} while another mutating command is already running.`);
+      return;
+    }
+
+    this.isMutationInProgress = true;
+    try {
+      await operation();
+    } finally {
+      this.isMutationInProgress = false;
+      this.mutationSequence += 1;
+    }
   }
 
-  private async showSelectItem(): Promise<void> {
-    await selectItem({
-      app: this.app,
-      items: ['Item 1', 'Item 2', 'Item 3'],
-      itemTextFunc: (item) => item,
-      placeholder: 'Sample select item placeholder'
+  private async runOpenExternalFolderCommand(): Promise<void> {
+    const activeFile = this.getActiveMarkdownFile();
+    if (!activeFile) {
+      new Notice('Open a markdown note to open its external folder.');
+      return;
+    }
+
+    await this.runMutatingCommand('open an external folder', async () => {
+      const initialScanContext = await this.collectScanContext();
+      if (initialScanContext.verifyReport.hasIntegrityErrors) {
+        new Notice('Cannot open an external folder while integrity errors exist. Review the opened report for details.');
+        this.logWarn('open external folder blocked by integrity errors', {
+          report: initialScanContext.verifyReport
+        });
+        new VerifyReportModal(this.app, initialScanContext.verifyReport, false).open();
+        return;
+      }
+
+      try {
+        const uuidOutcome = await assignUuidToNote(this.app, activeFile);
+        const refreshedScanContext = await this.collectScanContext();
+        if (refreshedScanContext.verifyReport.hasIntegrityErrors) {
+          new Notice('Cannot create an external folder while integrity errors exist. Review the opened report for details.');
+          this.logWarn('external folder creation blocked by refreshed integrity errors', {
+            notePath: activeFile.path,
+            report: refreshedScanContext.verifyReport,
+            uuid: uuidOutcome.uuid
+          });
+          new VerifyReportModal(this.app, refreshedScanContext.verifyReport, false).open();
+          return;
+        }
+
+        const folderResult = await ensureBoundExternalFolder({
+          existingBindings: refreshedScanContext.externalScan.bindings,
+          externalRootPath: refreshedScanContext.externalScan.rootPath,
+          notePath: activeFile.path,
+          uuid: uuidOutcome.uuid
+        });
+
+        await openExternalFolderInFileManager(folderResult.folderPath);
+        if (folderResult.created) {
+          new Notice(`Created and opened external folder for ${activeFile.path}.`);
+          this.logInfo('created and opened external folder', {
+            folderPath: folderResult.folderPath,
+            notePath: activeFile.path,
+            uuid: uuidOutcome.uuid
+          });
+          return;
+        }
+
+        new Notice(`Opened external folder for ${activeFile.path}.`);
+        this.logInfo('opened existing external folder', {
+          folderPath: folderResult.folderPath,
+          notePath: activeFile.path,
+          uuid: uuidOutcome.uuid
+        });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to open external folder.';
+        new Notice(message);
+        this.logError('open external folder failed', error, { notePath: activeFile.path });
+      }
     });
+  }
+
+  private async runReportExternalFolderDriftCommand(): Promise<void> {
+    this.logInfo('drift report started', {
+      externalRootPath: this.settings.externalRootPath,
+      vaultRootPath: this.getVaultRootPath()
+    });
+
+    const { externalScan, vaultScan } = await this.collectScanContext();
+    const driftReport = buildDriftReport(vaultScan, externalScan);
+    new Notice(`External folder drift report complete: ${driftReport.summaryText}.`);
+    this.logInfo('drift report complete', { report: driftReport });
+    new DriftReportModal(this.app, driftReport).open();
+  }
+
+  private showUnexpectedError(error: unknown): void {
+    const message = error instanceof Error ? error.message : 'Command failed.';
+    new Notice(message);
+    this.logError('command failed unexpectedly', error);
   }
 }

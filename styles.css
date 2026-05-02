@@ -1,0 +1,35 @@
+.modal:has(.external-note-folders-wide-modal) {
+  width: min(1100px, 92vw);
+  max-width: 92vw;
+}
+
+.external-note-folders-verify-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.external-note-folders-verify-table th,
+.external-note-folders-verify-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.external-note-folders-verify-table th {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+}
+
+.external-note-folders-verify-table td {
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+}
+
+.external-note-folders-report-textarea {
+  width: 100%;
+  min-height: 220px;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+}

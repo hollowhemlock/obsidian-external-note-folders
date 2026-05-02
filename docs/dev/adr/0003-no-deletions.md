@@ -1,10 +1,12 @@
-# ADR-0003: No Deletions (Trust Boundary)
+---
+status: "Accepted"
+date: "2026-02-14"
+decision-makers: "Maintainers"
+---
 
-**Status:** Accepted
-**Date:** 2026-02-14
-**Participants:** Maintainers
+# No Deletions (Trust Boundary)
 
-## Context
+## Context and Problem Statement
 
 Deletion by plugins is high-risk, especially with ambiguous sync state, external roots that may be
 partially available, and users reorganizing via the OS. The project aims to be safe and predictable.
@@ -16,7 +18,12 @@ partially available, and users reorganizing via the OS. The project aims to be s
 - Avoid OS-specific trash/recycle-bin behavior in MVP
 - Prevent accidental data loss
 
-## Decision
+## Considered Options
+
+* Auto-delete orphans
+* Auto-quarantine orphans (move to `.orphaned/`)
+
+## Decision Outcome
 
 The plugin must not delete local files.
 
@@ -30,19 +37,7 @@ Allowed mutations are limited to:
 - Creating a bound folder and writing `.exf`
 - Moving bound folders via explicit reconcile (dry-run by default)
 
-## Alternatives Considered
-
-### A. Auto-delete orphans
-- Pros: Keeps external root “clean”
-- Cons: High risk of deleting unsynced or intentionally retained data
-- Why rejected: Too risky; breaks trust boundary
-
-### B. Auto-quarantine orphans (move to `.orphaned/`)
-- Pros: Safer than delete; reversible
-- Cons: Still surprising; may move large trees; can break user workflows
-- Why rejected: Still a form of “destructive” automation; not MVP
-
-## Consequences
+### Consequences
 
 ### Positive
 - Strong safety guarantee
@@ -52,15 +47,29 @@ Allowed mutations are limited to:
 - Orphan cleanup is manual
 - External root can accumulate historical data
 
-## Non-Goals
+## Pros and Cons of the Options
+
+### Auto-delete orphans
+- Pros: Keeps external root “clean”
+- Cons: High risk of deleting unsynced or intentionally retained data
+- Why rejected: Too risky; breaks trust boundary
+
+### Auto-quarantine orphans (move to `.orphaned/`)
+- Pros: Safer than delete; reversible
+- Cons: Still surprising; may move large trees; can break user workflows
+- Why rejected: Still a form of “destructive” automation; not MVP
+
+## More Information
+
+### Non-Goals
 
 - Automatic cleanup of external root
 
-## Future Considerations
+### Future Considerations
 
 If any cleanup is added later, it must be explicit, opt-in, and reversible (trash/quarantine) with
 clear previews and confirmations.
 
-## References
+### References
 
 - [ADR-0001](0001-vault-is-source-of-truth.md)

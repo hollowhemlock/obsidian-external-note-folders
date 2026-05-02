@@ -1,0 +1,94 @@
+---
+status: "Accepted"
+date: "2026-03-03"
+decision-makers: "Maintainers"
+---
+
+# Use Manual Obsidian CLI Integration Testing (v1.12+)
+
+## Context and Problem Statement
+
+Unit and adapter tests cover internal logic, but they do not verify behavior through the real Obsidian runtime surface. Obsidian v1.12 introduced a CLI interface that enables command-level integration checks against a live vault.
+
+This project needs an integration requirement that validates plugin behavior with real vault fixtures and real Obsidian command execution, while keeping standard CI fast and deterministic.
+
+## Decision Drivers
+
+- Validate behavior through actual Obsidian CLI execution, not mocks only
+- Reuse committed fixture topology for reproducibility
+- Keep default PR CI fast (unit/lint lane separate from integration lane)
+- Support both human maintainers and LLM agents with explicit, repeatable workflow
+- Avoid coupling integration test pass/fail to machines without Obsidian CLI installed
+
+## Considered Options
+
+* Unit tests only
+* Run CLI integration tests in default CI on hosted runners
+* Mock the CLI process
+
+## Decision Outcome
+
+Adopt a dedicated **manual Obsidian CLI integration test lane** with these constraints:
+
+- Integration tests live under `test/integration/**/*.integration.test.ts`
+- Integration tests run via `npm run test:integration`
+- Integration setup must:
+  - refresh sandbox from committed fixture
+  - build plugin artifacts
+  - install plugin artifacts into sandbox `.obsidian/plugins/<plugin-id>`
+- Integration tests must assert CLI command exposure when the CLI runtime responds
+- If the local CLI binary is absent, disabled, or times out, the integration lane reports the
+  unavailable environment and does not fail the default local validation path
+- On Windows, CLI execution uses `Obsidian.com` (not `Obsidian.exe`) when available
+- CI integration job is `workflow_dispatch` only and runs on `self-hosted` runners labeled `obsidian-cli`
+- Do not make the integration job a required pull request status check unless an online matching runner is available
+
+### Consequences
+
+### Positive
+- Real command-path validation through Obsidian CLI
+- Stronger confidence before release for vault-level workflows when a prepared runner or local environment is available
+
+### Neutral
+- Adds maintenance for integration scripts/workflow/docs
+
+### Negative / Trade-offs
+- Requires prepared local or self-hosted environment with Obsidian CLI enabled
+- Manual GitHub runs stay queued until a matching `self-hosted` + `obsidian-cli` runner is online
+- Integration lane is slower than unit-only CI
+- Some Obsidian CLI builds do not expose a stable `version` command, so version assertions are
+  weaker than command-surface assertions
+
+## Pros and Cons of the Options
+
+### Unit tests only
+- Pros: Fast and simple
+- Cons: No verification of runtime CLI behavior
+- Why rejected: Does not satisfy integration requirement
+
+### Run CLI integration tests in default CI on hosted runners
+- Pros: Single CI lane
+- Cons: Hosted runners may not provide configured Obsidian CLI runtime
+- Why rejected: Unreliable and environment-dependent
+
+### Mock the CLI process
+- Pros: Fully deterministic in any environment
+- Cons: Does not validate actual Obsidian runtime semantics
+- Why rejected: Misses the key requirement of real integration coverage
+
+## More Information
+
+### Non-Goals
+
+- Replacing unit tests with integration tests
+- Running CLI integration on every hosted CI environment
+
+### Future Considerations
+
+Expand integration coverage as domain commands are implemented (Assign UUID, Open External Folder, Verify, Reconcile), keeping fixture scenarios traceable to ADR invariants.
+
+### References
+
+- [ADR-0017](0017-testing-strategy-by-boundary.md)
+- [ADR-0018](0018-test-vault-fixtures-live-in-repo.md)
+- [test/fixtures/README.md](../../../test/fixtures/README.md)

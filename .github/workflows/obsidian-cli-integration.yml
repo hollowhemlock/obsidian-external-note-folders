@@ -1,0 +1,25 @@
+name: obsidian-cli-integration
+
+on:
+  workflow_dispatch:
+
+jobs:
+  integration:
+    runs-on:
+      - self-hosted
+      - obsidian-cli
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Obsidian CLI integration tests
+        env:
+          OBSIDIAN_CLI_BIN: ${{ vars.OBSIDIAN_CLI_BIN || 'obsidian' }}
+        run: npm run test:integration

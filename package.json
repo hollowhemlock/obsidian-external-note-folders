@@ -13,6 +13,7 @@
     "build:compile:svelte": "obsidian-dev-utils build:compile:svelte",
     "build:compile:typescript": "obsidian-dev-utils build:compile:typescript",
     "dev": "obsidian-dev-utils dev",
+    "docs:adr:index": "jiti scripts/update-adr-index.ts",
     "fixtures:new-sandbox": "jiti scripts/fixtures.ts --full",
     "fixtures:refresh-sandbox": "jiti scripts/fixtures.ts --content-only",
     "fixtures:paths": "jiti scripts/fixtures.ts --print-paths",
@@ -25,8 +26,12 @@
     "lint:fix": "obsidian-dev-utils lint:fix",
     "spellcheck": "obsidian-dev-utils spellcheck",
     "test": "vitest run",
+    "test:integration": "npm run integration:prepare && vitest run --config vitest.integration.config.ts",
+    "test:integration:watch": "vitest --config vitest.integration.config.ts",
     "test:watch": "vitest",
-    "version": "obsidian-dev-utils version"
+    "integration:prepare": "npm run fixtures:refresh-sandbox && npm run build && jiti scripts/install-plugin-to-sandbox.ts",
+    "version": "obsidian-dev-utils version",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@codemirror/language": "latest",
@@ -36,8 +41,8 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "husky": "^9.1.7",
     "jiti": "latest",
-    "moment": "latest",
     "obsidian": "latest",
     "obsidian-dev-utils": "latest",
     "obsidian-typings": "obsidian-public-latest",

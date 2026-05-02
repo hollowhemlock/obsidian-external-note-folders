@@ -1,10 +1,12 @@
-# ADR-0018: Test Vault and External-Root Fixtures Live In-Repo
+---
+status: "Proposed"
+date: "2026-02-20"
+decision-makers: "Maintainers"
+---
 
-**Status:** Proposed
-**Date:** 2026-02-20
-**Participants:** Maintainers
+# Test Vault and External-Root Fixtures Live In-Repo
 
-## Context
+## Context and Problem Statement
 
 Reconcile and marker behavior depend on realistic vault/external-root directory shapes. Ad hoc local
 fixtures make failures hard to reproduce across developers and CI. The repository already includes
@@ -17,7 +19,12 @@ sample test directories under `test/`, but fixture policy and lifecycle are not 
 - Avoid hidden local setup requirements
 - Preserve fast fixture updates for new edge cases and bug regressions
 
-## Decision
+## Considered Options
+
+* Generate all fixtures at runtime in test code
+* Developer-local fixture directories outside repo
+
+## Decision Outcome
 
 Store canonical test fixture vaults and external roots in the repository under `test/fixtures/`,
 with this policy:
@@ -55,19 +62,7 @@ Large/binary fixture policy:
 - Prefer text fixtures
 - Avoid large binaries in git history unless required by a concrete test case
 
-## Alternatives Considered
-
-### A. Generate all fixtures at runtime in test code
-- Pros: Fewer tracked files; easier bulk refactors
-- Cons: Scenario intent becomes implicit in setup code; harder review/debug of filesystem topology
-- Why rejected/accepted: Rejected as sole approach; runtime generation may still be used for trivial cases
-
-### B. Developer-local fixture directories outside repo
-- Pros: Flexible local experimentation
-- Cons: Non-reproducible failures; CI drift; onboarding friction
-- Why rejected/accepted: Rejected for shared reliability
-
-## Consequences
+### Consequences
 
 ### Positive
 - Reproducible integration behavior across contributors and CI
@@ -81,17 +76,31 @@ Large/binary fixture policy:
 - Fixture sprawl risk if scenarios are not curated
 - Periodic cleanup and naming discipline required
 
-## Non-Goals
+## Pros and Cons of the Options
+
+### Generate all fixtures at runtime in test code
+- Pros: Fewer tracked files; easier bulk refactors
+- Cons: Scenario intent becomes implicit in setup code; harder review/debug of filesystem topology
+- Why rejected/accepted: Rejected as sole approach; runtime generation may still be used for trivial cases
+
+### Developer-local fixture directories outside repo
+- Pros: Flexible local experimentation
+- Cons: Non-reproducible failures; CI drift; onboarding friction
+- Why rejected/accepted: Rejected for shared reliability
+
+## More Information
+
+### Non-Goals
 
 - Capturing full real user vaults in the repository
 - Creating exhaustive fixtures for every possible OS/filesystem combination
 
-## Future Considerations
+### Future Considerations
 
 If fixture count grows, introduce a manifest index and validation script to detect orphaned scenarios
 and enforce naming/metadata standards.
 
-## References
+### References
 
 - [ADR-0005](0005-bound-folder-marker.md)
 - [ADR-0011](0011-reconcile-execution-safety-model.md)

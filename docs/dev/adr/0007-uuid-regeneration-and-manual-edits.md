@@ -1,10 +1,12 @@
-# ADR-0007: UUID Regeneration and Manual UUID Edits
+---
+status: "Accepted"
+date: "2026-02-14"
+decision-makers: "Maintainers"
+---
 
-**Status:** Accepted
-**Date:** 2026-02-14
-**Participants:** Maintainers
+# UUID Regeneration and Manual UUID Edits
 
-## Context
+## Context and Problem Statement
 
 Users may accidentally duplicate UUIDs (copy/paste), or intentionally want to re-associate a note to
 a different external folder. Users may also manually edit frontmatter.
@@ -16,7 +18,12 @@ a different external folder. Users may also manually edit frontmatter.
 - Keep behavior explicit and safe
 - Avoid implicit deletes or renames
 
-## Decision
+## Considered Options
+
+* Disallow manual edits / regeneration entirely
+* Auto-migrate external folder on regeneration
+
+## Decision Outcome
 
 Provide a Regenerate UUID command with the following behavior:
 
@@ -35,19 +42,7 @@ A vault-side `exf` frontmatter value that is not a valid RFC 4122 UUID is classi
 
 Duplicate UUIDs in the vault are integrity errors.
 
-## Alternatives Considered
-
-### A. Disallow manual edits / regeneration entirely
-- Pros: Simpler; fewer edge cases
-- Cons: No recovery path; users will edit anyway
-- Why rejected: Too rigid; harms usability
-
-### B. Auto-migrate external folder on regeneration
-- Pros: Keeps continuity
-- Cons: Can be destructive/ambiguous; increases risk
-- Why rejected: Violates explicit-change approach; not MVP
-
-## Consequences
+### Consequences
 
 ### Positive
 - Users can recover from mistakes
@@ -57,15 +52,29 @@ Duplicate UUIDs in the vault are integrity errors.
 - Orphans may accumulate
 - Requires clear reporting UX
 
-## Non-Goals
+## Pros and Cons of the Options
+
+### Disallow manual edits / regeneration entirely
+- Pros: Simpler; fewer edge cases
+- Cons: No recovery path; users will edit anyway
+- Why rejected: Too rigid; harms usability
+
+### Auto-migrate external folder on regeneration
+- Pros: Keeps continuity
+- Cons: Can be destructive/ambiguous; increases risk
+- Why rejected: Violates explicit-change approach; not MVP
+
+## More Information
+
+### Non-Goals
 
 - Automatic cleanup or migration of old associations
 
-## Future Considerations
+### Future Considerations
 
 Later versions may add explicit “adopt existing bound folder” flows, but must remain non-destructive.
 
-## References
+### References
 
 - [ADR-0003](0003-no-deletions.md)
 - [ADR-0009](0009-status-model.md)

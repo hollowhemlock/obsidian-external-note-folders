@@ -30,6 +30,7 @@
     "./src/**/*.svelte",
     "./src/**/*.ts",
     "./src/**/*.tsx",
-    "./scripts/**/*.ts"
+    "./scripts/**/*.ts",
+    "./test/**/*.ts"
   ]
 }

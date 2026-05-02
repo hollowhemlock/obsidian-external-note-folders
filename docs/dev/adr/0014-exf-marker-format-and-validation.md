@@ -1,10 +1,12 @@
-# ADR-0014: `.exf` Marker Format and Validation Contract
+---
+status: "Accepted"
+date: "2026-02-19"
+decision-makers: "Maintainers"
+---
 
-**Status:** Accepted
-**Date:** 2026-02-19
-**Participants:** Maintainers
+# `.exf` Marker Format and Validation Contract
 
-## Context
+## Context and Problem Statement
 
 Bound-folder identity depends on `.exf` markers. Loosely defined marker parsing can produce drift,
 ambiguous UUID interpretation, and silent mismatches across editors/platforms.
@@ -16,7 +18,12 @@ ambiguous UUID interpretation, and silent mismatches across editors/platforms.
 - Enable forward-compatible marker evolution
 - Keep Verify/Reconcile error semantics clear
 
-## Decision
+## Considered Options
+
+* Permissive parser (trim-all, accept near matches)
+* JSON marker format in MVP
+
+## Decision Outcome
 
 Define a strict, versioned marker contract for `.exf`.
 
@@ -34,19 +41,7 @@ Define a strict, versioned marker contract for `.exf`.
   - current implicit schema is `v1` (single UUID line)
   - future schema changes require explicit migration handling ADR/update
 
-## Alternatives Considered
-
-### A. Permissive parser (trim-all, accept near matches)
-- Pros: More tolerant of manual edits
-- Cons: Silent divergence and hard-to-debug identity errors
-- Why rejected/accepted: Rejected; safety requires strictness
-
-### B. JSON marker format in MVP
-- Pros: Explicit schema extensibility
-- Cons: Higher verbosity and migration cost now
-- Why rejected/accepted: Rejected for MVP simplicity; keep strict single-line format first
-
-## Consequences
+### Consequences
 
 ### Positive
 - Deterministic parse/write behavior across environments
@@ -59,17 +54,31 @@ Define a strict, versioned marker contract for `.exf`.
 - Requires explicit migration if marker format evolves
 - Slightly more user-facing errors for malformed files
 
-## Non-Goals
+## Pros and Cons of the Options
+
+### Permissive parser (trim-all, accept near matches)
+- Pros: More tolerant of manual edits
+- Cons: Silent divergence and hard-to-debug identity errors
+- Why rejected/accepted: Rejected; safety requires strictness
+
+### JSON marker format in MVP
+- Pros: Explicit schema extensibility
+- Cons: Higher verbosity and migration cost now
+- Why rejected/accepted: Rejected for MVP simplicity; keep strict single-line format first
+
+## More Information
+
+### Non-Goals
 
 - Supporting arbitrary user-authored marker variants
 - Backward compatibility with undocumented legacy marker encodings
 
-## Future Considerations
+### Future Considerations
 
 If richer marker metadata is added later, introduce explicit `v2` format with one-way migration tooling
 and a clear coexistence policy during transition.
 
-## References
+### References
 
 - [ADR-0005](0005-bound-folder-marker.md)
 - [ADR-0007](0007-uuid-regeneration-and-manual-edits.md)

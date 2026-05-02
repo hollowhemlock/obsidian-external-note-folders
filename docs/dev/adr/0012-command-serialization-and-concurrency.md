@@ -1,10 +1,12 @@
-# ADR-0012: Command Serialization and Concurrency Boundaries
+---
+status: "Accepted"
+date: "2026-02-19"
+decision-makers: "Maintainers"
+---
 
-**Status:** Accepted
-**Date:** 2026-02-19
-**Participants:** Maintainers
+# Command Serialization and Concurrency Boundaries
 
-## Context
+## Context and Problem Statement
 
 Multiple user commands can be triggered in close succession (`Verify`, `Reconcile`, `Open External Folder`,
 `Assign UUID`). Concurrent runs can observe inconsistent state and apply conflicting mutations.
@@ -16,7 +18,12 @@ Multiple user commands can be triggered in close succession (`Verify`, `Reconcil
 - Preserve deterministic, debuggable command behavior
 - Minimize surprising command interactions
 
-## Decision
+## Considered Options
+
+* Fully concurrent commands
+* Global lock for all commands (including Verify)
+
+## Decision Outcome
 
 The plugin enforces a single-flight command lock for mutation-capable commands.
 
@@ -35,19 +42,7 @@ The plugin enforces a single-flight command lock for mutation-capable commands.
   the plan is stale and execution is rejected, prompting the user to run a fresh dry-run.
 - Lock lifecycle is explicit: acquire before preflight, release only after success/failure finalization.
 
-## Alternatives Considered
-
-### A. Fully concurrent commands
-- Pros: Maximum responsiveness
-- Cons: High race risk, invalid plans, non-deterministic outcomes
-- Why rejected/accepted: Rejected for safety and predictability
-
-### B. Global lock for all commands (including Verify)
-- Pros: Simplest mental model
-- Cons: Unnecessary blocking; poor UX for read-only diagnostics
-- Why rejected/accepted: Rejected; too restrictive for low-risk reads
-
-## Consequences
+### Consequences
 
 ### Positive
 - Lower risk of conflicting operations and stale-plan execution
@@ -60,17 +55,31 @@ The plugin enforces a single-flight command lock for mutation-capable commands.
 - Additional state machine and UX handling for lock conflicts
 - Slightly higher complexity in command orchestration
 
-## Non-Goals
+## Pros and Cons of the Options
+
+### Fully concurrent commands
+- Pros: Maximum responsiveness
+- Cons: High race risk, invalid plans, non-deterministic outcomes
+- Why rejected/accepted: Rejected for safety and predictability
+
+### Global lock for all commands (including Verify)
+- Pros: Simplest mental model
+- Cons: Unnecessary blocking; poor UX for read-only diagnostics
+- Why rejected/accepted: Rejected; too restrictive for low-risk reads
+
+## More Information
+
+### Non-Goals
 
 - Multi-operation parallel mutation pipelines
 - Background queueing/retry service for deferred command execution
 
-## Future Considerations
+### Future Considerations
 
 If background automation is introduced later, it must integrate with the same lock model and expose
 visibility into queued/running operations.
 
-## References
+### References
 
 - [ADR-0001](0001-vault-is-source-of-truth.md)
 - [ADR-0006](0006-reconcile-is-explicit.md)

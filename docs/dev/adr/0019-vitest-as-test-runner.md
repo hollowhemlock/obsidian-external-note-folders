@@ -1,10 +1,12 @@
-# ADR-0019: Vitest as Test Runner
+---
+status: "Accepted"
+date: "2026-02-20"
+decision-makers: "Maintainers"
+---
 
-**Status:** Accepted
-**Date:** 2026-02-20
-**Participants:** Maintainers
+# Vitest as Test Runner
 
-## Context
+## Context and Problem Statement
 
 ADR-0017 defines a boundary-aligned testing strategy but does not prescribe a test runner. The project needs a framework that supports the ESM + TypeScript stack, runs fast, and requires minimal configuration.
 
@@ -16,7 +18,12 @@ ADR-0017 defines a boundary-aligned testing strategy but does not prescribe a te
 - Watch mode for iterative development
 - Minimal configuration to get started
 
-## Decision
+## Considered Options
+
+* Jest
+* Node.js built-in test runner (`node:test`)
+
+## Decision Outcome
 
 Use **Vitest** as the test runner for all test layers (unit, adapter, integration).
 
@@ -26,19 +33,7 @@ Configuration choices:
 - **Excluded paths**: `node_modules`, `dist`, `test/fixtures` are excluded from test discovery. Fixtures are test data, not executable tests.
 - **No coverage config yet**: Coverage tooling will be added when there is enough code to make thresholds meaningful.
 
-## Alternatives Considered
-
-### A. Jest
-- Pros: Widely adopted, large ecosystem
-- Cons: Requires transform config for ESM + TypeScript; slower startup; CJS-first design
-- Why rejected: Extra configuration burden for ESM projects; Vitest is a drop-in replacement with better DX
-
-### B. Node.js built-in test runner (`node:test`)
-- Pros: Zero dependencies
-- Cons: Less mature ecosystem; no built-in watch mode (at time of evaluation); weaker TypeScript integration
-- Why rejected: Not ergonomic enough for a project already using a bundler-friendly stack
-
-## Consequences
+### Consequences
 
 ### Positive
 - Tests run with zero transform overhead — Vitest understands TypeScript and ESM natively
@@ -51,16 +46,30 @@ Configuration choices:
 ### Negative / Trade-offs
 - Vitest is younger than Jest; ecosystem plugins are less numerous (acceptable for this project's needs)
 
-## Non-Goals
+## Pros and Cons of the Options
+
+### Jest
+- Pros: Widely adopted, large ecosystem
+- Cons: Requires transform config for ESM + TypeScript; slower startup; CJS-first design
+- Why rejected: Extra configuration burden for ESM projects; Vitest is a drop-in replacement with better DX
+
+### Node.js built-in test runner (`node:test`)
+- Pros: Zero dependencies
+- Cons: Less mature ecosystem; no built-in watch mode (at time of evaluation); weaker TypeScript integration
+- Why rejected: Not ergonomic enough for a project already using a bundler-friendly stack
+
+## More Information
+
+### Non-Goals
 
 - Coverage thresholds or reporting (deferred)
 - Browser-environment testing (not needed for core/adapter layers)
 
-## Future Considerations
+### Future Considerations
 
 If integration tests grow to require Obsidian API mocking at scale, evaluate whether Vitest's `vi.mock` is sufficient or whether a dedicated test-double library is warranted.
 
-## References
+### References
 
 - [ADR-0016](0016-layered-architecture-core-vs-obsidian-adapter.md)
 - [ADR-0017](0017-testing-strategy-by-boundary.md)
