@@ -2,7 +2,7 @@
 
 This index is optimized for fast human and LLM retrieval.
 
-Last generated: 2026-03-04
+Last generated: 2026-05-02
 
 ## Procedures
 - **[review-checklist.md](review-checklist.md)** - Use when reviewing an ADR before accepting it.
