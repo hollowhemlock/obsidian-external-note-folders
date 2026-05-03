@@ -7,7 +7,10 @@ import {
 
 import type { PluginSettings } from './PluginSettings.ts';
 
-import { buildDriftReport } from './core/driftReport.ts';
+import {
+  buildDriftReport,
+  hasActionableDriftForUuid
+} from './core/driftReport.ts';
 import { buildReconcilePlan } from './core/reconcilePlan.ts';
 import { buildVerifyReport } from './core/verify.ts';
 import { DriftReportModal } from './DriftReportModal.ts';
@@ -232,6 +235,18 @@ export class Plugin extends ObsidianPlugin {
       try {
         const uuidOutcome = await assignUuidToNote(this.app, activeFile);
         const refreshedScanContext = await this.collectScanContext();
+        const driftReport = buildDriftReport(refreshedScanContext.vaultScan, refreshedScanContext.externalScan);
+        if (hasActionableDriftForUuid(driftReport, uuidOutcome.uuid)) {
+          new Notice('External folder drift detected for this note. Review the opened report before opening or creating a folder.');
+          this.logWarn('open external folder blocked by active note drift', {
+            notePath: activeFile.path,
+            report: driftReport,
+            uuid: uuidOutcome.uuid
+          });
+          new DriftReportModal(this.app, driftReport).open();
+          return;
+        }
+
         if (refreshedScanContext.verifyReport.hasIntegrityErrors) {
           new Notice('Cannot create an external folder while integrity errors exist. Review the opened report for details.');
           this.logWarn('external folder creation blocked by refreshed integrity errors', {
