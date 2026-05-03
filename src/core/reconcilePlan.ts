@@ -362,6 +362,10 @@ function findMarkerTopologyConflict(
   return null;
 }
 
+function formatMarkdownCell(value: string): string {
+  return value.replaceAll('|', '\\|').replaceAll('\n', ' ');
+}
+
 function formatMarkdownList(title: string, items: readonly string[]): string {
   if (items.length === 0) {
     return `## ${title}\n\nNone.`;
@@ -370,7 +374,7 @@ function formatMarkdownList(title: string, items: readonly string[]): string {
   return [
     `## ${title}`,
     '',
-    ...items.map((item) => `- ${item}`)
+    ...items.map((item) => `- ${formatMarkdownCell(item)}`)
   ].join('\n');
 }
 
@@ -389,7 +393,9 @@ function formatRows(title: string, rows: readonly ReconcilePlanRow[]): string {
       const targetExternalFolder = 'targetExternalFolder' in row ? row.targetExternalFolder : null;
       const notePath = 'notePath' in row ? row.notePath : null;
       const message = 'message' in row ? row.message : '';
-      return `| ${row.kind} | ${notePath ?? '-'} | ${currentExternalFolder ?? '-'} | ${targetExternalFolder ?? '-'} | ${row.uuid} | ${message} |`;
+      return `| ${formatMarkdownCell(row.kind)} | ${formatMarkdownCell(notePath ?? '-')} | ${formatMarkdownCell(currentExternalFolder ?? '-')} | ${
+        formatMarkdownCell(targetExternalFolder ?? '-')
+      } | ${formatMarkdownCell(row.uuid)} | ${formatMarkdownCell(message)} |`;
     })
   ].join('\n');
 }

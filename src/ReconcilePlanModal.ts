@@ -80,10 +80,10 @@ export class ReconcilePlanModal extends Modal {
         }
 
         executeButton.setDisabled(true);
-        this.onExecute().finally(() => {
-          this.close();
-        }).catch(() => {
+        this.onExecute().catch(() => {
           // Errors are surfaced by the plugin command handler.
+        }).finally(() => {
+          this.close();
         });
       });
 

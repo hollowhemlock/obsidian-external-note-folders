@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   access,
+  lstat,
   mkdir,
   readdir,
   readFile,
@@ -106,13 +107,8 @@ async function assertNoAncestorMarker(externalRootPath: string, targetPath: stri
 
   for (const segment of segments.slice(0, -1)) {
     currentPath = path.join(currentPath, segment);
-    try {
-      await access(path.join(currentPath, EXF_MARKER_FILE_NAME));
+    if (await pathExists(path.join(currentPath, EXF_MARKER_FILE_NAME))) {
       throw new Error(`Target parent is inside an existing bound folder: ${currentPath}`);
-    } catch (error: unknown) {
-      if (!isMissingFileError(error)) {
-        throw error;
-      }
     }
   }
 }
@@ -129,15 +125,28 @@ async function assertNoDescendantMarker(targetPath: string): Promise<void> {
   }
 
   await visitDescendantFolders(targetPath, async (folderPath) => {
-    try {
-      await access(path.join(folderPath, EXF_MARKER_FILE_NAME));
+    if (await pathExists(path.join(folderPath, EXF_MARKER_FILE_NAME))) {
       throw new Error(`Target folder contains a descendant bound folder: ${folderPath}`);
-    } catch (error: unknown) {
-      if (!isMissingFileError(error)) {
-        throw error;
-      }
     }
   });
+}
+
+async function assertNoSymlinkInMovePath(externalRootPath: string, candidatePath: string): Promise<void> {
+  const relativePath = path.relative(externalRootPath, candidatePath);
+  const segments = relativePath.split(path.sep).filter((segment) => segment.length > 0);
+  let currentPath = externalRootPath;
+
+  for (const segment of segments) {
+    currentPath = path.join(currentPath, segment);
+    const stat = await tryLstat(currentPath);
+    if (!stat) {
+      return;
+    }
+
+    if (stat.isSymbolicLink()) {
+      throw new Error(`Reconcile move path crosses a symbolic link or reparse point: ${currentPath}`);
+    }
+  }
 }
 
 async function assertTargetMissing(targetPath: string): Promise<void> {
@@ -169,6 +178,8 @@ async function executeMove(externalRootPath: string, row: ReconcileMoveRow): Pro
   try {
     assertPathIsWithinRoot(externalRootPath, row.sourcePath);
     assertPathIsWithinRoot(externalRootPath, row.targetPath);
+    await assertNoSymlinkInMovePath(externalRootPath, row.sourcePath);
+    await assertNoSymlinkInMovePath(externalRootPath, row.targetPath);
     await assertMarkerMatches(row.sourcePath, row.uuid);
     await assertNoDescendantMarker(row.targetPath);
     await assertTargetMissing(row.targetPath);
@@ -193,6 +204,31 @@ function isMissingFileError(error: unknown): boolean {
     && 'code' in error
     && error.code === 'ENOENT'
   );
+}
+
+async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await access(targetPath);
+    return true;
+  } catch (error: unknown) {
+    if (isMissingFileError(error)) {
+      return false;
+    }
+
+    throw error;
+  }
+}
+
+async function tryLstat(targetPath: string): Promise<Awaited<ReturnType<typeof lstat>> | null> {
+  try {
+    return await lstat(targetPath);
+  } catch (error: unknown) {
+    if (isMissingFileError(error)) {
+      return null;
+    }
+
+    throw error;
+  }
 }
 
 async function visitDescendantFolders(folderPath: string, visitor: (folderPath: string) => Promise<void>): Promise<void> {
