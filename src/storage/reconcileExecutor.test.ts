@@ -105,6 +105,67 @@ describe('reconcile executor', () => {
     }));
     await expect(readFile(path.join(secondSourcePath, EXF_MARKER_FILE_NAME), 'utf8')).resolves.toBe(`${SECOND_UUID}\n`);
   });
+
+  it('fails closed when a planned move path escapes the external root', async () => {
+    const rootPath = await createTempRoot(tempDirectories);
+    const sourcePath = path.join(rootPath, 'Old Alpha');
+    const targetPath = path.join(path.dirname(rootPath), 'Escaped Alpha');
+    await writeMarker(sourcePath, FIRST_UUID);
+
+    const result = await executeReconcilePlan({
+      journalRootPath: path.join(rootPath, 'journal'),
+      plan: buildPlan(rootPath, [
+        {
+          currentExternalFolder: 'Old Alpha',
+          kind: 'move',
+          notePath: 'Projects/Alpha.md',
+          sourcePath,
+          targetExternalFolder: '../Escaped Alpha',
+          targetPath,
+          uuid: FIRST_UUID
+        }
+      ])
+    });
+
+    expect(result.succeeded).toBe(false);
+    const entry = result.journal.entries[0];
+    expect(entry?.message).toContain('escapes the configured root');
+    expect(entry).toEqual(expect.objectContaining({
+      outcome: 'failure',
+      uuid: FIRST_UUID
+    }));
+  });
+
+  it('fails closed when the live target contains a descendant marker', async () => {
+    const rootPath = await createTempRoot(tempDirectories);
+    const sourcePath = path.join(rootPath, 'Old Alpha');
+    const targetPath = path.join(rootPath, 'Projects', 'Alpha');
+    await writeMarker(sourcePath, FIRST_UUID);
+    await writeMarker(path.join(targetPath, 'Child'), SECOND_UUID);
+
+    const result = await executeReconcilePlan({
+      journalRootPath: path.join(rootPath, 'journal'),
+      plan: buildPlan(rootPath, [
+        {
+          currentExternalFolder: 'Old Alpha',
+          kind: 'move',
+          notePath: 'Projects/Alpha.md',
+          sourcePath,
+          targetExternalFolder: 'Projects/Alpha',
+          targetPath,
+          uuid: FIRST_UUID
+        }
+      ])
+    });
+
+    expect(result.succeeded).toBe(false);
+    const entry = result.journal.entries[0];
+    expect(entry?.message).toContain('descendant bound folder');
+    expect(entry).toEqual(expect.objectContaining({
+      outcome: 'failure',
+      uuid: FIRST_UUID
+    }));
+  });
 });
 
 function buildPlan(rootPath: string, rows: ReconcilePlan['rows']): ReconcilePlan {

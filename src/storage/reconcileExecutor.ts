@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   access,
   mkdir,
+  readdir,
   readFile,
   rename,
   writeFile
@@ -15,6 +16,7 @@ import type {
 
 import { EXF_MARKER_FILE_NAME } from '../core/contracts.ts';
 import { parseExfMarker } from '../core/marker.ts';
+import { assertPathIsWithinRoot } from '../core/pathPolicy.ts';
 
 const JSON_INDENT = 2;
 
@@ -115,6 +117,29 @@ async function assertNoAncestorMarker(externalRootPath: string, targetPath: stri
   }
 }
 
+async function assertNoDescendantMarker(targetPath: string): Promise<void> {
+  try {
+    await access(targetPath);
+  } catch (error: unknown) {
+    if (isMissingFileError(error)) {
+      return;
+    }
+
+    throw error;
+  }
+
+  await visitDescendantFolders(targetPath, async (folderPath) => {
+    try {
+      await access(path.join(folderPath, EXF_MARKER_FILE_NAME));
+      throw new Error(`Target folder contains a descendant bound folder: ${folderPath}`);
+    } catch (error: unknown) {
+      if (!isMissingFileError(error)) {
+        throw error;
+      }
+    }
+  });
+}
+
 async function assertTargetMissing(targetPath: string): Promise<void> {
   try {
     await access(targetPath);
@@ -142,7 +167,10 @@ async function executeMove(externalRootPath: string, row: ReconcileMoveRow): Pro
   };
 
   try {
+    assertPathIsWithinRoot(externalRootPath, row.sourcePath);
+    assertPathIsWithinRoot(externalRootPath, row.targetPath);
     await assertMarkerMatches(row.sourcePath, row.uuid);
+    await assertNoDescendantMarker(row.targetPath);
     await assertTargetMissing(row.targetPath);
     await assertNoAncestorMarker(externalRootPath, row.targetPath);
     await mkdir(path.dirname(row.targetPath), { recursive: true });
@@ -165,6 +193,29 @@ function isMissingFileError(error: unknown): boolean {
     && 'code' in error
     && error.code === 'ENOENT'
   );
+}
+
+async function visitDescendantFolders(folderPath: string, visitor: (folderPath: string) => Promise<void>): Promise<void> {
+  let childEntries;
+  try {
+    childEntries = await readdir(folderPath, { withFileTypes: true });
+  } catch (error: unknown) {
+    if (isMissingFileError(error)) {
+      return;
+    }
+
+    throw error;
+  }
+
+  for (const childEntry of childEntries) {
+    if (!childEntry.isDirectory()) {
+      continue;
+    }
+
+    const childPath = path.join(folderPath, childEntry.name);
+    await visitor(childPath);
+    await visitDescendantFolders(childPath, visitor);
+  }
 }
 
 async function writeJournal(journalPath: string, journal: ReconcileJournal): Promise<void> {

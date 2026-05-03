@@ -22,6 +22,7 @@ import {
   ensureBoundExternalFolder,
   openExternalFolderInFileManager
 } from './storage/boundExternalFolder.ts';
+import { buildJournalRootPath } from './storage/journalPath.ts';
 import { executeReconcilePlan } from './storage/reconcileExecutor.ts';
 import { scanExternalRoot } from './storage/scanExternalRoot.ts';
 import { VerifyReportModal } from './VerifyReportModal.ts';
@@ -114,7 +115,11 @@ export class Plugin extends ObsidianPlugin {
   }
 
   private getJournalRootPath(): string {
-    return `${this.getVaultRootPath()}/${this.app.vault.configDir}/plugins/${this.manifest.id}/journal`;
+    return buildJournalRootPath({
+      configDir: this.app.vault.configDir,
+      pluginId: this.manifest.id,
+      vaultRootPath: this.getVaultRootPath()
+    });
   }
 
   private getVaultRootPath(): string {

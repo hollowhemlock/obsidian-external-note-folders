@@ -96,7 +96,7 @@ interface MarkerTopologyConflict {
 }
 
 interface PlannerContext {
-  bindingPathsByIdentity: Map<string, string>;
+  bindingUuidsByIdentity: Map<string, string>;
   directoryIdentities: Set<string>;
   externalScan: ExternalScanResult;
   malformedMarkerParentIdentities: Set<string>;
@@ -149,12 +149,12 @@ export function buildReconcilePlan(input: {
   };
 }
 
-function buildBindingPathsByIdentity(bindings: Map<string, string>): Map<string, string> {
-  const pathsByIdentity = new Map<string, string>();
+function buildBindingUuidsByIdentity(bindings: Map<string, string>): Map<string, string> {
+  const uuidsByIdentity = new Map<string, string>();
   for (const [uuid, folderPath] of bindings) {
-    pathsByIdentity.set(normalizePathForIdentity(folderPath), uuid);
+    uuidsByIdentity.set(normalizePathForIdentity(folderPath), uuid);
   }
-  return pathsByIdentity;
+  return uuidsByIdentity;
 }
 
 function buildConflict(input: ReconcileConflictInput): ReconcileConflictRow {
@@ -185,7 +185,7 @@ function buildMarkdownReport(input: {
 
 function buildPlannerContext(externalScan: ExternalScanResult): PlannerContext {
   return {
-    bindingPathsByIdentity: buildBindingPathsByIdentity(externalScan.bindings),
+    bindingUuidsByIdentity: buildBindingUuidsByIdentity(externalScan.bindings),
     directoryIdentities: new Set(externalScan.directories.map((directoryPath) => normalizePathForIdentity(directoryPath))),
     externalScan,
     malformedMarkerParentIdentities: new Set(externalScan.malformedMarkers.map((issue) => normalizePathForIdentity(getParentPath(issue.location)))),
@@ -268,7 +268,7 @@ function buildVaultRow(input: {
   }
 
   const targetIdentity = normalizePathForIdentity(targetPath);
-  const targetBindingUuid = input.context.bindingPathsByIdentity.get(targetIdentity);
+  const targetBindingUuid = input.context.bindingUuidsByIdentity.get(targetIdentity);
   if (targetBindingUuid && targetBindingUuid !== input.uuid) {
     return buildConflict({
       currentExternalFolder,
