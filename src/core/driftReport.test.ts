@@ -10,10 +10,7 @@ import type {
   VaultScanResult
 } from './verify.ts';
 
-import {
-  buildDriftReport,
-  hasActionableDriftForUuid
-} from './driftReport.ts';
+import { buildDriftReport } from './driftReport.ts';
 
 const EXPECTED_UUID = '123e4567-e89b-42d3-a456-426614174000';
 const MISSING_UUID = '123e4567-e89b-42d3-a456-426614174001';
@@ -117,9 +114,6 @@ describe('drift report builder', () => {
       uuid: RENAMED_UUID
     });
     expect(report.markdownReport).toContain('# External Folder Drift Report');
-    expect(hasActionableDriftForUuid(report, EXPECTED_UUID)).toBe(false);
-    expect(hasActionableDriftForUuid(report, RENAMED_UUID)).toBe(true);
-    expect(hasActionableDriftForUuid(report, OCCUPIED_UUID)).toBe(true);
   });
 
   it('reports integrity errors without classifying drift when external access fails', () => {

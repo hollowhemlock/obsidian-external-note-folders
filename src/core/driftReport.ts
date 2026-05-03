@@ -157,12 +157,6 @@ export function buildDriftReport(vaultScan: VaultScanResult, externalScan: Exter
   };
 }
 
-export function hasActionableDriftForUuid(report: DriftReport, uuid: string): boolean {
-  return report.unexpectedRows.some((row) => row.uuid === uuid)
-    || report.occupiedRows.some((row) => row.uuid === uuid)
-    || report.suggestions.some((row) => row.uuid === uuid);
-}
-
 function addOccupiedRowIfNeeded(input: {
   bindingPathsByIdentity: Map<string, string>;
   directoryIdentities: Set<string>;

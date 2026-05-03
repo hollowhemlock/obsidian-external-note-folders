@@ -7,10 +7,9 @@ import {
 
 import type { PluginSettings } from './PluginSettings.ts';
 
-import {
-  buildDriftReport,
-  hasActionableDriftForUuid
-} from './core/driftReport.ts';
+import { ActiveFolderDriftModal } from './ActiveFolderDriftModal.ts';
+import { getActiveFolderDrift } from './core/activeFolderDrift.ts';
+import { buildDriftReport } from './core/driftReport.ts';
 import { buildReconcilePlan } from './core/reconcilePlan.ts';
 import { buildVerifyReport } from './core/verify.ts';
 import { DriftReportModal } from './DriftReportModal.ts';
@@ -235,15 +234,19 @@ export class Plugin extends ObsidianPlugin {
       try {
         const uuidOutcome = await assignUuidToNote(this.app, activeFile);
         const refreshedScanContext = await this.collectScanContext();
-        const driftReport = buildDriftReport(refreshedScanContext.vaultScan, refreshedScanContext.externalScan);
-        if (hasActionableDriftForUuid(driftReport, uuidOutcome.uuid)) {
-          new Notice('External folder drift detected for this note. Review the opened report before opening or creating a folder.');
+        const activeFolderDrift = getActiveFolderDrift({
+          externalScan: refreshedScanContext.externalScan,
+          notePath: activeFile.path,
+          uuid: uuidOutcome.uuid
+        });
+        if (activeFolderDrift) {
+          new Notice('External folder drift detected for this note. Review the opened report or run reconcile.');
           this.logWarn('open external folder blocked by active note drift', {
+            drift: activeFolderDrift,
             notePath: activeFile.path,
-            report: driftReport,
             uuid: uuidOutcome.uuid
           });
-          new DriftReportModal(this.app, driftReport).open();
+          new ActiveFolderDriftModal(this.app, activeFolderDrift).open();
           return;
         }
 
