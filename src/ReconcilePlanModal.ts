@@ -11,14 +11,16 @@ import type {
 } from './core/reconcilePlan.ts';
 
 export class ReconcilePlanModal extends Modal {
-  private executeArmed = false;
+  private executeArmed: boolean;
 
   public constructor(
     app: Modal['app'],
     private readonly plan: ReconcilePlan,
-    private readonly onExecute: () => Promise<void>
+    private readonly onExecute: () => Promise<void>,
+    private readonly dryRunByDefault: boolean
   ) {
     super(app);
+    this.executeArmed = !dryRunByDefault;
   }
 
   public override onOpen(): void {
@@ -33,7 +35,9 @@ export class ReconcilePlanModal extends Modal {
     contentEl.createEl('p', { text: this.plan.summaryText });
     contentEl.createEl('p', {
       cls: 'setting-item-description',
-      text: 'Dry-run plan. No vault files, external folders, or marker files have been changed.'
+      text: this.dryRunByDefault
+        ? 'Dry-run plan. No vault files, external folders, or marker files have been changed.'
+        : 'Execution-ready plan. No files have changed yet; clicking confirm executes the planned moves.'
     });
     contentEl.createEl('p', {
       cls: 'setting-item-description',
@@ -66,12 +70,12 @@ export class ReconcilePlanModal extends Modal {
       });
 
     const executeButton = new ButtonComponent(actionsEl)
-      .setButtonText(`Execute ${String(moveRows.length)} move(s)`)
+      .setButtonText(this.getExecuteButtonText(moveRows.length))
       .setCta()
       .onClick(() => {
         if (!this.executeArmed) {
           this.executeArmed = true;
-          executeButton.setButtonText(`Confirm execute ${String(moveRows.length)} move(s)`);
+          executeButton.setButtonText(this.getExecuteButtonText(moveRows.length));
           return;
         }
 
@@ -84,6 +88,14 @@ export class ReconcilePlanModal extends Modal {
       });
 
     executeButton.setDisabled(this.plan.hasGlobalErrors || moveRows.length === 0);
+  }
+
+  private getExecuteButtonText(moveCount: number): string {
+    if (this.executeArmed) {
+      return `Confirm execute ${String(moveCount)} move(s)`;
+    }
+
+    return `Execute ${String(moveCount)} move(s)`;
   }
 
   private renderTableSection(

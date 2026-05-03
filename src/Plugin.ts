@@ -290,13 +290,18 @@ export class Plugin extends ObsidianPlugin {
 
     new Notice(`Reconcile dry-run complete: ${plan.summaryText}.`);
     this.logInfo('reconcile dry-run complete', { plan });
-    new ReconcilePlanModal(this.app, plan, async () => {
-      try {
-        await this.runReconcileExecuteCommand(plan);
-      } catch (error: unknown) {
-        this.showUnexpectedError(error);
-      }
-    }).open();
+    new ReconcilePlanModal(
+      this.app,
+      plan,
+      async () => {
+        try {
+          await this.runReconcileExecuteCommand(plan);
+        } catch (error: unknown) {
+          this.showUnexpectedError(error);
+        }
+      },
+      this.settings.dryRunByDefault
+    ).open();
   }
 
   private async runReconcileExecuteCommand(plan: ReturnType<typeof buildReconcilePlan>): Promise<void> {

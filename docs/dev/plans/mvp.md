@@ -377,7 +377,9 @@ usage, because external folders may contain unique authoritative files.
 
 ### 2. Settings (additions)
 
-- [x] Add "Dry-run by default" toggle (default: true)
+- [x] Add "Dry-run by default" toggle (default: true). When disabled,
+      reconcile still shows the plan first, but opens with the execute button
+      already at the final confirmation step.
 - [x] On settings change, clear any active plan state. Plans are held only in
       the open modal and execute is rejected if mutation sequence changes.
 
