@@ -101,6 +101,24 @@ Local enforcement uses Husky `commit-msg` hook (installed by `npm install` via `
 - To reinstall hooks manually: `npm run prepare`
 - CI also enforces the same rule in `.github/workflows/commit-message-lint.yml`
 
+### Release process
+
+Feature and fix PRs should not manually update `package.json`, `manifest.json`,
+`CHANGELOG.md`, or `versions.json` for versioning. Merge normal work into
+`main` using conventional commit messages; Release Please opens or updates a
+separate release PR with the package and manifest version bump plus changelog.
+
+Review and merge the release PR only when you intend to publish a release. After
+that merge, Release Please creates the GitHub release and tag. The release asset
+workflow then builds the plugin, validates the tag and manifest version, updates
+`versions.json` on `main`, and uploads `main.js`, `styles.css`, `manifest.json`,
+and `versions.json` to the release.
+
+`versions.json` represents published Obsidian-compatible releases, so it is
+updated after release publication, not in normal feature PRs. See
+`docs/dev/procedures/release.md` for the full release checklist and recovery
+steps.
+
 ### Development policy references
 
 - TDD workflow: `docs/dev/procedures/tdd-workflow.md`
