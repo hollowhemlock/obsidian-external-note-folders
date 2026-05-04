@@ -9,6 +9,9 @@ This procedure defines how releases are generated, reviewed, and published in th
   - version bump in `package.json`
   - version bump in `manifest.json`
   - generated `CHANGELOG.md`
+- Opening or updating the release PR requires repository Actions workflow
+  permissions with read/write access and GitHub Actions pull request creation
+  enabled.
 - When the release PR is merged, Release Please creates a GitHub release and tag (without a `v` prefix).
 - `publish-obsidian-assets` runs on release publish and:
   - builds artifacts
@@ -43,6 +46,10 @@ This procedure defines how releases are generated, reviewed, and published in th
 
 ## Failure and Recovery
 
+- If Release Please updates its release branch but cannot open a pull request:
+  enable read/write workflow permissions and GitHub Actions pull request
+  creation, then re-run the workflow; alternatively, manually open a PR from the
+  generated release branch.
 - If tag/version mismatch fails release: fix `manifest.json` version via release PR and re-run release.
 - If build fails: fix code/build pipeline on `main`; release-please will update release PR.
 - If `versions.json` update fails to push: resolve branch protection or permission settings, then re-run the workflow.

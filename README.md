@@ -6,14 +6,16 @@ This is a plugin for [Obsidian](https://obsidian.md/) that associates Obsidian v
 
 External Note Folders links a markdown note to an external folder by storing a canonical UUID in the note's `exf` frontmatter field and writing the same UUID to a `.exf` marker file in the external folder.
 
-Phase 0 supports:
+The current release supports:
 
 - Assigning an external folder identifier to the active note.
 - Opening the note's bound external folder.
 - Creating a bound external folder on first open when no binding exists.
 - Integrity preflights before mutating commands.
+- Reporting drift between note-derived paths and existing bound external folders.
+- Explicitly reconciling existing bound external folders after note renames or moves.
 
-Phase 0 does not rename, move, delete, or reconcile existing external folders after a note is renamed or moved. Phase 0.5 adds a read-only drift report so users can find likely renamed or moved external folders without changing anything. Mutating reconcile is planned for a later phase and must remain explicit.
+Reconcile is never automatic. The command builds a dry-run plan first and moves folders only after explicit confirmation. It moves existing bound folders to their current note-derived paths, writes a journal entry for each attempted move, never deletes folders or marker files, and stops on the first execution failure.
 
 ## Commands
 
@@ -38,15 +40,15 @@ Obsidian's file manager. External-root scans, folder creation, marker writes,
 and file-manager launches use Node filesystem/process APIs because they operate
 outside the vault.
 
-The plugin does not register vault event handlers or background watchers in
-Phase 0. Commands perform fresh scans at command time and serialize mutating
-work, so re-entrant vault events are not used to trigger automatic repair or
+The plugin does not register vault event handlers or background watchers.
+Commands perform fresh scans at command time and serialize mutating work, so
+re-entrant vault events are not used to trigger automatic repair or
 reconciliation.
 
 ## Known Limitations
 
-- Reconcile is not implemented in Phase 0, so external folders are not moved when notes are renamed or reorganized.
-- Phase 0.5 is a report-only reconciliation aid. It helps identify likely matches, but it does not repair, move, rename, relink, or delete external folders.
+- Reconcile only moves already-bound external folders to note-derived paths. It does not infer new bindings, repair invalid markers, relink folders, delete folders, or resolve conflicts automatically.
+- `Report external folder drift` is read-only and can be used before reconcile to inspect missing, orphaned, unexpected, occupied, and likely moved folders without changing the vault or external root.
 - Concurrent UUID assignment across unsynced devices can create orphan external folders.
 - Sync tool conflicts in note frontmatter or external marker files are outside the plugin's repair scope; `Report external folder drift` surfaces the resulting state.
 
@@ -113,6 +115,12 @@ that merge, Release Please creates the GitHub release and tag. The release asset
 workflow then builds the plugin, validates the tag and manifest version, updates
 `versions.json` on `main`, and uploads `main.js`, `styles.css`, `manifest.json`,
 and `versions.json` to the release.
+
+Release automation requires repository Actions workflow permissions to allow
+read/write access and GitHub Actions pull request creation. If that setting is
+disabled, Release Please may update its release branch but fail to open the
+release PR; enable the permission and re-run the workflow, or manually open the
+release PR from the generated release branch.
 
 `versions.json` represents published Obsidian-compatible releases, so it is
 updated after release publication, not in normal feature PRs. See
