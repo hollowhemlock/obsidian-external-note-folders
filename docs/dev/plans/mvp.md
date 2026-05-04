@@ -372,69 +372,78 @@ usage, because external folders may contain unique authoritative files.
 
 ### 1. Filesystem Mutation Layer (additions)
 
-- [ ] `moveDir(src, dst)` no-overwrite, conflict-aware, boundary-checked
-- [ ] Each mutating operation is idempotent on retry where feasible
+- [x] `moveDir(src, dst)` no-overwrite, conflict-aware, boundary-checked
+- [x] Each mutating operation is idempotent on retry where feasible
 
 ### 2. Settings (additions)
 
-- [ ] Add "Dry-run by default" toggle (default: true)
-- [ ] On settings change, clear any active plan state
+- [x] Add "Dry-run by default" toggle (default: true). When disabled,
+      reconcile still shows the plan first, but opens with the execute button
+      already at the final confirmation step.
+- [x] On settings change, clear any active plan state. Plans are held only in
+      the open modal and execute is rejected if mutation sequence changes.
 
 ### 3. Command Serialization (additions)
 
-- [ ] Add `Reconcile (execute)` to mutating command set
-- [ ] Reconcile confirm step re-validates lock/version before execution
+- [x] Add `Reconcile (execute)` to mutating command set
+- [x] Reconcile confirm step re-validates lock/version before execution
 
 ### 4. Reconcile Command (Dry-Run Default)
 
-- [ ] Build immutable plan from scan snapshot
-- [ ] Abort plan/execution if any integrity `Error` exists
-- [ ] Immediately before each planned move, re-check source/destination
+- [x] Build immutable plan from scan snapshot
+- [x] Abort plan/execution if any integrity `Error` exists
+- [x] Immediately before each planned move, re-check source/destination
       invariants against live filesystem state; on mismatch, mark conflict and
       skip move
 - [ ] For UUID intersection:
-  - [ ] Derive canonical target path
-  - [ ] Skip if already correct
-  - [ ] Plan move when target empty/unbound
-  - [ ] Report conflict when target occupied (bound to different UUID or
+  - [x] Derive canonical target path
+  - [x] Skip if already correct
+  - [x] Plan move when target empty/unbound
+  - [x] Report conflict when target occupied (bound to different UUID or
         unbound) — skip the move
-  - [ ] Report conflict on ancestor/descendant marker collisions — skip the
+  - [x] Report conflict on ancestor/descendant marker collisions — skip the
         move
-- [ ] Show plan modal (moves, conflicts, skipped, risk notices)
-- [ ] Reconcile modal clearly distinguishes dry-run vs execute mode
-- [ ] Confirm dialog contains explicit mutation summary before execute
-- [ ] Execute only with explicit confirmation
-- [ ] Never delete anything
+- [x] Show plan modal (moves, conflicts, skipped, risk notices)
+- [x] Reconcile modal clearly distinguishes dry-run vs execute mode
+- [x] Confirm dialog contains explicit mutation summary before execute. The
+      modal requires a second explicit click on "Confirm execute".
+- [x] Execute only with explicit confirmation
+- [x] Never delete anything
 
 References:
-- [ ] `docs/dev/adr/0006-reconcile-is-explicit.md`
-- [ ] `docs/dev/adr/0009-status-model.md`
+- [x] `docs/dev/adr/0006-reconcile-is-explicit.md`
+- [x] `docs/dev/adr/0009-status-model.md`
+- [x] `docs/dev/adr/0022-reconcile-planner-and-execution-contract.md`
 
 ### 5. Reconcile Execution Log
 
 Journal serves as an audit log, not a recovery mechanism. Re-scan provides
 correct recovery.
 
-- [ ] Log each move with: source, destination, timestamp, outcome
+- [x] Log each move with: source, destination, timestamp, outcome
       (success/failure)
-- [ ] Include run ID for grouping
-- [ ] On failure: stop execution, log failure, do not continue best-effort
-- [ ] No resume/regenerate UX — next reconcile re-scans and builds a fresh
+- [x] Include run ID for grouping
+- [x] On failure: stop execution, log failure, do not continue best-effort
+- [x] No resume/regenerate UX — next reconcile re-scans and builds a fresh
       plan
 
 Reference:
-- [ ] `docs/dev/adr/0011-reconcile-execution-safety-model.md`
+- [x] `docs/dev/adr/0011-reconcile-execution-safety-model.md`
 
 ### 6. Caching Rules (additions)
 
-- [ ] Never execute reconcile from stale cache-only state
-- [ ] Invalidate cache on reconcile execution
+- [x] Never execute reconcile from stale cache-only state
+- [x] Invalidate cache on reconcile execution. No persistent plan cache is kept;
+      stale modal plans are rejected by mutation sequence.
 
 ### 7. Testing (additions)
 
-- [ ] Unit tests:
-  - [ ] reconcile planner conflict detection
-  - [ ] lock behavior and stale-plan invalidation
+- [x] Unit tests:
+  - [x] reconcile planner conflict detection
+  - [x] journaled executor stop-on-first-failure behavior
+- [ ] Deferred: direct command lock/stale-plan unit tests. Current coverage is
+      by command wiring and manual validation because plugin command
+      orchestration depends on Obsidian runtime objects.
 - [ ] Integration/manual matrix:
   - [ ] note rename then reconcile
   - [ ] concurrent command attempts
@@ -445,17 +454,17 @@ Reference:
 
 ### 8. Documentation (additions)
 
-- [ ] README covers:
-  - [ ] reconcile semantics (dry-run default, explicit execution)
-  - [ ] conflict reporting (no auto-rename)
+- [x] README covers:
+  - [x] reconcile semantics (dry-run default, explicit execution)
+  - [x] conflict reporting (no auto-rename)
 
 ### Phase 1 Done Criteria
 
-- [ ] Reconcile execution never performs deletion operations
-- [ ] Occupied or conflicting target paths are reported and skipped, never
+- [x] Reconcile execution never performs deletion operations
+- [x] Occupied or conflicting target paths are reported and skipped, never
       auto-renamed
-- [ ] Mutating commands (including Reconcile execute) are serialized by lock
-- [ ] Reconcile execution is logged with run IDs for auditability
+- [x] Mutating commands (including Reconcile execute) are serialized by lock
+- [x] Reconcile execution is logged with run IDs for auditability
 
 ---
 

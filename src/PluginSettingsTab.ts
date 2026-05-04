@@ -38,6 +38,18 @@ export class PluginSettingsTab extends PluginSettingTab {
 
         text.inputEl.size = TEXT_INPUT_VISIBLE_SIZE;
       });
+
+    new Setting(containerEl)
+      .setName('Dry-run reconcile by default')
+      .setDesc('Show a reconcile plan before any external folders can be moved.')
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.dryRunByDefault)
+          .onChange(async (value) => {
+            this.plugin.settings.dryRunByDefault = value;
+            await this.plugin.saveSettings();
+          });
+      });
   }
 
   private async handleExternalRootChanged(

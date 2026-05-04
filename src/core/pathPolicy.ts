@@ -65,7 +65,7 @@ export function deriveExternalFolderRelativeSegments(notePath: string): string[]
 }
 
 export function normalizePathForIdentity(candidatePath: string): string {
-  const normalizedPath = candidatePath.normalize('NFC');
+  const normalizedPath = path.normalize(candidatePath.normalize('NFC'));
   if (process.platform === 'win32') {
     return normalizedPath.toLowerCase();
   }

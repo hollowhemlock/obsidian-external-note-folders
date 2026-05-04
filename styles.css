@@ -33,3 +33,10 @@
   font-family: var(--font-monospace);
   font-size: var(--font-ui-small);
 }
+
+.external-note-folders-modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}

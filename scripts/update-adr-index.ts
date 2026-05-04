@@ -21,7 +21,7 @@ const TEMPLATE_FILE = '0000-template.md';
 const REVIEW_CHECKLIST_FILE = 'review-checklist.md';
 
 function buildReadme(records: AdrRecord[]): string {
-  const generatedAt = new Date().toISOString().slice(0, 10);
+  const generatedAt = getLatestRecordDate(records);
   const lines: string[] = [
     '# Architecture Decision Records',
     '',
@@ -76,6 +76,15 @@ function escapePipes(value: string): string {
 function extractFirstMatch(content: string, pattern: RegExp, fallback: string): string {
   const match = pattern.exec(content);
   return match?.[1]?.trim() ?? fallback;
+}
+
+function getLatestRecordDate(records: AdrRecord[]): string {
+  const knownDates = records
+    .map((record) => record.date)
+    .filter((date) => date !== 'Unknown')
+    .sort();
+
+  return knownDates.at(-1) ?? 'Unknown';
 }
 
 function inferTags(text: string): string[] {

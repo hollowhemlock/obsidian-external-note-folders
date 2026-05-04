@@ -20,6 +20,7 @@ Phase 0 does not rename, move, delete, or reconcile existing external folders af
 - `Assign external folder identifier`: Adds an `exf` UUID to the active markdown note if one is missing. It never creates or changes external folders.
 - `Open external folder`: Ensures the active note has an `exf` UUID, creates the derived external folder when needed, writes its `.exf` marker, and opens the folder in the system file manager.
 - `Report external folder drift`: Read-only report that compares current note-derived external folder paths against existing external folders, highlights integrity errors, missing/orphaned/unexpected/occupied paths, and suggests likely matches.
+- `Reconcile external folders`: Builds a dry-run move plan and, only after explicit confirmation, moves existing bound external folders to their current note-derived paths. It never deletes folders or marker files and stops on first failure.
 
 ## Safety Model
 
@@ -99,6 +100,24 @@ Local enforcement uses Husky `commit-msg` hook (installed by `npm install` via `
 - Commit messages are validated locally by `.husky/commit-msg`
 - To reinstall hooks manually: `npm run prepare`
 - CI also enforces the same rule in `.github/workflows/commit-message-lint.yml`
+
+### Release process
+
+Feature and fix PRs should not manually update `package.json`, `manifest.json`,
+`CHANGELOG.md`, or `versions.json` for versioning. Merge normal work into
+`main` using conventional commit messages; Release Please opens or updates a
+separate release PR with the package and manifest version bump plus changelog.
+
+Review and merge the release PR only when you intend to publish a release. After
+that merge, Release Please creates the GitHub release and tag. The release asset
+workflow then builds the plugin, validates the tag and manifest version, updates
+`versions.json` on `main`, and uploads `main.js`, `styles.css`, `manifest.json`,
+and `versions.json` to the release.
+
+`versions.json` represents published Obsidian-compatible releases, so it is
+updated after release publication, not in normal feature PRs. See
+`docs/dev/procedures/release.md` for the full release checklist and recovery
+steps.
 
 ### Development policy references
 

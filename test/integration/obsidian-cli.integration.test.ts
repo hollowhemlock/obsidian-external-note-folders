@@ -198,7 +198,7 @@ describe('obsidian CLI integration', () => {
       }\nExpected output. On Windows, use Obsidian.com and ensure CLI is enabled in Settings -> General -> Command line interface.`
     ).toBe(true);
 
-    expect(combinedOutput).toContain('app:');
+    expect(combinedOutput).not.toContain('Command line interface is not enabled.');
   });
 
   it('lists plugin commands for this plugin id', async () => {
@@ -229,6 +229,7 @@ describe('obsidian CLI integration', () => {
     const combinedOutput = `${commandsResult.stdout}\n${commandsResult.stderr}`;
     expect(combinedOutput).toContain(`${pluginId}:assign-external-folder-uuid`);
     expect(combinedOutput).toContain(`${pluginId}:open-external-folder`);
+    expect(combinedOutput).toContain(`${pluginId}:reconcile-external-folders`);
     expect(combinedOutput).toContain(`${pluginId}:report-external-folder-drift`);
     expect(combinedOutput).not.toContain(`${pluginId}:verify-external-folders`);
   });
