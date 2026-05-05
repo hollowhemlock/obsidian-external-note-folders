@@ -14,7 +14,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
@@ -30,6 +30,15 @@ jobs:
         run: |
           npm run docs:adr:index
           git diff --exit-code docs/dev/adr/README.md
+
+      - name: Verify release versions metadata
+        run: npm run release:check-versions
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify release assets
+        run: npm run release:check-assets
 
       - name: Test
         run: npm run test

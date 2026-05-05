@@ -18,6 +18,7 @@ For an Obsidian plugin, releases also need consistent assets (`main.js`, `styles
 - Generate predictable changelogs from conventional commits
 - Keep release process transparent via reviewable pull requests
 - Ensure published GitHub releases include required Obsidian plugin artifacts
+- Keep `versions.json` reviewable before release publication
 - Minimize custom release scripting
 
 ## Considered Options
@@ -37,13 +38,17 @@ Implementation choices:
 - Keep semver tags without a `v` prefix
 - Generate/update `CHANGELOG.md` through Release Please
 - Update `manifest.json` `version` via Release Please `extra-files` config
+- Maintain `versions.json` in the release PR using `npm run release:update-versions`
 - Trigger a separate workflow on GitHub Release `published` to build and upload `main.js`, `styles.css`, and `manifest.json`
+- Allow that release asset workflow to be manually rerun for an existing tag
+- Pin release validation and GitHub Actions build tooling to Node 24
 
 ### Consequences
 
 ### Positive
 - Changelog generation becomes automatic and consistent
 - Version bumps are proposed in a dedicated release PR
+- `versions.json` changes are reviewed before publication
 - Obsidian release artifacts are published automatically after release publication
 
 ### Neutral
@@ -51,7 +56,7 @@ Implementation choices:
 
 ### Negative / Trade-offs
 - Release process now depends on commit message quality (`feat`, `fix`, etc.)
-- `versions.json` is not updated by this ADR and remains a separate concern
+- Release PRs may require a follow-up `versions.json` commit when Release Please bumps the version
 
 ## Pros and Cons of the Options
 
@@ -74,13 +79,12 @@ Implementation choices:
 
 ### Non-Goals
 
-- Automating updates to `versions.json`
 - Publishing to external package registries
 - Defining branching strategy beyond running release automation from `main`
 
 ### Future Considerations
 
-If Obsidian plugin distribution requires `versions.json` automation, add a follow-up workflow or Release Please extension that updates it from the release tag/version.
+If Release Please continues to create manual recovery work, replace it with a simpler Obsidian-specific version script and tag-driven release workflow.
 
 ### References
 

@@ -9,40 +9,52 @@ This procedure defines how releases are generated, reviewed, and published in th
   - version bump in `package.json`
   - version bump in `manifest.json`
   - generated `CHANGELOG.md`
+- Release PR CI runs `npm run release:check-versions`; if it fails, run
+  `npm run release:update-versions`, commit `versions.json`, and push to the
+  release PR branch.
 - Opening or updating the release PR requires repository Actions workflow
   permissions with read/write access and GitHub Actions pull request creation
   enabled.
 - When the release PR is merged, Release Please creates a GitHub release and tag (without a `v` prefix).
 - `publish-obsidian-assets` runs on release publish and:
-  - builds artifacts
+  - builds artifacts with Node 24
   - validates tag version equals `manifest.json` version
-  - updates and commits `versions.json` on `main`
-  - uploads `main.js`, `styles.css`, `manifest.json`, `versions.json` to the release
-- `versions.json` is updated after the release is published; it is not expected to change in the release PR itself.
+  - uploads `main.js`, `styles.css`, and `manifest.json` to the release
+- `publish-obsidian-assets` can also be run manually with a `tag` input to retry
+  asset publishing for an existing release. Manual runs use the workflow from
+  `main`, check out the requested tag, build that exact tag, and upload assets
+  back to the same release tag.
+- `versions.json` is updated in the release PR before release publication; it is
+  not committed by the post-release asset workflow.
 
 ## Human Workflow
 
 1. Merge conventional-commit PRs into `main`.
 2. Wait for/refresh the release PR created by Release Please.
-3. Review the release PR for:
+3. If release PR CI fails on `release:check-versions`, run
+   `npm run release:update-versions`, commit `versions.json`, and push to the
+   release PR branch.
+4. Review the release PR for:
    - correct semver bump
    - accurate changelog entries
    - expected files changed only
-4. Merge the release PR.
-5. Confirm the GitHub release was created and release assets are attached.
-6. Confirm the `publish-obsidian-assets` workflow completed successfully.
-7. Verify `versions.json` was updated on `main`.
+5. Merge the release PR.
+6. Confirm the GitHub release was created and release assets are attached.
+7. Confirm the `publish-obsidian-assets` workflow completed successfully.
+8. Verify `versions.json` contains the released version on `main`.
 
 ## LLM Agent Workflow
 
 1. Ensure commit subjects match `<type>: <description>`.
 2. Do not manually edit release PR versions unless requested.
-3. Before merge guidance, verify CI status on the release PR.
-4. After release, verify:
+3. If release PR CI reports stale `versions.json`, run
+   `npm run release:update-versions` and commit only the generated metadata.
+4. Before merge guidance, verify CI status on the release PR.
+5. After release, verify:
    - tag and `manifest.json` version match
    - release assets include all required files
    - `versions.json` contains the new version key
-5. If release job fails, diagnose root cause first; do not retag blindly.
+6. If release job fails, diagnose root cause first; do not retag blindly.
 
 ## Failure and Recovery
 
@@ -50,11 +62,17 @@ This procedure defines how releases are generated, reviewed, and published in th
   enable read/write workflow permissions and GitHub Actions pull request
   creation, then re-run the workflow; alternatively, manually open a PR from the
   generated release branch.
+- If `versions.json` is stale: run `npm run release:update-versions`, commit the
+  result to the release PR branch, and let CI re-check it.
 - If tag/version mismatch fails release: fix `manifest.json` version via release PR and re-run release.
-- If build fails: fix code/build pipeline on `main`; release-please will update release PR.
-- If `versions.json` update fails to push: resolve branch protection or permission settings, then re-run the workflow.
+- If build fails before release: fix code/build pipeline on `main`; Release
+  Please will update the release PR.
+- If asset publishing fails after release: fix the workflow on `main`, then run
+  `publish-obsidian-assets` manually with the existing release tag. Do not retag
+  unless the tag or manifest version is wrong.
 
 ## Conventions
 
 - Use the enforced conventional commit types from repo policy: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
 - Treat release PRs as reviewable artifacts, not auto-merge by default.
+- Use Node 24 for local release validation and GitHub Actions release builds.
