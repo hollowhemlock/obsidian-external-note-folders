@@ -41,7 +41,8 @@ describe('verify report builder', () => {
       ],
       duplicatePaths: new Map(),
       malformedMarkers: [],
-      rootPath: 'X:\\External'
+      rootPath: 'X:\\External',
+      skippedDirectories: []
     };
 
     const report = buildVerifyReport(vaultScan, externalScan);
@@ -67,9 +68,7 @@ describe('verify report builder', () => {
         uuid: '123e4567-e89b-42d3-a456-426614174001'
       }
     ]);
-    expect(report.warnings).toEqual([
-      'X:\\External\\Orphan (123e4567-e89b-42d3-a456-426614174999) is orphaned.'
-    ]);
+    expect(report.warnings).toEqual([]);
     expect(report.warningRows).toEqual([
       {
         externalFolder: 'Orphan',
@@ -96,7 +95,8 @@ describe('verify report builder', () => {
       directories: [],
       duplicatePaths: new Map(),
       malformedMarkers: [],
-      rootPath: 'X:\\External'
+      rootPath: 'X:\\External',
+      skippedDirectories: []
     };
 
     const report = buildVerifyReport(vaultScan, externalScan);
@@ -110,6 +110,43 @@ describe('verify report builder', () => {
     expect(report.warningRows).toEqual([]);
     expect(report.errors).toEqual([
       'External root access error at X:\\External: External root is not configured.'
+    ]);
+  });
+
+  it('reports skipped descendant directories as non-blocking warnings', () => {
+    const vaultScan: VaultScanResult = {
+      bindings: new Map([[VALID_UUID, 'Notes/Alpha.md']]),
+      duplicatePaths: new Map(),
+      invalidFrontmatter: []
+    };
+    const externalScan: ExternalScanResult = {
+      accessErrors: [],
+      bindings: new Map([[VALID_UUID, 'X:\\External\\Notes\\Alpha']]),
+      directories: ['X:\\External\\Notes', 'X:\\External\\Notes\\Alpha', 'X:\\External\\Unreadable'],
+      duplicatePaths: new Map(),
+      malformedMarkers: [],
+      rootPath: 'X:\\External',
+      skippedDirectories: [
+        {
+          location: 'X:\\External\\Unreadable',
+          message: 'permission denied'
+        }
+      ]
+    };
+
+    const report = buildVerifyReport(vaultScan, externalScan);
+
+    expect(report.hasIntegrityErrors).toBe(false);
+    expect(report.classificationOmitted).toBe(false);
+    expect(report.warnings).toEqual([
+      'Skipped external directory at X:\\External\\Unreadable: permission denied'
+    ]);
+    expect(report.okRows).toEqual([
+      {
+        externalFolder: 'Notes/Alpha',
+        notePath: 'Notes/Alpha.md',
+        uuid: VALID_UUID
+      }
     ]);
   });
 });

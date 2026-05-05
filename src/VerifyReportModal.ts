@@ -39,7 +39,8 @@ export class VerifyReportModal extends Modal {
     }
 
     this.renderTextSection(contentEl, 'Errors', this.verifyReport.errors, 'No integrity errors detected.');
-    this.renderTableSection(contentEl, 'Warnings', this.verifyReport.warningRows, 'No orphan bound folders detected.');
+    this.renderTextSection(contentEl, 'Warnings', this.verifyReport.warnings, 'No scan warnings detected.');
+    this.renderTableSection(contentEl, 'Orphan Bound Folders', this.verifyReport.warningRows, 'No orphan bound folders detected.');
     this.renderTableSection(contentEl, 'Unavailable', this.verifyReport.unavailableRows, 'No missing bound folders detected.');
     this.renderTableSection(contentEl, 'OK', this.verifyReport.okRows, 'No healthy bindings were discovered.');
   }

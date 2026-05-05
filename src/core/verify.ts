@@ -7,6 +7,7 @@ export interface ExternalScanResult {
   duplicatePaths: Map<string, string[]>;
   malformedMarkers: ScanIssue[];
   rootPath: string;
+  skippedDirectories: ScanIssue[];
 }
 
 export interface ScanIssue {
@@ -59,7 +60,8 @@ export function buildVerifyReport(
   const okRows: VerifyTableRow[] = [];
   const unavailable: string[] = [];
   const unavailableRows: VerifyTableRow[] = [];
-  const warnings: string[] = [];
+  const warnings = externalScan.skippedDirectories
+    .map((issue) => `Skipped external directory at ${issue.location}: ${issue.message}`);
   const warningRows: VerifyTableRow[] = [];
 
   if (!classificationOmitted) {
@@ -84,7 +86,6 @@ export function buildVerifyReport(
 
     for (const [uuid, boundFolderPath] of sortEntries(externalScan.bindings)) {
       if (!vaultScan.bindings.has(uuid)) {
-        warnings.push(`${boundFolderPath} (${uuid}) is orphaned.`);
         warningRows.push({
           externalFolder: toExternalRelativeDisplayPath(externalScan.rootPath, boundFolderPath),
           notePath: null,
@@ -96,7 +97,7 @@ export function buildVerifyReport(
 
   const summaryText = [
     `${String(errors.length)} error(s)`,
-    `${String(warnings.length)} warning(s)`,
+    `${String(warnings.length + warningRows.length)} warning(s)`,
     `${String(unavailable.length)} unavailable`,
     `${String(ok.length)} ok`
   ].join(', ');

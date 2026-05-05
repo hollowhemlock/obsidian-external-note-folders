@@ -74,6 +74,7 @@ export interface ReconcilePlan {
   mutationSequence: number;
   rows: ReconcilePlanRow[];
   summaryText: string;
+  warnings: string[];
 }
 
 export type ReconcilePlanRow =
@@ -133,7 +134,7 @@ export function buildReconcilePlan(input: {
   }
 
   const sortedRows = sortRows(rows);
-  const summaryText = buildSummaryText(verifyReport.errors, sortedRows);
+  const summaryText = buildSummaryText(verifyReport.errors, verifyReport.warnings, sortedRows);
   return {
     errors: verifyReport.errors,
     externalRootPath: input.externalScan.rootPath,
@@ -141,11 +142,13 @@ export function buildReconcilePlan(input: {
     markdownReport: buildMarkdownReport({
       errors: verifyReport.errors,
       rows: sortedRows,
-      summaryText
+      summaryText,
+      warnings: verifyReport.warnings
     }),
     mutationSequence: input.mutationSequence,
     rows: sortedRows,
-    summaryText
+    summaryText,
+    warnings: verifyReport.warnings
   };
 }
 
@@ -168,6 +171,7 @@ function buildMarkdownReport(input: {
   errors: string[];
   rows: ReconcilePlanRow[];
   summaryText: string;
+  warnings: string[];
 }): string {
   return [
     '# Reconcile Plan',
@@ -175,6 +179,7 @@ function buildMarkdownReport(input: {
     input.summaryText,
     '',
     formatMarkdownList('Errors', input.errors),
+    formatMarkdownList('Warnings', input.warnings),
     formatRows('Moves', input.rows.filter((row): row is ReconcileMoveRow => row.kind === 'move')),
     formatRows('Conflicts', input.rows.filter((row): row is ReconcileConflictRow => row.kind === 'conflict')),
     formatRows('Already Correct', input.rows.filter((row): row is ReconcileAlreadyCorrectRow => row.kind === 'already-correct')),
@@ -193,9 +198,10 @@ function buildPlannerContext(externalScan: ExternalScanResult): PlannerContext {
   };
 }
 
-function buildSummaryText(errors: string[], rows: readonly ReconcilePlanRow[]): string {
+function buildSummaryText(errors: string[], warnings: string[], rows: readonly ReconcilePlanRow[]): string {
   return [
     `${String(errors.length)} error(s)`,
+    `${String(warnings.length)} warning(s)`,
     `${String(rows.filter((row) => row.kind === 'move').length)} move(s)`,
     `${String(rows.filter((row) => row.kind === 'conflict').length)} conflict(s)`,
     `${String(rows.filter((row) => row.kind === 'already-correct').length)} already correct`,

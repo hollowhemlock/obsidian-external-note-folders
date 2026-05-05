@@ -147,7 +147,8 @@ Implement one guarded module for all mutations.
   - [x] Run vault + external integrity scan immediately before mutation
   - [x] If any integrity `Error` exists anywhere, abort mutation with grouped
         actionable notice
-  - [x] This includes external access/boundary failures (strict fail-closed)
+  - [x] This includes configured-root access/boundary failures (strict
+        fail-closed); unreadable descendant directories are warning-only skips
 - [x] Reject overlapping mutating commands with clear user notice
 - [x] Read-only reports may run during mutation but results must be labeled as
       possibly stale
@@ -185,8 +186,9 @@ Reference:
   - [x] `OK`
   - [x] `Unavailable` (vault UUID with no bound external folder)
   - [x] `Warning` (orphan bound folder)
-  - [x] `Error` (duplicates, malformed markers, mismatches,
-        boundary/access failures)
+  - [x] `Warning` (unreadable descendant directory skipped during scan)
+  - [x] `Error` (duplicates, malformed markers, mismatches, boundary failures,
+        configured-root access failures)
 - [x] Show grouped report modal
 - [x] Log structured summary. Integrity preflights log grouped report objects
       to the DevTools console with the `[external-note-folders]` prefix.
@@ -241,8 +243,10 @@ Reference:
   - [x] external root missing
   - [ ] Deferred: external drive detached or permissions denied. This remains a
         manual hardware/OS-permission scenario; Phase 0 treats equivalent
-        external-root access failures as scan `Error`s and fail-closed mutation
-        blockers.
+        configured-root access failures as scan `Error`s and fail-closed
+        mutation blockers.
+  - [x] unreadable descendant directory under external root reports a warning
+        and does not block classification of readable siblings
   - [x] duplicate UUID in vault
   - [x] duplicate UUID in external
   - [x] malformed `.exnf`
@@ -302,7 +306,8 @@ rename/move drift and identify likely matches without risking external data.
 - [x] Treat external folder contents as authoritative user data, never as a
       disposable mirror
 - [x] Preserve Phase 0 safety model: malformed markers, duplicate UUIDs,
-      boundary failures, and access failures are reported as errors
+      boundary failures, and configured-root access failures are reported as
+      errors; unreadable descendant directories are warning-only skips
 - [x] Do not infer external-to-vault mutations from folder names
 
 ### 2. Reconciliation Report Command

@@ -46,6 +46,7 @@ Use a fresh sandbox at the start of a validation pass. Use refresh between scena
 | --- | --- | --- |
 | External root missing | Point settings at a non-existent absolute path. | `Verify` reports `Error`; mutating commands abort without creating data elsewhere. |
 | External root inaccessible | Use a detached drive, denied-permission folder, or similar inaccessible root. | Scan surfaces an `Error`; mutation preflight aborts; no partial writes occur. |
+| Child directory inaccessible | Deny read access to a descendant directory while the configured root remains readable. | Scan reports a warning, skips that subtree, and continues classifying readable sibling folders. |
 | Duplicate UUID in vault | Create two notes with the same `exnf` frontmatter value. | `Verify` reports duplicate-vault `Error`; mutating commands abort. |
 | Duplicate UUID in external root | Create two bound folders with `.exnf` files containing the same UUID. | `Verify` reports duplicate-external `Error`; mutating commands abort. |
 | Malformed `.exnf` | Add BOM, extra content, extra lines, or a non-canonical UUID to a marker. | Marker is classified as malformed `Error`; mutation preflight aborts. |

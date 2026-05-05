@@ -49,6 +49,7 @@ export class ReconcilePlanModal extends Modal {
     });
 
     this.renderTextSection(contentEl, 'Errors', this.plan.errors, 'No global integrity errors detected.');
+    this.renderTextSection(contentEl, 'Warnings', this.plan.warnings, 'No scan warnings detected.');
     this.renderTableSection(contentEl, 'Planned Moves', moveRows, 'No folders need to move.');
     this.renderTableSection(contentEl, 'Conflicts', conflictRows, 'No move conflicts detected.');
     this.renderTableSection(contentEl, 'Other Rows', this.plan.rows.filter((row) => row.kind !== 'move' && row.kind !== 'conflict'), 'No other rows.');
