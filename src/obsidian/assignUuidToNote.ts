@@ -4,8 +4,8 @@ import type {
 } from 'obsidian';
 
 import {
-  getExfFrontmatterValue,
-  setExfFrontmatterValue
+  getExnfFrontmatterValue,
+  setExnfFrontmatterValue
 } from '../core/frontmatter.ts';
 import { generateCanonicalUuid } from '../core/uuid.ts';
 
@@ -17,10 +17,10 @@ export async function assignUuidToNote(app: App, file: TFile): Promise<AssignUui
   let outcome: AssignUuidOutcome | undefined;
 
   await app.fileManager.processFrontMatter(file, (frontmatter) => {
-    const currentValue = getExfFrontmatterValue(frontmatter as Record<string, unknown>);
+    const currentValue = getExnfFrontmatterValue(frontmatter as Record<string, unknown>);
     if (currentValue.kind === 'missing') {
       const uuid = generateCanonicalUuid();
-      setExfFrontmatterValue(frontmatter as Record<string, unknown>, uuid);
+      setExnfFrontmatterValue(frontmatter as Record<string, unknown>, uuid);
       outcome = {
         kind: 'assigned',
         uuid
@@ -36,7 +36,7 @@ export async function assignUuidToNote(app: App, file: TFile): Promise<AssignUui
       return;
     }
 
-    throw new Error(`Cannot assign UUID because exf frontmatter ${currentValue.reason}.`);
+    throw new Error(`Cannot assign UUID because exnf frontmatter ${currentValue.reason}.`);
   });
 
   if (!outcome) {

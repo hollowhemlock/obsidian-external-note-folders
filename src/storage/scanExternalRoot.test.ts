@@ -14,7 +14,7 @@ import {
   it
 } from 'vitest';
 
-import { EXF_MARKER_FILE_NAME } from '../core/contracts.ts';
+import { EXNF_MARKER_FILE_NAME } from '../core/contracts.ts';
 import { scanExternalRoot } from './scanExternalRoot.ts';
 
 const OTHER_UUID = '123e4567-e89b-42d3-a456-426614174001';
@@ -89,7 +89,7 @@ describe('external root scanning', () => {
 
     expect(result.malformedMarkers).toEqual([
       {
-        location: path.join(folderPath, EXF_MARKER_FILE_NAME),
+        location: path.join(folderPath, EXNF_MARKER_FILE_NAME),
         message: 'Marker must contain a canonical lowercase UUID.'
       }
     ]);
@@ -135,5 +135,5 @@ function isUnsupportedSymlinkError(error: unknown): boolean {
 
 async function writeMarker(folderPath: string, uuid: string): Promise<void> {
   await mkdir(folderPath, { recursive: true });
-  await writeFile(path.join(folderPath, EXF_MARKER_FILE_NAME), `${uuid}\n`, 'utf8');
+  await writeFile(path.join(folderPath, EXNF_MARKER_FILE_NAME), `${uuid}\n`, 'utf8');
 }

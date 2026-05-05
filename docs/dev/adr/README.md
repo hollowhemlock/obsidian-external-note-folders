@@ -27,7 +27,7 @@ Last generated: 2026-05-02
 | [ADR-0002](0002-missing-external-is-normal.md) | Accepted | 2026-02-14 | Missing External Folders Are Normal | `external-root` | Before changing external folder derivation and marker rules. |
 | [ADR-0003](0003-no-deletions.md) | Accepted | 2026-02-14 | No Deletions (Trust Boundary) | `safety` | Before changing trust boundaries or destructive behavior. |
 | [ADR-0004](0004-single-external-root.md) | Accepted | 2026-02-14 | Single External Root | `external-root` | Before changing external folder derivation and marker rules. |
-| [ADR-0005](0005-bound-folder-marker.md) | Accepted | 2026-02-14 | Bound Folders Are Defined by a Root Marker File (`.exf`) | `external-root` | Before changing external folder derivation and marker rules. |
+| [ADR-0005](0005-bound-folder-marker.md) | Accepted | 2026-02-14 | Bound Folders Are Defined by a Root Marker File (`.exnf`) | `external-root` | Before changing external folder derivation and marker rules. |
 | [ADR-0006](0006-reconcile-is-explicit.md) | Accepted | 2026-02-14 | Reconcile Is Explicit and Dry-Run by Default | `reconcile` | Before changing reconcile planning/execution behavior. |
 | [ADR-0007](0007-uuid-regeneration-and-manual-edits.md) | Accepted | 2026-02-14 | UUID Regeneration and Manual UUID Edits | `vault-model` | Before changing identity or source-of-truth assumptions. |
 | [ADR-0008](0008-no-reverse-reconciliation.md) | Accepted | 2026-02-14 | No Reverse Reconciliation (External Does Not Drive Vault) | `external-root`, `vault-model` | Before changing external folder derivation and marker rules. |
@@ -36,7 +36,7 @@ Last generated: 2026-05-02
 | [ADR-0011](0011-reconcile-execution-safety-model.md) | Accepted | 2026-02-19 | Reconcile Execution Safety Model (Ordering, Journal, Recovery) | `reconcile` | Before changing reconcile planning/execution behavior. |
 | [ADR-0012](0012-command-serialization-and-concurrency.md) | Accepted | 2026-02-19 | Command Serialization and Concurrency Boundaries | `reconcile` | Before changing reconcile planning/execution behavior. |
 | [ADR-0013](0013-filesystem-boundary-and-path-identity.md) | Accepted | 2026-02-19 | Filesystem Boundary and Path Identity Policy | `external-root`, `safety` | Before changing trust boundaries or destructive behavior. |
-| [ADR-0014](0014-exf-marker-format-and-validation.md) | Accepted | 2026-02-19 | `.exf` Marker Format and Validation Contract | `external-root` | Before changing external folder derivation and marker rules. |
+| [ADR-0014](0014-exnf-marker-format-and-validation.md) | Accepted | 2026-02-19 | `.exnf` Marker Format and Validation Contract | `external-root` | Before changing external folder derivation and marker rules. |
 | [ADR-0015](0015-external-folder-path-derivation.md) | Accepted | 2026-02-19 | External Folder Path Derivation Rule | `external-root` | Before changing external folder derivation and marker rules. |
 | [ADR-0016](0016-layered-architecture-core-vs-obsidian-adapter.md) | Accepted | 2026-02-20 | Layered Architecture (Core Engine vs Obsidian Adapter) | `architecture` | Before crossing core/adapter boundaries. |
 | [ADR-0017](0017-testing-strategy-by-boundary.md) | Accepted | 2026-02-20 | Testing Strategy by Boundary (Core, Adapter, Integration) | `architecture`, `safety`, `testing` | Before adding or changing test strategy and fixtures. |

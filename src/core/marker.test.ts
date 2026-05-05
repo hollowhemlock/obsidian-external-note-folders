@@ -5,39 +5,39 @@ import {
 } from 'vitest';
 
 import {
-  ExfMarkerParseError,
-  parseExfMarker,
-  serializeExfMarker
+  ExnfMarkerParseError,
+  parseExnfMarker,
+  serializeExnfMarker
 } from './marker.ts';
 
 const VALID_UUID = '123e4567-e89b-42d3-a456-426614174000';
 
-describe('.exf marker contract', () => {
+describe('.exnf marker contract', () => {
   it('serializes with a trailing newline', () => {
-    expect(serializeExfMarker(VALID_UUID)).toBe(`${VALID_UUID}\n`);
+    expect(serializeExnfMarker(VALID_UUID)).toBe(`${VALID_UUID}\n`);
   });
 
   it('parses a single UUID line', () => {
-    expect(parseExfMarker(VALID_UUID)).toBe(VALID_UUID);
+    expect(parseExnfMarker(VALID_UUID)).toBe(VALID_UUID);
   });
 
   it('accepts one optional trailing newline', () => {
-    expect(parseExfMarker(`${VALID_UUID}\n`)).toBe(VALID_UUID);
+    expect(parseExnfMarker(`${VALID_UUID}\n`)).toBe(VALID_UUID);
   });
 
   it('rejects a BOM', () => {
-    expect(() => parseExfMarker(`\uFEFF${VALID_UUID}`)).toThrow(ExfMarkerParseError);
+    expect(() => parseExnfMarker(`\uFEFF${VALID_UUID}`)).toThrow(ExnfMarkerParseError);
   });
 
   it('rejects CRLF line endings', () => {
-    expect(() => parseExfMarker(`${VALID_UUID}\r\n`)).toThrow(ExfMarkerParseError);
+    expect(() => parseExnfMarker(`${VALID_UUID}\r\n`)).toThrow(ExnfMarkerParseError);
   });
 
   it('rejects extra lines', () => {
-    expect(() => parseExfMarker(`${VALID_UUID}\n${VALID_UUID}`)).toThrow(ExfMarkerParseError);
+    expect(() => parseExnfMarker(`${VALID_UUID}\n${VALID_UUID}`)).toThrow(ExnfMarkerParseError);
   });
 
   it('rejects non-canonical UUID values', () => {
-    expect(() => parseExfMarker(VALID_UUID.toUpperCase())).toThrow(ExfMarkerParseError);
+    expect(() => parseExnfMarker(VALID_UUID.toUpperCase())).toThrow(ExnfMarkerParseError);
   });
 });

@@ -147,7 +147,7 @@ async function createCliNote(notePath: string, uuid: string): Promise<void> {
   const createResult = runSandboxCli([
     'create',
     `path=${notePath}`,
-    `content=---\nexf: ${uuid}\n---\n\nCLI drift matrix note.`,
+    `content=---\nexnf: ${uuid}\n---\n\nCLI drift matrix note.`,
     'overwrite'
   ]);
   expect(createResult.status, formatCliResult(createResult)).toBe(0);
@@ -157,7 +157,7 @@ async function writeMarker(externalFolderRelativePath: string, markerContent: st
   const externalRootPath = resolvePath('test/fixtures/sandbox/external-root');
   const folderPath = path.join(externalRootPath, externalFolderRelativePath);
   await mkdir(folderPath, { recursive: true });
-  await writeFile(path.join(folderPath, '.exf'), markerContent, 'utf8');
+  await writeFile(path.join(folderPath, '.exnf'), markerContent, 'utf8');
 }
 
 describe('obsidian CLI integration', () => {

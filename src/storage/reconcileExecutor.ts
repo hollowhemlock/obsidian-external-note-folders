@@ -15,8 +15,8 @@ import type {
   ReconcilePlan
 } from '../core/reconcilePlan.ts';
 
-import { EXF_MARKER_FILE_NAME } from '../core/contracts.ts';
-import { parseExfMarker } from '../core/marker.ts';
+import { EXNF_MARKER_FILE_NAME } from '../core/contracts.ts';
+import { parseExnfMarker } from '../core/marker.ts';
 import { assertPathIsWithinRoot } from '../core/pathPolicy.ts';
 
 const JSON_INDENT = 2;
@@ -93,8 +93,8 @@ export async function executeReconcilePlan(input: {
 }
 
 async function assertMarkerMatches(folderPath: string, uuid: string): Promise<void> {
-  const markerContent = await readFile(path.join(folderPath, EXF_MARKER_FILE_NAME), 'utf8');
-  const markerUuid = parseExfMarker(markerContent);
+  const markerContent = await readFile(path.join(folderPath, EXNF_MARKER_FILE_NAME), 'utf8');
+  const markerUuid = parseExnfMarker(markerContent);
   if (markerUuid !== uuid) {
     throw new Error(`Marker UUID ${markerUuid} does not match expected UUID ${uuid}.`);
   }
@@ -107,7 +107,7 @@ async function assertNoAncestorMarker(externalRootPath: string, targetPath: stri
 
   for (const segment of segments.slice(0, -1)) {
     currentPath = path.join(currentPath, segment);
-    if (await pathExists(path.join(currentPath, EXF_MARKER_FILE_NAME))) {
+    if (await pathExists(path.join(currentPath, EXNF_MARKER_FILE_NAME))) {
       throw new Error(`Target parent is inside an existing bound folder: ${currentPath}`);
     }
   }
@@ -125,7 +125,7 @@ async function assertNoDescendantMarker(targetPath: string): Promise<void> {
   }
 
   await visitDescendantFolders(targetPath, async (folderPath) => {
-    if (await pathExists(path.join(folderPath, EXF_MARKER_FILE_NAME))) {
+    if (await pathExists(path.join(folderPath, EXNF_MARKER_FILE_NAME))) {
       throw new Error(`Target folder contains a descendant bound folder: ${folderPath}`);
     }
   });

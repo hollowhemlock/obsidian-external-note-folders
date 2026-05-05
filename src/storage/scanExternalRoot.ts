@@ -9,8 +9,8 @@ import path from 'node:path';
 
 import type { ExternalScanResult } from '../core/verify.ts';
 
-import { EXF_MARKER_FILE_NAME } from '../core/contracts.ts';
-import { parseExfMarker } from '../core/marker.ts';
+import { EXNF_MARKER_FILE_NAME } from '../core/contracts.ts';
+import { parseExnfMarker } from '../core/marker.ts';
 
 export async function scanExternalRoot(externalRootPath: string): Promise<ExternalScanResult> {
   const trimmedRootPath = externalRootPath.trim();
@@ -110,13 +110,13 @@ async function walkDirectory(
       continue;
     }
 
-    if (!entry.isFile() || entry.name !== EXF_MARKER_FILE_NAME) {
+    if (!entry.isFile() || entry.name !== EXNF_MARKER_FILE_NAME) {
       continue;
     }
 
     try {
       const markerContent = await readFile(entryPath, 'utf8');
-      const uuid = parseExfMarker(markerContent);
+      const uuid = parseExnfMarker(markerContent);
       registerBinding(result.bindings, result.duplicatePaths, uuid, path.dirname(entryPath));
     } catch (error: unknown) {
       result.malformedMarkers.push({

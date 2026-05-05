@@ -2,7 +2,7 @@ import type { App } from 'obsidian';
 
 import type { VaultScanResult } from '../core/verify.ts';
 
-import { getExfFrontmatterValue } from '../core/frontmatter.ts';
+import { getExnfFrontmatterValue } from '../core/frontmatter.ts';
 
 export function scanVault(app: App): VaultScanResult {
   const bindings = new Map<string, string>();
@@ -13,20 +13,20 @@ export function scanVault(app: App): VaultScanResult {
     const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter as
       | Record<string, unknown>
       | undefined;
-    const exfValue = getExfFrontmatterValue(frontmatter);
-    if (exfValue.kind === 'missing') {
+    const exnfValue = getExnfFrontmatterValue(frontmatter);
+    if (exnfValue.kind === 'missing') {
       continue;
     }
 
-    if (exfValue.kind === 'invalid') {
+    if (exnfValue.kind === 'invalid') {
       invalidFrontmatter.push({
         location: file.path,
-        message: `${exfValue.reason}.`
+        message: `${exnfValue.reason}.`
       });
       continue;
     }
 
-    registerBinding(bindings, duplicatePaths, exfValue.uuid, file.path);
+    registerBinding(bindings, duplicatePaths, exnfValue.uuid, file.path);
   }
 
   return {

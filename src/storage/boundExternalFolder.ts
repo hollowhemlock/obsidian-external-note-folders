@@ -12,10 +12,10 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 
-import { EXF_MARKER_FILE_NAME } from '../core/contracts.ts';
+import { EXNF_MARKER_FILE_NAME } from '../core/contracts.ts';
 import {
-  parseExfMarker,
-  serializeExfMarker
+  parseExnfMarker,
+  serializeExnfMarker
 } from '../core/marker.ts';
 import {
   deriveExternalFolderPath,
@@ -175,10 +175,10 @@ async function tryLstat(targetPath: string): Promise<Awaited<ReturnType<typeof l
 }
 
 async function writeMarker(boundFolderPath: string, uuid: string): Promise<void> {
-  const markerPath = path.join(boundFolderPath, EXF_MARKER_FILE_NAME);
+  const markerPath = path.join(boundFolderPath, EXNF_MARKER_FILE_NAME);
   try {
     const existingContent = await readFile(markerPath, 'utf8');
-    const existingUuid = parseExfMarker(existingContent);
+    const existingUuid = parseExnfMarker(existingContent);
     if (existingUuid === uuid) {
       return;
     }
@@ -186,7 +186,7 @@ async function writeMarker(boundFolderPath: string, uuid: string): Promise<void>
     throw new Error(`Existing marker UUID ${existingUuid} does not match ${uuid}.`);
   } catch (error: unknown) {
     if (isMissingFileError(error)) {
-      await writeFile(markerPath, serializeExfMarker(uuid), 'utf8');
+      await writeFile(markerPath, serializeExnfMarker(uuid), 'utf8');
       return;
     }
 
