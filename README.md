@@ -73,6 +73,9 @@ reconciliation.
 - `npm run test`
 - `npm run test:integration` (requires a prepared Obsidian CLI environment)
 - `npm run test:watch`
+- `npm run release:update-versions`
+- `npm run release:check-versions`
+- `npm run release:check-assets`
 - `npm run fixtures:new-sandbox`
 - `npm run fixtures:refresh-sandbox`
 
@@ -110,11 +113,17 @@ Feature and fix PRs should not manually update `package.json`, `manifest.json`,
 `main` using conventional commit messages; Release Please opens or updates a
 separate release PR with the package and manifest version bump plus changelog.
 
+Release PRs must also keep `versions.json` current. CI runs
+`npm run release:check-versions`; if it fails on a release PR, run
+`npm run release:update-versions`, commit the generated `versions.json`, and
+push it to the release PR branch.
+
 Review and merge the release PR only when you intend to publish a release. After
 that merge, Release Please creates the GitHub release and tag. The release asset
-workflow then builds the plugin, validates the tag and manifest version, updates
-`versions.json` on `main`, and uploads `main.js`, `styles.css`, `manifest.json`,
-and `versions.json` to the release.
+workflow then builds the plugin with Node 24, validates the tag and manifest
+version, and uploads `main.js`, `styles.css`, and `manifest.json` to the
+release. The same workflow can be run manually for an existing tag if release
+asset publishing needs to be retried.
 
 Release automation requires repository Actions workflow permissions to allow
 read/write access and GitHub Actions pull request creation. If that setting is
@@ -122,8 +131,8 @@ disabled, Release Please may update its release branch but fail to open the
 release PR; enable the permission and re-run the workflow, or manually open the
 release PR from the generated release branch.
 
-`versions.json` represents published Obsidian-compatible releases, so it is
-updated after release publication, not in normal feature PRs. See
+`versions.json` represents published Obsidian-compatible releases and is updated
+in reviewed release PRs, not by the post-release asset workflow. See
 `docs/dev/procedures/release.md` for the full release checklist and recovery
 steps.
 

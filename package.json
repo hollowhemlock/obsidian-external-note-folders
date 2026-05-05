@@ -29,6 +29,9 @@
     "test:integration": "npm run integration:prepare && vitest run --config vitest.integration.config.ts",
     "test:integration:watch": "vitest --config vitest.integration.config.ts",
     "test:watch": "vitest",
+    "release:check-assets": "jiti scripts/check-release-assets.ts",
+    "release:check-versions": "jiti scripts/update-versions-json.ts --check",
+    "release:update-versions": "jiti scripts/update-versions-json.ts",
     "integration:prepare": "npm run fixtures:refresh-sandbox && npm run build && jiti scripts/install-plugin-to-sandbox.ts",
     "version": "obsidian-dev-utils version",
     "prepare": "husky"

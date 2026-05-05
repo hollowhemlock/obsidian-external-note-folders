@@ -4,6 +4,12 @@ on:
   release:
     types:
       - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build and upload assets for
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -12,13 +18,33 @@ jobs:
   build-and-upload:
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG="${{ inputs.tag }}"
+          fi
+
+          if [[ -z "$TAG" ]]; then
+            echo "Release tag is required." >&2
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
         with:
+          ref: ${{ steps.release.outputs.tag }}
           fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
@@ -53,7 +79,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="${{ github.event.release.tag_name }}"
+          TAG="${{ steps.release.outputs.tag }}"
           EXPECTED_VERSION="${TAG#v}"
           MANIFEST_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('release-assets/manifest.json', 'utf8')).version")"
           MIN_APP_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('release-assets/manifest.json', 'utf8')).minAppVersion || ''")"
@@ -64,58 +90,17 @@ jobs:
           fi
 
           if [[ -z "$MIN_APP_VERSION" ]]; then
-            echo "manifest.json is missing minAppVersion; cannot update versions.json safely."
+            echo "manifest.json is missing minAppVersion; cannot publish release assets safely."
             exit 1
           fi
-
-      - name: Generate versions.json for release assets
-        shell: bash
-        run: |
-          set -euo pipefail
-          node <<'EOF'
-          const fs = require('node:fs');
-          const tag = process.env.RELEASE_TAG;
-          const version = tag.startsWith('v') ? tag.slice(1) : tag;
-          const manifest = JSON.parse(fs.readFileSync('release-assets/manifest.json', 'utf8'));
-          const versionsPath = 'versions.json';
-          const current = fs.existsSync(versionsPath)
-            ? JSON.parse(fs.readFileSync(versionsPath, 'utf8'))
-            : {};
-          current[version] = manifest.minAppVersion;
-          const sorted = Object.fromEntries(
-            Object.entries(current).sort(([a], [b]) =>
-              a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-            )
-          );
-          fs.writeFileSync('release-assets/versions.json', `${JSON.stringify(sorted, null, 2)}\n`);
-          EOF
-        env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-
-      - name: Update versions.json on main
-        shell: bash
-        run: |
-          set -euo pipefail
-          git checkout main
-          cp release-assets/versions.json versions.json
-
-          if git diff --quiet -- versions.json; then
-            echo "versions.json already up to date."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add versions.json
-          git commit -m "chore: update versions.json for ${{ github.event.release.tag_name }}"
-          git push origin main
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.release.tag_name }}
+          tag_name: ${{ steps.release.outputs.tag }}
+          fail_on_unmatched_files: true
+          overwrite_files: true
           files: |
             release-assets/main.js
             release-assets/styles.css
             release-assets/manifest.json
-            release-assets/versions.json
