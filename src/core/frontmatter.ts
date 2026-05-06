@@ -1,19 +1,19 @@
-import { EXF_FRONTMATTER_KEY } from './contracts.ts';
+import { EXNF_FRONTMATTER_KEY } from './contracts.ts';
 import { isCanonicalUuid } from './uuid.ts';
 
-export type ExfFrontmatterValue =
+export type ExnfFrontmatterValue =
   | { kind: 'invalid'; reason: string; value: unknown }
   | { kind: 'missing' }
   | { kind: 'valid'; uuid: string };
 
-export function getExfFrontmatterValue(
+export function getExnfFrontmatterValue(
   frontmatter: null | Record<string, unknown> | undefined
-): ExfFrontmatterValue {
-  if (!frontmatter || !Object.hasOwn(frontmatter, EXF_FRONTMATTER_KEY)) {
+): ExnfFrontmatterValue {
+  if (!frontmatter || !Object.hasOwn(frontmatter, EXNF_FRONTMATTER_KEY)) {
     return { kind: 'missing' };
   }
 
-  const value = frontmatter[EXF_FRONTMATTER_KEY];
+  const value = frontmatter[EXNF_FRONTMATTER_KEY];
   if (typeof value !== 'string') {
     return {
       kind: 'invalid',
@@ -36,10 +36,10 @@ export function getExfFrontmatterValue(
   };
 }
 
-export function setExfFrontmatterValue(frontmatter: Record<string, unknown>, uuid: string): void {
+export function setExnfFrontmatterValue(frontmatter: Record<string, unknown>, uuid: string): void {
   if (!isCanonicalUuid(uuid)) {
     throw new Error('Expected a canonical lowercase UUID.');
   }
 
-  frontmatter[EXF_FRONTMATTER_KEY] = uuid;
+  frontmatter[EXNF_FRONTMATTER_KEY] = uuid;
 }

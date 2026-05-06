@@ -23,8 +23,8 @@ Status legend:
 
 ### 0. Scope and Invariants
 
-- [x] Vault is source of truth (`exf` UUID in note frontmatter)
-- [x] No deletions of vault files, external folders, or `.exf` markers
+- [x] Vault is source of truth (`exnf` UUID in note frontmatter)
+- [x] No deletions of vault files, external folders, or `.exnf` markers
 - [x] No conflict-based surprise renames — plugin never renames folders to
       dodge collisions (deterministic path derivation including sanitization
       and hash shortening is normal creation behavior, not renaming)
@@ -60,15 +60,15 @@ References:
 
 - [x] UUID helper: generate canonical lowercase RFC 4122 UUID
 - [x] UUID helper: strict UUID validation (no permissive coercion)
-- [x] Frontmatter helper for `exf` read/write
-- [x] `.exf` writer uses UTF-8 without BOM and trailing `\n`
-- [x] `.exf` parser accepts only one UUID line plus optional trailing newline
-- [x] `.exf` parser rejects BOM, extra lines, extra content, non-canonical UUID
-- [x] Any malformed `.exf` is `Error` and blocks mutation
+- [x] Frontmatter helper for `exnf` read/write
+- [x] `.exnf` writer uses UTF-8 without BOM and trailing `\n`
+- [x] `.exnf` parser accepts only one UUID line plus optional trailing newline
+- [x] `.exnf` parser rejects BOM, extra lines, extra content, non-canonical UUID
+- [x] Any malformed `.exnf` is `Error` and blocks mutation
 
 References:
 - [x] `docs/dev/adr/0005-bound-folder-marker.md`
-- [x] `docs/dev/adr/0014-exf-marker-format-and-validation.md`
+- [x] `docs/dev/adr/0014-exnf-marker-format-and-validation.md`
 
 ### 4. Path and Filesystem Boundary Policy
 
@@ -109,7 +109,7 @@ scanVaultUUIDs(): {
 
 ### 6. External Root Scan
 
-- [x] Recursively discover `.exf` files under external root boundary
+- [x] Recursively discover `.exnf` files under external root boundary
 - [x] Parse and validate markers with strict contract
 - [x] Build `Map<uuid, boundFolderPath>`
 - [x] Detect duplicate UUIDs in external root and classify as `Error`
@@ -175,7 +175,7 @@ Reference:
   - [x] Derive target path using path policy
   - [x] If target path occupied: report conflict and abort with notice
   - [x] Create directory
-  - [x] Write `.exf`
+  - [x] Write `.exnf`
   - [x] Open folder
 
 #### 9.3 Integrity Preflight Report
@@ -235,7 +235,7 @@ Reference:
 - [x] Unit tests:
   - [x] path sanitization/canonicalization/boundary checks
   - [x] UUID validation and normalization policy
-  - [x] strict `.exf` parse/write contract
+  - [x] strict `.exnf` parse/write contract
   - [x] duplicate detection with path-rich diagnostics (`uuid -> paths[]`)
 - [x] Integration/manual matrix:
   - [x] external root missing
@@ -245,7 +245,7 @@ Reference:
         blockers.
   - [x] duplicate UUID in vault
   - [x] duplicate UUID in external
-  - [x] malformed `.exf`
+  - [x] malformed `.exnf`
   - [x] occupied target path on Open External Folder
   - [x] symlink/junction/root-escape attempts
 
@@ -283,7 +283,7 @@ Reference:
 - [x] Any integrity `Error` blocks mutation
 - [x] Mutating commands are serialized by lock
 - [x] Boundary checks prevent scan/mutation outside configured external root
-- [x] Strict malformed `.exf` handling is enforced and user-visible
+- [x] Strict malformed `.exnf` handling is enforced and user-visible
 - [x] Occupied target path on Open External Folder reports conflict, does not
       auto-rename
 
@@ -472,5 +472,5 @@ Reference:
 
 ADR-0007 (accepted) defines a Regenerate UUID command with re-association
 semantics and safe-abort mode. This is deferred past Phase 1. Until then,
-users can manually edit the `exf` frontmatter field to change a UUID; integrity
+users can manually edit the `exnf` frontmatter field to change a UUID; integrity
 preflights and drift reports will surface the consequences (orphaned bound folder, new Unavailable status).

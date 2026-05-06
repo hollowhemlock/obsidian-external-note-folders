@@ -30,11 +30,11 @@ The plugin must not delete local files.
 Specifically, it never deletes:
 - Vault files
 - External folders
-- Marker files (`.exf`)
+- Marker files (`.exnf`)
 
 Allowed mutations are limited to:
 - Writing UUID frontmatter into notes
-- Creating a bound folder and writing `.exf`
+- Creating a bound folder and writing `.exnf`
 - Moving bound folders via explicit reconcile (dry-run by default)
 
 ### Consequences

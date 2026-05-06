@@ -90,7 +90,7 @@ function getLatestRecordDate(records: AdrRecord[]): string {
 function inferTags(text: string): string[] {
   const rules: { regex: RegExp; tag: string }[] = [
     { regex: /\b(vault|source of truth|frontmatter|uuid)\b/i, tag: 'vault-model' },
-    { regex: /\b(external|folder|path|marker|\.exf)\b/i, tag: 'external-root' },
+    { regex: /\b(external|folder|path|marker|\.exnf)\b/i, tag: 'external-root' },
     { regex: /\b(reconcile|execution|journal|recovery|serialization|concurrency)\b/i, tag: 'reconcile' },
     { regex: /\b(boundary|identity|trust|no deletion|no-deletions)\b/i, tag: 'safety' },
     { regex: /\b(status|warning|error|unavailable)\b/i, tag: 'status-model' },

@@ -4,7 +4,7 @@ This is a plugin for [Obsidian](https://obsidian.md/) that associates Obsidian v
 
 ## What It Does
 
-External Note Folders links a markdown note to an external folder by storing a canonical UUID in the note's `exf` frontmatter field and writing the same UUID to a `.exf` marker file in the external folder.
+External Note Folders links a markdown note to an external folder by storing a canonical UUID in the note's `exnf` frontmatter field and writing the same UUID to a `.exnf` marker file in the external folder.
 
 The current release supports:
 
@@ -19,8 +19,8 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 
 ## Commands
 
-- `Assign external folder identifier`: Adds an `exf` UUID to the active markdown note if one is missing. It never creates or changes external folders.
-- `Open external folder`: Ensures the active note has an `exf` UUID, creates the derived external folder when needed, writes its `.exf` marker, and opens the folder in the system file manager.
+- `Assign external folder identifier`: Adds an `exnf` UUID to the active markdown note if one is missing. It never creates or changes external folders.
+- `Open external folder`: Ensures the active note has an `exnf` UUID, creates the derived external folder when needed, writes its `.exnf` marker, and opens the folder in the system file manager.
 - `Report external folder drift`: Read-only report that compares current note-derived external folder paths against existing external folders, highlights integrity errors, missing/orphaned/unexpected/occupied paths, and suggests likely matches.
 - `Reconcile external folders`: Builds a dry-run move plan and, only after explicit confirmation, moves existing bound external folders to their current note-derived paths. It never deletes folders or marker files and stops on first failure.
 
@@ -28,14 +28,14 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 
 - The vault is the source of truth for note identity.
 - Missing external folders are normal and are reported as `Unavailable`, not as integrity errors.
-- Duplicate UUIDs, malformed `.exf` markers, invalid `exf` frontmatter, external-root access failures, and occupied target paths block mutating commands.
-- The plugin does not delete vault files, external folders, or `.exf` markers.
+- Duplicate UUIDs, malformed `.exnf` markers, invalid `exnf` frontmatter, external-root access failures, and occupied target paths block mutating commands.
+- The plugin does not delete vault files, external folders, or `.exnf` markers.
 - The plugin does not auto-rename folders to resolve conflicts.
 - External-root scans skip symlinks, junctions, and reparse points by default.
 
 ## Obsidian Boundary
 
-Vault note reads use Obsidian's metadata cache, and `exf` frontmatter writes use
+Vault note reads use Obsidian's metadata cache, and `exnf` frontmatter writes use
 Obsidian's file manager. External-root scans, folder creation, marker writes,
 and file-manager launches use Node filesystem/process APIs because they operate
 outside the vault.

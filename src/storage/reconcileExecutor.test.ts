@@ -17,7 +17,7 @@ import {
 
 import type { ReconcilePlan } from '../core/reconcilePlan.ts';
 
-import { EXF_MARKER_FILE_NAME } from '../core/contracts.ts';
+import { EXNF_MARKER_FILE_NAME } from '../core/contracts.ts';
 import { executeReconcilePlan } from './reconcileExecutor.ts';
 
 const FIRST_UUID = '123e4567-e89b-42d3-a456-426614174000';
@@ -55,7 +55,7 @@ describe('reconcile executor', () => {
     });
 
     expect(result.succeeded).toBe(true);
-    expect(await readFile(path.join(targetPath, EXF_MARKER_FILE_NAME), 'utf8')).toBe(`${FIRST_UUID}\n`);
+    expect(await readFile(path.join(targetPath, EXNF_MARKER_FILE_NAME), 'utf8')).toBe(`${FIRST_UUID}\n`);
     expect(result.journal.entries).toEqual([expect.objectContaining({
       outcome: 'success',
       sourcePath,
@@ -104,7 +104,7 @@ describe('reconcile executor', () => {
       outcome: 'failure',
       uuid: FIRST_UUID
     }));
-    await expect(readFile(path.join(secondSourcePath, EXF_MARKER_FILE_NAME), 'utf8')).resolves.toBe(`${SECOND_UUID}\n`);
+    await expect(readFile(path.join(secondSourcePath, EXNF_MARKER_FILE_NAME), 'utf8')).resolves.toBe(`${SECOND_UUID}\n`);
   });
 
   it('fails closed when a planned move path escapes the external root', async () => {
@@ -283,5 +283,5 @@ async function createTempRoot(tempDirectories: string[]): Promise<string> {
 
 async function writeMarker(folderPath: string, uuid: string): Promise<void> {
   await mkdir(folderPath, { recursive: true });
-  await writeFile(path.join(folderPath, EXF_MARKER_FILE_NAME), `${uuid}\n`, 'utf8');
+  await writeFile(path.join(folderPath, EXNF_MARKER_FILE_NAME), `${uuid}\n`, 'utf8');
 }

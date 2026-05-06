@@ -14,7 +14,7 @@ import {
   it
 } from 'vitest';
 
-import { EXF_MARKER_FILE_NAME } from '../core/contracts.ts';
+import { EXNF_MARKER_FILE_NAME } from '../core/contracts.ts';
 import { ensureBoundExternalFolder } from './boundExternalFolder.ts';
 
 const VALID_UUID = '123e4567-e89b-42d3-a456-426614174000';
@@ -42,7 +42,7 @@ describe('bound external folder mutations', () => {
 
     expect(result.created).toBe(true);
     expect(result.folderPath).toBe(path.join(externalRootPath, 'Projects', 'Alpha'));
-    expect(await readFile(path.join(result.folderPath, EXF_MARKER_FILE_NAME), 'utf8')).toBe(
+    expect(await readFile(path.join(result.folderPath, EXNF_MARKER_FILE_NAME), 'utf8')).toBe(
       `${VALID_UUID}\n`
     );
   });
@@ -104,7 +104,7 @@ describe('bound external folder mutations', () => {
     const externalRootPath = await createTempRoot(tempDirectories);
     const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
     await mkdir(targetFolderPath, { recursive: true });
-    await writeFile(path.join(targetFolderPath, EXF_MARKER_FILE_NAME), `${OTHER_UUID}\n`, 'utf8');
+    await writeFile(path.join(targetFolderPath, EXNF_MARKER_FILE_NAME), `${OTHER_UUID}\n`, 'utf8');
 
     await expect(ensureBoundExternalFolder({
       existingBindings: new Map(),

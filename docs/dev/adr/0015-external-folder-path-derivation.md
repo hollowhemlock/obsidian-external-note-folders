@@ -98,7 +98,7 @@ dry-run output.
 ### Future Considerations
 
 If a configurable derivation rule is added later, it must define collision semantics explicitly
-and remain independent of the UUID identity mechanism (which lives in `.exf`, not the path).
+and remain independent of the UUID identity mechanism (which lives in `.exnf`, not the path).
 
 ### References
 

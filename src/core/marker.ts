@@ -1,14 +1,14 @@
 import { isCanonicalUuid } from './uuid.ts';
 
-export class ExfMarkerParseError extends Error {}
+export class ExnfMarkerParseError extends Error {}
 
-export function parseExfMarker(content: string): string {
+export function parseExnfMarker(content: string): string {
   if (content.startsWith('\uFEFF')) {
-    throw new ExfMarkerParseError('Marker must not include a UTF-8 BOM.');
+    throw new ExnfMarkerParseError('Marker must not include a UTF-8 BOM.');
   }
 
   if (content.includes('\r')) {
-    throw new ExfMarkerParseError('Marker must use LF line endings only.');
+    throw new ExnfMarkerParseError('Marker must use LF line endings only.');
   }
 
   let parsedContent = content;
@@ -17,17 +17,17 @@ export function parseExfMarker(content: string): string {
   }
 
   if (parsedContent.includes('\n')) {
-    throw new ExfMarkerParseError('Marker must contain exactly one UUID line.');
+    throw new ExnfMarkerParseError('Marker must contain exactly one UUID line.');
   }
 
   if (!isCanonicalUuid(parsedContent)) {
-    throw new ExfMarkerParseError('Marker must contain a canonical lowercase UUID.');
+    throw new ExnfMarkerParseError('Marker must contain a canonical lowercase UUID.');
   }
 
   return parsedContent;
 }
 
-export function serializeExfMarker(uuid: string): string {
+export function serializeExnfMarker(uuid: string): string {
   if (!isCanonicalUuid(uuid)) {
     throw new Error('Expected a canonical lowercase UUID.');
   }

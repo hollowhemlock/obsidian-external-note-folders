@@ -37,7 +37,7 @@ Provide a Regenerate UUID command with the following behavior:
 Manual UUID edits to frontmatter are treated as re-association: the old UUID's bound folder
 becomes an orphan. Manual edits must be surfaced in Verify/Reconcile output.
 
-A vault-side `exf` frontmatter value that is not a valid RFC 4122 UUID is classified as an
+A vault-side `exnf` frontmatter value that is not a valid RFC 4122 UUID is classified as an
 `Error` (per ADR-0009) and blocks mutation operations for that note.
 
 Duplicate UUIDs in the vault are integrity errors.

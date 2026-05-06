@@ -33,9 +33,9 @@ Define these statuses:
 - **Error (Integrity):**
   - Duplicate UUIDs in vault
   - Duplicate UUIDs in external root
-  - `.exf` malformed/unreadable
+  - `.exnf` malformed/unreadable
   - UUID mismatch collisions (e.g., target path has different UUID)
-  - Vault-side `exf` frontmatter value that is not a valid UUID
+  - Vault-side `exnf` frontmatter value that is not a valid UUID
   - External root directory absent or inaccessible (blocks all mutations)
 
 Errors abort the entire reconcile run; no further moves are attempted after the first error is

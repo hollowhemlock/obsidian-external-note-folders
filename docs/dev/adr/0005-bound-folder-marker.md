@@ -4,7 +4,7 @@ date: "2026-02-14"
 decision-makers: "Maintainers"
 ---
 
-# Bound Folders Are Defined by a Root Marker File (`.exf`)
+# Bound Folders Are Defined by a Root Marker File (`.exnf`)
 
 ## Context and Problem Statement
 
@@ -26,10 +26,10 @@ We need a precise definition for identity-bearing external folders.
 
 ## Decision Outcome
 
-A folder is identity-bearing only if it contains `.exf` at its root (“bound folder”).
+A folder is identity-bearing only if it contains `.exnf` at its root (“bound folder”).
 
-- The `.exf` file content is the UUID
-- Scanning the external root is done by discovering `.exf` files (not by inspecting markerless dirs)
+- The `.exnf` file content is the UUID
+- Scanning the external root is done by discovering `.exnf` files (not by inspecting markerless dirs)
 - Nested bound folders are allowed
 - Markerless directories are treated as opaque containers unless they block a target path
 
@@ -42,7 +42,7 @@ A folder is identity-bearing only if it contains `.exf` at its root (“bound fo
 
 ### Negative / Trade-offs
 - Requires marker file management
-- Users may see `.exf` in file explorer (benign)
+- Users may see `.exnf` in file explorer (benign)
 
 ## Pros and Cons of the Options
 
@@ -68,4 +68,4 @@ If marker filename changes later, provide migration tooling; do not auto-delete 
 
 ### References
 
-- [ADR-0014](0014-exf-marker-format-and-validation.md)
+- [ADR-0014](0014-exnf-marker-format-and-validation.md)

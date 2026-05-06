@@ -4,11 +4,11 @@ date: "2026-02-19"
 decision-makers: "Maintainers"
 ---
 
-# `.exf` Marker Format and Validation Contract
+# `.exnf` Marker Format and Validation Contract
 
 ## Context and Problem Statement
 
-Bound-folder identity depends on `.exf` markers. Loosely defined marker parsing can produce drift,
+Bound-folder identity depends on `.exnf` markers. Loosely defined marker parsing can produce drift,
 ambiguous UUID interpretation, and silent mismatches across editors/platforms.
 
 ## Decision Drivers
@@ -25,7 +25,7 @@ ambiguous UUID interpretation, and silent mismatches across editors/platforms.
 
 ## Decision Outcome
 
-Define a strict, versioned marker contract for `.exf`.
+Define a strict, versioned marker contract for `.exnf`.
 
 - MVP marker payload is exactly one UUID string (canonical lowercase RFC 4122 format).
 - Encoding is UTF-8 (no BOM).
@@ -48,7 +48,7 @@ Define a strict, versioned marker contract for `.exf`.
 - Clear integrity failures instead of silent coercion
 
 ### Neutral
-- Manual `.exf` edits become less forgiving but more predictable
+- Manual `.exnf` edits become less forgiving but more predictable
 
 ### Negative / Trade-offs
 - Requires explicit migration if marker format evolves

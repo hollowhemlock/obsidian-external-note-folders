@@ -42,7 +42,7 @@ The planner receives an immutable scan snapshot:
 - mutation sequence value at plan creation
 
 If the scan contains any global integrity `Error`, the planner returns an abort result with no moves.
-Global errors include duplicate UUIDs, malformed markers, invalid vault `exf` values, external-root
+Global errors include duplicate UUIDs, malformed markers, invalid vault `exnf` values, external-root
 access failures, and root-boundary failures.
 
 ### Planner Rows
@@ -61,9 +61,9 @@ folders.
 
 Planner `conflict` rows use these categories:
 
-- `target-bound-to-different-uuid`: derived target has a `.exf` marker for another UUID
+- `target-bound-to-different-uuid`: derived target has a `.exnf` marker for another UUID
 - `target-unmarked-occupied`: derived target exists without a marker
-- `target-has-malformed-marker`: derived target contains an unreadable or invalid `.exf`
+- `target-has-malformed-marker`: derived target contains an unreadable or invalid `.exnf`
 - `ancestor-bound-folder`: an ancestor of the target path is already a bound folder
 - `descendant-bound-folder`: a descendant of the target path is already a bound folder
 - `source-missing`: the current bound source folder is missing from the snapshot
