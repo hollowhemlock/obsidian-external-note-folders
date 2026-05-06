@@ -28,10 +28,11 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 
 - The vault is the source of truth for note identity.
 - Missing external folders are normal and are reported as `Unavailable`, not as integrity errors.
-- Duplicate UUIDs, malformed `.exnf` markers, invalid `exnf` frontmatter, external-root access failures, and occupied target paths block mutating commands.
+- Duplicate UUIDs, malformed `.exnf` markers, invalid `exnf` frontmatter, configured-root access failures, and occupied target paths block mutating commands.
 - The plugin does not delete vault files, external folders, or `.exnf` markers.
 - The plugin does not auto-rename folders to resolve conflicts.
 - External-root scans skip symlinks, junctions, and reparse points by default.
+- Unreadable descendant directories under the external root are reported as warnings and skipped, not treated as global integrity errors.
 
 ## Obsidian Boundary
 

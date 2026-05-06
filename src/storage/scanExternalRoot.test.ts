@@ -1,6 +1,9 @@
 import {
   mkdir,
   mkdtemp,
+  readdir,
+  readFile,
+  realpath,
   rm,
   symlink,
   writeFile
@@ -60,7 +63,60 @@ describe('external root scanning', () => {
     const result = await scanExternalRoot(externalRootPath);
 
     expect(result.accessErrors).toEqual([]);
+    expect(result.skippedDirectories).toEqual([]);
     expect(result.bindings).toEqual(new Map([[VALID_UUID, folderPath]]));
+  });
+
+  it('keeps root directory read failures as access errors', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+
+    const result = await scanExternalRoot(externalRootPath, {
+      readDirectoryEntries: async () => {
+        throw new Error('root denied');
+      },
+      readMarkerFile: async (markerPath) => readFile(markerPath, 'utf8'),
+      resolveRealPath: realpath
+    });
+
+    expect(result.accessErrors).toEqual([
+      {
+        location: externalRootPath,
+        message: 'root denied'
+      }
+    ]);
+    expect(result.skippedDirectories).toEqual([]);
+  });
+
+  it('skips unreadable descendant directories without blocking readable siblings', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const readableFolderPath = path.join(externalRootPath, 'Projects', 'Readable');
+    const skippedFolderPath = path.join(externalRootPath, 'Projects', 'Skipped');
+    await mkdir(skippedFolderPath, { recursive: true });
+    await writeMarker(readableFolderPath, VALID_UUID);
+
+    const result = await scanExternalRoot(externalRootPath, {
+      readDirectoryEntries: async (directoryPath) => {
+        if (directoryPath === skippedFolderPath) {
+          throw new Error('permission denied');
+        }
+
+        return readdir(directoryPath, {
+          encoding: 'utf8',
+          withFileTypes: true
+        });
+      },
+      readMarkerFile: async (markerPath) => readFile(markerPath, 'utf8'),
+      resolveRealPath: realpath
+    });
+
+    expect(result.accessErrors).toEqual([]);
+    expect(result.skippedDirectories).toEqual([
+      {
+        location: skippedFolderPath,
+        message: 'permission denied'
+      }
+    ]);
+    expect(result.bindings).toEqual(new Map([[VALID_UUID, readableFolderPath]]));
   });
 
   it('reports duplicate marker UUIDs', async () => {

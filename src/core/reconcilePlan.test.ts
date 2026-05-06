@@ -75,6 +75,7 @@ describe('reconcile planner', () => {
       kind: 'orphan',
       uuid: ORPHAN_UUID
     });
+    expect(plan.warnings).toEqual([]);
   });
 
   it('aborts planning when scan integrity errors exist', () => {
@@ -97,6 +98,38 @@ describe('reconcile planner', () => {
     expect(plan.errors).toEqual([
       `External root access error at ${externalRootPath}: missing`
     ]);
+  });
+
+  it('includes skipped descendant directories as warnings without blocking planning', () => {
+    const externalRootPath = path.resolve('external-root');
+    const plan = buildReconcilePlan({
+      externalScan: buildExternalScan(externalRootPath, {
+        bindings: new Map([[MOVE_UUID, path.join(externalRootPath, 'Projects', 'Old Alpha')]]),
+        directories: [
+          path.join(externalRootPath, 'Projects'),
+          path.join(externalRootPath, 'Projects', 'Old Alpha'),
+          path.join(externalRootPath, 'Unreadable')
+        ],
+        skippedDirectories: [
+          {
+            location: path.join(externalRootPath, 'Unreadable'),
+            message: 'permission denied'
+          }
+        ]
+      }),
+      mutationSequence: 0,
+      vaultScan: buildVaultScan(new Map([[MOVE_UUID, 'Projects/Alpha.md']]))
+    });
+
+    expect(plan.hasGlobalErrors).toBe(false);
+    expect(plan.warnings).toEqual([
+      `Skipped external directory at ${path.join(externalRootPath, 'Unreadable')}: permission denied`
+    ]);
+    expect(plan.rows).toContainEqual(expect.objectContaining({
+      kind: 'move',
+      uuid: MOVE_UUID
+    }));
+    expect(plan.markdownReport).toContain('## Warnings');
   });
 
   it('reports occupied target conflicts without aborting unrelated moves', () => {
@@ -180,6 +213,7 @@ function buildExternalScan(
     duplicatePaths: new Map(),
     malformedMarkers: [],
     rootPath,
+    skippedDirectories: [],
     ...overrides
   };
 }

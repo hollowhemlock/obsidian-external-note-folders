@@ -98,10 +98,13 @@ export class Plugin extends ObsidianPlugin {
   private async collectScanContext(): Promise<ScanContext> {
     const vaultScan = scanVault(this.app);
     const externalScan = await scanExternalRoot(this.settings.externalRootPath);
+    const verifyReport = buildVerifyReport(vaultScan, externalScan);
+    this.logScanWarnings(verifyReport.warnings);
+
     return {
       externalScan,
       vaultScan,
-      verifyReport: buildVerifyReport(vaultScan, externalScan)
+      verifyReport
     };
   }
 
@@ -154,6 +157,14 @@ export class Plugin extends ObsidianPlugin {
 
   private logInfo(message: string, details?: Record<string, unknown>): void {
     console.debug(LOG_PREFIX, message, details ?? {});
+  }
+
+  private logScanWarnings(warnings: readonly string[]): void {
+    if (warnings.length === 0) {
+      return;
+    }
+
+    this.logWarn('external root scan completed with warnings', { warnings });
   }
 
   private logWarn(message: string, details?: Record<string, unknown>): void {

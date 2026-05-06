@@ -32,6 +32,7 @@ export class DriftReportModal extends Modal {
     });
 
     this.renderTextSection(contentEl, 'Errors', this.driftReport.errors, 'No integrity errors detected.');
+    this.renderTextSection(contentEl, 'Warnings', this.driftReport.warnings, 'No scan warnings detected.');
     this.renderBindingSection(contentEl, 'Unexpected Paths', this.driftReport.unexpectedRows, 'No bound folders are at unexpected paths.');
     this.renderBindingSection(contentEl, 'Missing Expected Folders', this.driftReport.missingRows, 'No expected folders are missing.');
     this.renderBindingSection(contentEl, 'Orphan Folders', this.driftReport.orphanRows, 'No orphan bound folders detected.');

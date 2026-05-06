@@ -29,14 +29,16 @@ Define these statuses:
 
 - **OK:** UUID present in vault, matching bound folder exists in external root
 - **Unavailable (Informational):** UUID present in vault, no matching bound folder exists
-- **Warning:** Orphan bound folder exists (external UUID not present in vault)
+- **Warning:**
+  - Orphan bound folder exists (external UUID not present in vault)
+  - Descendant directory under the external root could not be read; the subtree was skipped
 - **Error (Integrity):**
   - Duplicate UUIDs in vault
   - Duplicate UUIDs in external root
   - `.exnf` malformed/unreadable
   - UUID mismatch collisions (e.g., target path has different UUID)
   - Vault-side `exnf` frontmatter value that is not a valid UUID
-  - External root directory absent or inaccessible (blocks all mutations)
+  - Configured external root directory absent, inaccessible, or unreadable (blocks all mutations)
 
 Errors abort the entire reconcile run; no further moves are attempted after the first error is
 encountered. See ADR-0011 for execution semantics.

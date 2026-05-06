@@ -38,12 +38,14 @@ The planner receives an immutable scan snapshot:
 - external bindings: `uuid -> current external folder path`
 - external directories under the configured root
 - scan integrity issues from vault and external-root verification
+- non-blocking scan warnings, including skipped unreadable descendant directories
 - canonical external root path
 - mutation sequence value at plan creation
 
 If the scan contains any global integrity `Error`, the planner returns an abort result with no moves.
 Global errors include duplicate UUIDs, malformed markers, invalid vault `exnf` values, external-root
-access failures, and root-boundary failures.
+root access failures, and root-boundary failures. Descendant directory read failures are warnings;
+the unreadable subtree is omitted from the snapshot but does not create a global error.
 
 ### Planner Rows
 

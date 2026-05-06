@@ -271,7 +271,8 @@ function buildPlan(rootPath: string, rows: ReconcilePlan['rows']): ReconcilePlan
     markdownReport: '',
     mutationSequence: 1,
     rows,
-    summaryText: ''
+    summaryText: '',
+    warnings: []
   };
 }
 

@@ -54,12 +54,14 @@ describe('drift report builder', () => {
       ],
       duplicatePaths: new Map(),
       malformedMarkers: [],
-      rootPath: externalRootPath
+      rootPath: externalRootPath,
+      skippedDirectories: []
     };
 
     const report = buildDriftReport(vaultScan, externalScan);
 
     expect(report.errors).toEqual([]);
+    expect(report.warnings).toEqual([]);
     expect(report.expectedRows).toEqual([
       {
         actualExternalFolder: 'Notes/Alpha',
@@ -134,7 +136,8 @@ describe('drift report builder', () => {
         directories: [],
         duplicatePaths: new Map(),
         malformedMarkers: [],
-        rootPath: ''
+        rootPath: '',
+        skippedDirectories: []
       }
     );
 
@@ -143,5 +146,41 @@ describe('drift report builder', () => {
     ]);
     expect(report.missingRows).toEqual([]);
     expect(report.suggestions).toEqual([]);
+  });
+
+  it('includes skipped descendant directories as warnings without suppressing drift classification', () => {
+    const externalRootPath = path.resolve('external-root');
+    const report = buildDriftReport(
+      {
+        bindings: new Map([[EXPECTED_UUID, 'Notes/Alpha.md']]),
+        duplicatePaths: new Map(),
+        invalidFrontmatter: []
+      },
+      {
+        accessErrors: [],
+        bindings: new Map([[EXPECTED_UUID, path.join(externalRootPath, 'Notes', 'Alpha')]]),
+        directories: [
+          path.join(externalRootPath, 'Notes'),
+          path.join(externalRootPath, 'Notes', 'Alpha'),
+          path.join(externalRootPath, 'Unreadable')
+        ],
+        duplicatePaths: new Map(),
+        malformedMarkers: [],
+        rootPath: externalRootPath,
+        skippedDirectories: [
+          {
+            location: path.join(externalRootPath, 'Unreadable'),
+            message: 'permission denied'
+          }
+        ]
+      }
+    );
+
+    expect(report.errors).toEqual([]);
+    expect(report.warnings).toEqual([
+      `Skipped external directory at ${path.join(externalRootPath, 'Unreadable')}: permission denied`
+    ]);
+    expect(report.expectedRows).toHaveLength(1);
+    expect(report.markdownReport).toContain('## Warnings');
   });
 });

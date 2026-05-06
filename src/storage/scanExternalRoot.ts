@@ -12,7 +12,26 @@ import type { ExternalScanResult } from '../core/verify.ts';
 import { EXNF_MARKER_FILE_NAME } from '../core/contracts.ts';
 import { parseExnfMarker } from '../core/marker.ts';
 
-export async function scanExternalRoot(externalRootPath: string): Promise<ExternalScanResult> {
+export interface ScanExternalRootFileSystem {
+  readDirectoryEntries: (directoryPath: string) => Promise<Dirent[]>;
+  readMarkerFile: (markerPath: string) => Promise<string>;
+  resolveRealPath: (inputPath: string) => Promise<string>;
+}
+
+const DEFAULT_FILE_SYSTEM: ScanExternalRootFileSystem = {
+  readDirectoryEntries: async (directoryPath) =>
+    readdir(directoryPath, {
+      encoding: 'utf8',
+      withFileTypes: true
+    }),
+  readMarkerFile: async (markerPath) => readFile(markerPath, 'utf8'),
+  resolveRealPath: realpath
+};
+
+export async function scanExternalRoot(
+  externalRootPath: string,
+  fileSystem: ScanExternalRootFileSystem = DEFAULT_FILE_SYSTEM
+): Promise<ExternalScanResult> {
   const trimmedRootPath = externalRootPath.trim();
   const result: ExternalScanResult = {
     accessErrors: [],
@@ -20,7 +39,8 @@ export async function scanExternalRoot(externalRootPath: string): Promise<Extern
     directories: [],
     duplicatePaths: new Map<string, string[]>(),
     malformedMarkers: [],
-    rootPath: trimmedRootPath
+    rootPath: trimmedRootPath,
+    skippedDirectories: []
   };
 
   if (!trimmedRootPath) {
@@ -41,7 +61,7 @@ export async function scanExternalRoot(externalRootPath: string): Promise<Extern
 
   let canonicalRootPath: string;
   try {
-    canonicalRootPath = await realpath(trimmedRootPath);
+    canonicalRootPath = await fileSystem.resolveRealPath(trimmedRootPath);
   } catch (error: unknown) {
     result.accessErrors.push({
       location: trimmedRootPath,
@@ -51,19 +71,12 @@ export async function scanExternalRoot(externalRootPath: string): Promise<Extern
   }
 
   result.rootPath = canonicalRootPath;
-  await walkDirectory(canonicalRootPath, result);
+  await walkDirectory(canonicalRootPath, result, fileSystem, true);
   return result;
 }
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown filesystem error.';
-}
-
-async function readDirectoryEntries(directoryPath: string): Promise<Dirent[]> {
-  return readdir(directoryPath, {
-    encoding: 'utf8',
-    withFileTypes: true
-  });
 }
 
 function registerBinding(
@@ -85,16 +98,23 @@ function registerBinding(
 
 async function walkDirectory(
   directoryPath: string,
-  result: ExternalScanResult
+  result: ExternalScanResult,
+  fileSystem: ScanExternalRootFileSystem,
+  isRoot: boolean
 ): Promise<void> {
-  let entries: Awaited<ReturnType<typeof readDirectoryEntries>>;
+  let entries: Dirent[];
   try {
-    entries = await readDirectoryEntries(directoryPath);
+    entries = await fileSystem.readDirectoryEntries(directoryPath);
   } catch (error: unknown) {
-    result.accessErrors.push({
+    const issue = {
       location: directoryPath,
       message: getErrorMessage(error)
-    });
+    };
+    if (isRoot) {
+      result.accessErrors.push(issue);
+    } else {
+      result.skippedDirectories.push(issue);
+    }
     return;
   }
 
@@ -106,7 +126,7 @@ async function walkDirectory(
 
     if (entry.isDirectory()) {
       result.directories.push(entryPath);
-      await walkDirectory(entryPath, result);
+      await walkDirectory(entryPath, result, fileSystem, false);
       continue;
     }
 
@@ -115,7 +135,7 @@ async function walkDirectory(
     }
 
     try {
-      const markerContent = await readFile(entryPath, 'utf8');
+      const markerContent = await fileSystem.readMarkerFile(entryPath);
       const uuid = parseExnfMarker(markerContent);
       registerBinding(result.bindings, result.duplicatePaths, uuid, path.dirname(entryPath));
     } catch (error: unknown) {

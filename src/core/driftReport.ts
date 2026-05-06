@@ -34,6 +34,7 @@ export interface DriftReport {
   suggestions: DriftSuggestion[];
   summaryText: string;
   unexpectedRows: DriftBindingRow[];
+  warnings: string[];
 }
 
 export interface DriftSuggestion {
@@ -129,6 +130,7 @@ export function buildDriftReport(vaultScan: VaultScanResult, externalScan: Exter
   });
   const summaryText = [
     `${String(verifyReport.errors.length)} error(s)`,
+    `${String(verifyReport.warnings.length)} warning(s)`,
     `${String(unexpectedRows.length)} unexpected path(s)`,
     `${String(missingRows.length)} missing expected folder(s)`,
     `${String(orphanRows.length)} orphan folder(s)`,
@@ -146,14 +148,16 @@ export function buildDriftReport(vaultScan: VaultScanResult, externalScan: Exter
       orphanRows: sortRows(orphanRows),
       suggestions: sortSuggestions(suggestions),
       summaryText,
-      unexpectedRows: sortRows(unexpectedRows)
+      unexpectedRows: sortRows(unexpectedRows),
+      warnings: verifyReport.warnings
     }),
     missingRows: sortRows(missingRows),
     occupiedRows: sortOccupiedRows(occupiedRows),
     orphanRows: sortRows(orphanRows),
     suggestions: sortSuggestions(suggestions),
     summaryText,
-    unexpectedRows: sortRows(unexpectedRows)
+    unexpectedRows: sortRows(unexpectedRows),
+    warnings: verifyReport.warnings
   };
 }
 
@@ -200,6 +204,7 @@ function buildMarkdownReport(input: {
   suggestions: DriftSuggestion[];
   summaryText: string;
   unexpectedRows: DriftBindingRow[];
+  warnings: string[];
 }): string {
   return [
     '# External Folder Drift Report',
@@ -207,6 +212,7 @@ function buildMarkdownReport(input: {
     input.summaryText,
     '',
     formatMarkdownList('Errors', input.errors),
+    formatMarkdownList('Warnings', input.warnings),
     formatBindingRows('Unexpected Paths', input.unexpectedRows),
     formatBindingRows('Missing Expected Folders', input.missingRows),
     formatBindingRows('Orphan Folders', input.orphanRows),

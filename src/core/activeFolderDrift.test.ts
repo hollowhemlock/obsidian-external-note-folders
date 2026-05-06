@@ -51,6 +51,7 @@ function buildExternalScan(externalRootPath: string, boundPath: null | string): 
     directories: [],
     duplicatePaths: new Map(),
     malformedMarkers: [],
-    rootPath: externalRootPath
+    rootPath: externalRootPath,
+    skippedDirectories: []
   };
 }
