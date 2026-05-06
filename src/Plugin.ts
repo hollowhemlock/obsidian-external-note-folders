@@ -5,6 +5,7 @@ import {
   Plugin as ObsidianPlugin
 } from 'obsidian';
 
+import type { VaultScanResult } from './core/verify.ts';
 import type { PluginSettings } from './PluginSettings.ts';
 
 import { ActiveFolderDriftModal } from './ActiveFolderDriftModal.ts';
@@ -19,8 +20,9 @@ import { DEFAULT_SETTINGS } from './PluginSettings.ts';
 import { PluginSettingsTab } from './PluginSettingsTab.ts';
 import { ReconcilePlanModal } from './ReconcilePlanModal.ts';
 import {
-  ensureBoundExternalFolder,
-  openExternalFolderInFileManager
+  ensureExpectedBoundExternalFolder,
+  openExternalFolderInFileManager,
+  resolveExternalRootPath
 } from './storage/boundExternalFolder.ts';
 import { buildJournalRootPath } from './storage/journalPath.ts';
 import { executeReconcilePlan } from './storage/reconcileExecutor.ts';
@@ -93,6 +95,20 @@ export class Plugin extends ObsidianPlugin {
 
   public async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
+  }
+
+  private async collectActiveExternalScanContext(
+    notePath: string,
+    uuid: string
+  ): Promise<Pick<ScanContext, 'externalScan' | 'verifyReport'>> {
+    const externalScan = await scanExternalRoot(this.settings.externalRootPath);
+    const verifyReport = buildVerifyReport(this.toActiveVaultScan(notePath, uuid), externalScan);
+    this.logScanWarnings(verifyReport.warnings);
+
+    return {
+      externalScan,
+      verifyReport
+    };
   }
 
   private async collectScanContext(): Promise<ScanContext> {
@@ -237,52 +253,55 @@ export class Plugin extends ObsidianPlugin {
     }
 
     await this.runMutatingCommand('open an external folder', async () => {
-      const initialScanContext = await this.collectScanContext();
-      if (initialScanContext.verifyReport.hasIntegrityErrors) {
-        new Notice('Cannot open an external folder while integrity errors exist. Review the opened report for details.');
-        this.logWarn('open external folder blocked by integrity errors', {
-          report: initialScanContext.verifyReport
-        });
-        new VerifyReportModal(this.app, initialScanContext.verifyReport, false).open();
-        return;
-      }
-
       try {
+        const externalRootPath = await resolveExternalRootPath(this.settings.externalRootPath);
         const uuidOutcome = await assignUuidToNote(this.app, activeFile);
-        const refreshedScanContext = await this.collectScanContext();
-        const activeFolderDrift = getActiveFolderDrift({
-          externalScan: refreshedScanContext.externalScan,
+        let folderResult = await ensureExpectedBoundExternalFolder({
+          createIfMissing: uuidOutcome.kind === 'assigned',
+          externalRootPath,
           notePath: activeFile.path,
           uuid: uuidOutcome.uuid
         });
-        if (activeFolderDrift) {
-          new Notice('External folder drift detected for this note. Review the opened report or run reconcile.');
-          this.logWarn('open external folder blocked by active note drift', {
-            drift: activeFolderDrift,
+        if (folderResult.kind === 'missing') {
+          const activeScanContext = await this.collectActiveExternalScanContext(activeFile.path, uuidOutcome.uuid);
+          if (activeScanContext.verifyReport.hasIntegrityErrors) {
+            new Notice('Cannot create an external folder while integrity errors exist. Review the opened report for details.');
+            this.logWarn('external folder creation blocked by active external scan errors', {
+              notePath: activeFile.path,
+              report: activeScanContext.verifyReport,
+              uuid: uuidOutcome.uuid
+            });
+            new VerifyReportModal(this.app, activeScanContext.verifyReport, false).open();
+            return;
+          }
+
+          const activeFolderDrift = getActiveFolderDrift({
+            externalScan: activeScanContext.externalScan,
             notePath: activeFile.path,
             uuid: uuidOutcome.uuid
           });
-          new ActiveFolderDriftModal(this.app, activeFolderDrift).open();
-          return;
-        }
+          if (activeFolderDrift) {
+            new Notice('External folder drift detected for this note. Review the opened report or run reconcile.');
+            this.logWarn('open external folder blocked by active note drift', {
+              drift: activeFolderDrift,
+              notePath: activeFile.path,
+              uuid: uuidOutcome.uuid
+            });
+            new ActiveFolderDriftModal(this.app, activeFolderDrift).open();
+            return;
+          }
 
-        if (refreshedScanContext.verifyReport.hasIntegrityErrors) {
-          new Notice('Cannot create an external folder while integrity errors exist. Review the opened report for details.');
-          this.logWarn('external folder creation blocked by refreshed integrity errors', {
+          folderResult = await ensureExpectedBoundExternalFolder({
+            createIfMissing: true,
+            externalRootPath: activeScanContext.externalScan.rootPath,
             notePath: activeFile.path,
-            report: refreshedScanContext.verifyReport,
             uuid: uuidOutcome.uuid
           });
-          new VerifyReportModal(this.app, refreshedScanContext.verifyReport, false).open();
-          return;
         }
 
-        const folderResult = await ensureBoundExternalFolder({
-          existingBindings: refreshedScanContext.externalScan.bindings,
-          externalRootPath: refreshedScanContext.externalScan.rootPath,
-          notePath: activeFile.path,
-          uuid: uuidOutcome.uuid
-        });
+        if (folderResult.kind === 'missing') {
+          throw new Error('Expected external folder was not created.');
+        }
 
         await openExternalFolderInFileManager(folderResult.folderPath);
         if (folderResult.created) {
@@ -387,5 +406,13 @@ export class Plugin extends ObsidianPlugin {
     const message = error instanceof Error ? error.message : 'Command failed.';
     new Notice(message);
     this.logError('command failed unexpectedly', error);
+  }
+
+  private toActiveVaultScan(notePath: string, uuid: string): VaultScanResult {
+    return {
+      bindings: new Map([[uuid, notePath]]),
+      duplicatePaths: new Map(),
+      invalidFrontmatter: []
+    };
   }
 }

@@ -1,4 +1,8 @@
 import { toExternalRelativeDisplayPath } from './displayPath.ts';
+import {
+  deriveExternalFolderPath,
+  normalizePathForIdentity
+} from './pathPolicy.ts';
 
 export interface ExternalScanResult {
   accessErrors: ScanIssue[];
@@ -47,6 +51,7 @@ export function buildVerifyReport(
   const errors = [
     ...formatDuplicateErrors('Vault', vaultScan.duplicatePaths),
     ...formatDuplicateErrors('External root', externalScan.duplicatePaths),
+    ...formatDerivedPathCollisionErrors(vaultScan.bindings, externalScan),
     ...vaultScan.invalidFrontmatter
       .map((issue) => `Invalid frontmatter at ${issue.location}: ${issue.message}`),
     ...externalScan.malformedMarkers
@@ -114,6 +119,39 @@ export function buildVerifyReport(
     warningRows: sortRows(warningRows),
     warnings: warnings.sort()
   };
+}
+
+function formatDerivedPathCollisionErrors(
+  vaultBindings: Map<string, string>,
+  externalScan: ExternalScanResult
+): string[] {
+  if (externalScan.accessErrors.length > 0) {
+    return [];
+  }
+
+  const pathsByIdentity = new Map<string, { externalFolder: string; notePaths: string[] }>();
+  for (const notePath of vaultBindings.values()) {
+    const externalFolderPath = deriveExternalFolderPath(notePath, externalScan.rootPath);
+    const identity = normalizePathForIdentity(externalFolderPath);
+    const current = pathsByIdentity.get(identity);
+    if (current) {
+      current.notePaths.push(notePath);
+      continue;
+    }
+
+    pathsByIdentity.set(identity, {
+      externalFolder: toExternalRelativeDisplayPath(externalScan.rootPath, externalFolderPath),
+      notePaths: [notePath]
+    });
+  }
+
+  return [...pathsByIdentity.values()]
+    .filter((entry) => entry.notePaths.length > 1)
+    .map((entry) => {
+      const sortedNotePaths = entry.notePaths.sort().join(', ');
+      return `Derived external folder path ${entry.externalFolder} is shared by multiple notes: ${sortedNotePaths}`;
+    })
+    .sort();
 }
 
 function formatDuplicateErrors(scopeLabel: string, duplicatePaths: Map<string, string[]>): string[] {

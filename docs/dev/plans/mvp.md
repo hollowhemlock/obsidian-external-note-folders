@@ -73,6 +73,8 @@ References:
 ### 4. Path and Filesystem Boundary Policy
 
 - [x] Derive vault-relative path without `.md`
+- [x] Collapse folder-note paths to the parent folder when the note stem
+      exactly matches the parent folder name
 - [x] Normalize path separators
 - [x] Sanitize illegal characters (Windows-safe)
 - [x] Handle reserved names and trailing dots/spaces
@@ -114,7 +116,10 @@ scanVaultUUIDs(): {
 - [x] Build `Map<uuid, boundFolderPath>`
 - [x] Detect duplicate UUIDs in external root and classify as `Error`
 - [x] Detect malformed markers and classify as `Error`
-- [x] Surface permission/read failures as `Error` (not `Unavailable`)
+- [x] Surface configured-root permission/read failures as `Error` (not
+      `Unavailable`)
+- [x] Surface unreadable descendant directories as warning-only skipped
+      subtrees
 
 Function:
 
@@ -124,6 +129,7 @@ scanExternalRoot(): {
   duplicatePaths: Map<string, string[]>;
   malformed: string[];
   accessErrors: string[];
+  skippedDirectories: string[];
 }
 ```
 
@@ -143,12 +149,15 @@ Implement one guarded module for all mutations.
 - [x] Implement single-flight lock for mutating commands
 - [x] Mutating commands: `Open External Folder` (when creating), `Assign UUID`
       (when writing)
-- [x] Global mutation preflight for every mutating command:
-  - [x] Run vault + external integrity scan immediately before mutation
+- [x] Integrity preflight for mutating commands:
+  - [x] `Assign UUID` runs vault + external integrity scan immediately before
+        mutation
   - [x] If any integrity `Error` exists anywhere, abort mutation with grouped
         actionable notice
   - [x] This includes configured-root access/boundary failures (strict
         fail-closed); unreadable descendant directories are warning-only skips
+  - [x] `Open External Folder` uses an active-note fast path and only falls
+        back to full external scan when an existing UUID has no expected folder
 - [x] Reject overlapping mutating commands with clear user notice
 - [x] Read-only reports may run during mutation but results must be labeled as
       possibly stale
@@ -169,9 +178,13 @@ Reference:
 #### 9.2 Open External Folder
 
 - [x] If UUID missing: assign UUID first
-- [x] Run global mutation preflight and abort on any integrity `Error`
-- [x] Scan external map
-- [x] If UUID already bound: open existing folder
+- [x] Validate the active note and expected external folder before opening
+- [x] Fast path: if expected folder already has the matching marker, open it
+- [x] Fast path: if UUID was just assigned, create the expected folder without
+      a full external-root scan
+- [x] Drift path: if an existing UUID has no expected folder, scan the external
+      map to find whether that UUID is bound elsewhere before creating
+- [x] If UUID already bound at the expected folder: open existing folder
 - [x] If UUID unbound:
   - [x] Derive target path using path policy
   - [x] If target path occupied: report conflict and abort with notice

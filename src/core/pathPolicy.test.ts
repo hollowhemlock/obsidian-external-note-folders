@@ -22,6 +22,15 @@ describe('path policy', () => {
     ]);
   });
 
+  it('collapses folder-note paths when the note stem matches its parent folder', () => {
+    expect(
+      deriveExternalFolderRelativeSegments('Projects/2025-08-04_wood storage cart/2025-08-04_wood storage cart.md')
+    ).toEqual([
+      'Projects',
+      '2025-08-04_wood storage cart'
+    ]);
+  });
+
   it('sanitizes invalid Windows path characters and reserved names', () => {
     expect(sanitizePathComponent('con:report*')).toBe('con_report_');
     expect(sanitizePathComponent('Ends with dots...   ')).toBe('Ends with dots');
@@ -34,6 +43,17 @@ describe('path policy', () => {
     );
 
     expect(derivedPath).toBe(path.resolve('X:/ExternalRoot', 'Projects', 'Research', 'My Note'));
+  });
+
+  it('derives folder-note targets to the parent folder instead of a duplicate child folder', () => {
+    const derivedPath = deriveExternalFolderPath(
+      '0_unsorted/2025-08-04_wood storage cart/2025-08-04_wood storage cart.md',
+      path.resolve('X:/ExternalRoot')
+    );
+
+    expect(derivedPath).toBe(
+      path.resolve('X:/ExternalRoot', '0_unsorted', '2025-08-04_wood storage cart')
+    );
   });
 
   it('shortens overly long paths deterministically', () => {

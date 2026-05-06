@@ -17,55 +17,71 @@ import {
   parseExnfMarker,
   serializeExnfMarker
 } from '../core/marker.ts';
-import {
-  deriveExternalFolderPath,
-  normalizePathForIdentity
-} from '../core/pathPolicy.ts';
+import { deriveExternalFolderPath } from '../core/pathPolicy.ts';
 
-export interface EnsureBoundExternalFolderInput {
-  existingBindings: Map<string, string>;
+export interface EnsureExpectedBoundExternalFolderInput {
+  createIfMissing: boolean;
   externalRootPath: string;
   notePath: string;
   uuid: string;
 }
 
-export interface EnsureBoundExternalFolderResult {
-  created: boolean;
-  folderPath: string;
-}
+export type EnsureExpectedBoundExternalFolderResult =
+  | { created: boolean; folderPath: string; kind: 'bound' }
+  | { folderPath: string; kind: 'missing' };
 
-export async function ensureBoundExternalFolder(
-  input: EnsureBoundExternalFolderInput
-): Promise<EnsureBoundExternalFolderResult> {
-  const existingBindingPath = input.existingBindings.get(input.uuid);
-  if (existingBindingPath) {
+export async function ensureExpectedBoundExternalFolder(
+  input: EnsureExpectedBoundExternalFolderInput
+): Promise<EnsureExpectedBoundExternalFolderResult> {
+  const canonicalRootPath = await resolveExternalRootPath(input.externalRootPath);
+  const targetFolderPath = deriveExternalFolderPath(input.notePath, canonicalRootPath);
+  const targetStat = await tryLstat(targetFolderPath);
+  if (!targetStat) {
+    if (!input.createIfMissing) {
+      return {
+        folderPath: targetFolderPath,
+        kind: 'missing'
+      };
+    }
+
+    await assertSafeCreationPath(canonicalRootPath, targetFolderPath);
+    await mkdir(targetFolderPath, { recursive: true });
+    await writeMarker(targetFolderPath, input.uuid);
     return {
-      created: false,
-      folderPath: existingBindingPath
+      created: true,
+      folderPath: targetFolderPath,
+      kind: 'bound'
     };
   }
 
-  const canonicalRootPath = await realpath(input.externalRootPath);
-  const targetFolderPath = deriveExternalFolderPath(input.notePath, canonicalRootPath);
-  const normalizedTargetPath = normalizePathForIdentity(targetFolderPath);
-
-  for (const [existingUuid, existingFolderPath] of input.existingBindings) {
-    if (existingUuid === input.uuid) {
-      continue;
-    }
-
-    if (normalizePathForIdentity(existingFolderPath) === normalizedTargetPath) {
-      throw new Error(`Derived external folder path is already bound to UUID ${existingUuid}: ${targetFolderPath}`);
-    }
+  if (targetStat.isSymbolicLink()) {
+    throw new Error(`External folder path crosses a symbolic link or reparse point: ${targetFolderPath}`);
   }
 
-  await assertSafeCreationPath(canonicalRootPath, targetFolderPath);
-  await mkdir(targetFolderPath, { recursive: true });
-  await writeMarker(targetFolderPath, input.uuid);
+  if (!targetStat.isDirectory()) {
+    throw new Error(`Derived external folder path is already occupied: ${targetFolderPath}`);
+  }
+
+  const markerPath = path.join(targetFolderPath, EXNF_MARKER_FILE_NAME);
+  let markerUuid: string;
+  try {
+    markerUuid = parseExnfMarker(await readFile(markerPath, 'utf8'));
+  } catch (error: unknown) {
+    if (isMissingFileError(error)) {
+      throw new Error(`Derived external folder path is already occupied: ${targetFolderPath}`, { cause: error });
+    }
+
+    throw new Error(`Derived external folder marker is malformed at ${markerPath}: ${toError(error).message}`, { cause: error });
+  }
+
+  if (markerUuid !== input.uuid) {
+    throw new Error(`Derived external folder path is already bound to UUID ${markerUuid}: ${targetFolderPath}`);
+  }
 
   return {
-    created: true,
-    folderPath: targetFolderPath
+    created: false,
+    folderPath: targetFolderPath,
+    kind: 'bound'
   };
 }
 
@@ -92,6 +108,19 @@ export async function openExternalFolderInFileManager(folderPath: string): Promi
       resolve();
     });
   });
+}
+
+export async function resolveExternalRootPath(externalRootPath: string): Promise<string> {
+  const trimmedRootPath = externalRootPath.trim();
+  if (!trimmedRootPath) {
+    throw new Error('External root is not configured.');
+  }
+
+  if (!path.isAbsolute(trimmedRootPath)) {
+    throw new Error('External root must be an absolute path.');
+  }
+
+  return await realpath(trimmedRootPath);
 }
 
 async function assertSafeCreationPath(externalRootPath: string, targetFolderPath: string): Promise<void> {
