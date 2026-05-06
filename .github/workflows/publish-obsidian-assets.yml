@@ -80,7 +80,13 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${{ steps.release.outputs.tag }}"
-          EXPECTED_VERSION="${TAG#v}"
+          if [[ "$TAG" =~ ([0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?)$ ]]; then
+            EXPECTED_VERSION="${BASH_REMATCH[1]}"
+          else
+            echo "Release tag ($TAG) does not end with a semantic version."
+            exit 1
+          fi
+
           MANIFEST_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('release-assets/manifest.json', 'utf8')).version")"
           MIN_APP_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('release-assets/manifest.json', 'utf8')).minAppVersion || ''")"
 
