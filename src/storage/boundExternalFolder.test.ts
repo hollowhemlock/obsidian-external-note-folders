@@ -3,6 +3,7 @@ import {
   mkdtemp,
   readFile,
   rm,
+  symlink,
   writeFile
 } from 'node:fs/promises';
 import os from 'node:os';
@@ -158,6 +159,23 @@ describe('bound external folder mutations', () => {
       folderPath: targetFolderPath,
       kind: 'bound'
     });
+  });
+
+  it('rejects existing expected folders below symlinked parent directories', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const symlinkTargetPath = await createTempRoot(tempDirectories);
+    const linkedParentPath = path.join(externalRootPath, 'Projects');
+    const targetFolderPath = path.join(symlinkTargetPath, 'Alpha');
+    await mkdir(targetFolderPath, { recursive: true });
+    await writeFile(path.join(targetFolderPath, EXNF_MARKER_FILE_NAME), `${VALID_UUID}\n`, 'utf8');
+    await symlink(symlinkTargetPath, linkedParentPath, 'junction');
+
+    await expect(ensureExpectedBoundExternalFolder({
+      createIfMissing: false,
+      externalRootPath,
+      notePath: 'Projects/Alpha.md',
+      uuid: VALID_UUID
+    })).rejects.toThrow('symbolic link');
   });
 
   it('rejects an expected folder bound to another uuid', async () => {

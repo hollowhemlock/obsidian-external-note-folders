@@ -54,6 +54,8 @@ export async function ensureExpectedBoundExternalFolder(
     };
   }
 
+  await assertExistingPathHasNoSymlinks(canonicalRootPath, targetFolderPath);
+
   if (targetStat.isSymbolicLink()) {
     throw new Error(`External folder path crosses a symbolic link or reparse point: ${targetFolderPath}`);
   }
@@ -121,6 +123,23 @@ export async function resolveExternalRootPath(externalRootPath: string): Promise
   }
 
   return await realpath(trimmedRootPath);
+}
+
+async function assertExistingPathHasNoSymlinks(externalRootPath: string, targetFolderPath: string): Promise<void> {
+  const relativePath = path.relative(externalRootPath, targetFolderPath);
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath) || relativePath === '') {
+    throw new Error(`Derived external folder path escapes the configured root: ${targetFolderPath}`);
+  }
+
+  const segments = relativePath.split(path.sep).filter((segment) => segment.length > 0);
+  let currentPath = externalRootPath;
+  for (const segment of segments) {
+    currentPath = path.join(currentPath, segment);
+    const stat = await lstat(currentPath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`External folder path crosses a symbolic link or reparse point: ${currentPath}`);
+    }
+  }
 }
 
 async function assertSafeCreationPath(externalRootPath: string, targetFolderPath: string): Promise<void> {

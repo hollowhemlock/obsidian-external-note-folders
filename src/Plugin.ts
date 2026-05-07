@@ -5,12 +5,13 @@ import {
   Plugin as ObsidianPlugin
 } from 'obsidian';
 
-import type { VaultScanResult } from './core/verify.ts';
+import type { ExnfFrontmatterValue } from './core/frontmatter.ts';
 import type { PluginSettings } from './PluginSettings.ts';
 
 import { ActiveFolderDriftModal } from './ActiveFolderDriftModal.ts';
 import { getActiveFolderDrift } from './core/activeFolderDrift.ts';
 import { buildDriftReport } from './core/driftReport.ts';
+import { getExnfFrontmatterValue } from './core/frontmatter.ts';
 import { buildReconcilePlan } from './core/reconcilePlan.ts';
 import { buildVerifyReport } from './core/verify.ts';
 import { DriftReportModal } from './DriftReportModal.ts';
@@ -97,20 +98,6 @@ export class Plugin extends ObsidianPlugin {
     await this.saveData(this.settings);
   }
 
-  private async collectActiveExternalScanContext(
-    notePath: string,
-    uuid: string
-  ): Promise<Pick<ScanContext, 'externalScan' | 'verifyReport'>> {
-    const externalScan = await scanExternalRoot(this.settings.externalRootPath);
-    const verifyReport = buildVerifyReport(this.toActiveVaultScan(notePath, uuid), externalScan);
-    this.logScanWarnings(verifyReport.warnings);
-
-    return {
-      externalScan,
-      verifyReport
-    };
-  }
-
   private async collectScanContext(): Promise<ScanContext> {
     const vaultScan = scanVault(this.app);
     const externalScan = await scanExternalRoot(this.settings.externalRootPath);
@@ -122,6 +109,13 @@ export class Plugin extends ObsidianPlugin {
       vaultScan,
       verifyReport
     };
+  }
+
+  private getActiveFileUuidValue(activeFile: TFile): ExnfFrontmatterValue {
+    const frontmatter = this.app.metadataCache.getFileCache(activeFile)?.frontmatter as
+      | Record<string, unknown>
+      | undefined;
+    return getExnfFrontmatterValue(frontmatter);
   }
 
   private getActiveMarkdownFile(): null | TFile {
@@ -185,6 +179,30 @@ export class Plugin extends ObsidianPlugin {
 
   private logWarn(message: string, details?: Record<string, unknown>): void {
     console.warn(LOG_PREFIX, message, details ?? {});
+  }
+
+  private async openBoundExternalFolder(
+    folderResult: { created: boolean; folderPath: string; kind: 'bound' },
+    notePath: string,
+    uuid: string
+  ): Promise<void> {
+    await openExternalFolderInFileManager(folderResult.folderPath);
+    if (folderResult.created) {
+      new Notice(`Created and opened external folder for ${notePath}.`);
+      this.logInfo('created and opened external folder', {
+        folderPath: folderResult.folderPath,
+        notePath,
+        uuid
+      });
+      return;
+    }
+
+    new Notice(`Opened external folder for ${notePath}.`);
+    this.logInfo('opened existing external folder', {
+      folderPath: folderResult.folderPath,
+      notePath,
+      uuid
+    });
   }
 
   private async runAssignUuidCommand(): Promise<void> {
@@ -255,37 +273,47 @@ export class Plugin extends ObsidianPlugin {
     await this.runMutatingCommand('open an external folder', async () => {
       try {
         const externalRootPath = await resolveExternalRootPath(this.settings.externalRootPath);
-        const uuidOutcome = await assignUuidToNote(this.app, activeFile);
-        let folderResult = await ensureExpectedBoundExternalFolder({
-          createIfMissing: uuidOutcome.kind === 'assigned',
-          externalRootPath,
-          notePath: activeFile.path,
-          uuid: uuidOutcome.uuid
-        });
-        if (folderResult.kind === 'missing') {
-          const activeScanContext = await this.collectActiveExternalScanContext(activeFile.path, uuidOutcome.uuid);
-          if (activeScanContext.verifyReport.hasIntegrityErrors) {
+        const exnfValue = this.getActiveFileUuidValue(activeFile);
+        if (exnfValue.kind === 'invalid') {
+          throw new Error(`Cannot open external folder because exnf frontmatter ${exnfValue.reason}.`);
+        }
+
+        if (exnfValue.kind === 'valid') {
+          let folderResult = await ensureExpectedBoundExternalFolder({
+            createIfMissing: false,
+            externalRootPath,
+            notePath: activeFile.path,
+            uuid: exnfValue.uuid
+          });
+
+          if (folderResult.kind === 'bound') {
+            await this.openBoundExternalFolder(folderResult, activeFile.path, exnfValue.uuid);
+            return;
+          }
+
+          const { externalScan, verifyReport } = await this.collectScanContext();
+          if (verifyReport.hasIntegrityErrors) {
             new Notice('Cannot create an external folder while integrity errors exist. Review the opened report for details.');
-            this.logWarn('external folder creation blocked by active external scan errors', {
+            this.logWarn('external folder creation blocked by integrity errors', {
               notePath: activeFile.path,
-              report: activeScanContext.verifyReport,
-              uuid: uuidOutcome.uuid
+              report: verifyReport,
+              uuid: exnfValue.uuid
             });
-            new VerifyReportModal(this.app, activeScanContext.verifyReport, false).open();
+            new VerifyReportModal(this.app, verifyReport, false).open();
             return;
           }
 
           const activeFolderDrift = getActiveFolderDrift({
-            externalScan: activeScanContext.externalScan,
+            externalScan,
             notePath: activeFile.path,
-            uuid: uuidOutcome.uuid
+            uuid: exnfValue.uuid
           });
           if (activeFolderDrift) {
             new Notice('External folder drift detected for this note. Review the opened report or run reconcile.');
             this.logWarn('open external folder blocked by active note drift', {
               drift: activeFolderDrift,
               notePath: activeFile.path,
-              uuid: uuidOutcome.uuid
+              uuid: exnfValue.uuid
             });
             new ActiveFolderDriftModal(this.app, activeFolderDrift).open();
             return;
@@ -293,33 +321,41 @@ export class Plugin extends ObsidianPlugin {
 
           folderResult = await ensureExpectedBoundExternalFolder({
             createIfMissing: true,
-            externalRootPath: activeScanContext.externalScan.rootPath,
+            externalRootPath: externalScan.rootPath,
             notePath: activeFile.path,
-            uuid: uuidOutcome.uuid
+            uuid: exnfValue.uuid
           });
+          if (folderResult.kind === 'missing') {
+            throw new Error('Expected external folder was not created.');
+          }
+
+          await this.openBoundExternalFolder(folderResult, activeFile.path, exnfValue.uuid);
+          return;
         }
 
+        const { externalScan, verifyReport } = await this.collectScanContext();
+        if (verifyReport.hasIntegrityErrors) {
+          new Notice('Cannot assign an identifier or create an external folder while integrity errors exist. Review the opened report for details.');
+          this.logWarn('external folder creation blocked by integrity errors', {
+            notePath: activeFile.path,
+            report: verifyReport
+          });
+          new VerifyReportModal(this.app, verifyReport, false).open();
+          return;
+        }
+
+        const uuidOutcome = await assignUuidToNote(this.app, activeFile);
+        let folderResult = await ensureExpectedBoundExternalFolder({
+          createIfMissing: true,
+          externalRootPath: externalScan.rootPath,
+          notePath: activeFile.path,
+          uuid: uuidOutcome.uuid
+        });
         if (folderResult.kind === 'missing') {
           throw new Error('Expected external folder was not created.');
         }
 
-        await openExternalFolderInFileManager(folderResult.folderPath);
-        if (folderResult.created) {
-          new Notice(`Created and opened external folder for ${activeFile.path}.`);
-          this.logInfo('created and opened external folder', {
-            folderPath: folderResult.folderPath,
-            notePath: activeFile.path,
-            uuid: uuidOutcome.uuid
-          });
-          return;
-        }
-
-        new Notice(`Opened external folder for ${activeFile.path}.`);
-        this.logInfo('opened existing external folder', {
-          folderPath: folderResult.folderPath,
-          notePath: activeFile.path,
-          uuid: uuidOutcome.uuid
-        });
+        await this.openBoundExternalFolder(folderResult, activeFile.path, uuidOutcome.uuid);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Failed to open external folder.';
         new Notice(message);
@@ -406,13 +442,5 @@ export class Plugin extends ObsidianPlugin {
     const message = error instanceof Error ? error.message : 'Command failed.';
     new Notice(message);
     this.logError('command failed unexpectedly', error);
-  }
-
-  private toActiveVaultScan(notePath: string, uuid: string): VaultScanResult {
-    return {
-      bindings: new Map([[uuid, notePath]]),
-      duplicatePaths: new Map(),
-      invalidFrontmatter: []
-    };
   }
 }
