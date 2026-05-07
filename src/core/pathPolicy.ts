@@ -28,7 +28,9 @@ const RESERVED_WINDOWS_NAMES = new Set([
 ]);
 
 const DEFAULT_MAX_TARGET_PATH_LENGTH = 240;
+const FOLDER_NOTE_SEGMENT_COUNT = 2;
 const MIN_SHORTENED_COMPONENT_LENGTH = 12;
+const PARENT_FOLDER_SEGMENT_OFFSET = 2;
 const SHORT_HASH_LENGTH = 8;
 
 export function assertPathIsWithinRoot(externalRootPath: string, candidatePath: string): void {
@@ -61,7 +63,8 @@ export function deriveExternalFolderRelativeSegments(notePath: string): string[]
   }
 
   const noteStemPath = normalizedNotePath.slice(0, -'.md'.length);
-  return noteStemPath.split('/').map((segment) => sanitizePathComponent(segment));
+  return collapseFolderNoteSegments(noteStemPath.split('/'))
+    .map((segment) => sanitizePathComponent(segment));
 }
 
 export function normalizePathForIdentity(candidatePath: string): string {
@@ -95,6 +98,20 @@ export function sanitizePathComponent(component: string): string {
   }
 
   return sanitizedComponent;
+}
+
+function collapseFolderNoteSegments(segments: string[]): string[] {
+  if (segments.length < FOLDER_NOTE_SEGMENT_COUNT) {
+    return segments;
+  }
+
+  const noteStem = segments.at(-1);
+  const parentFolderName = segments[segments.length - PARENT_FOLDER_SEGMENT_OFFSET];
+  if (noteStem && parentFolderName && noteStem === parentFolderName) {
+    return segments.slice(0, -1);
+  }
+
+  return segments;
 }
 
 function shortenComponentToLength(component: string, maxLength: number): string {

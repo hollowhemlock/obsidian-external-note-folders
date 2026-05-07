@@ -28,10 +28,12 @@ derivation rule, "match vault structure" is ambiguous and implementations may di
 ## Decision Outcome
 
 The external folder path for a note is derived from its vault-relative path with the `.md`
-extension removed:
+extension removed, with one folder-note exception:
 
 - Input: vault-relative note path (e.g., `Projects/Research/My Note.md`)
 - Output: `{external_root}/Projects/Research/My Note/`
+- Folder-note paths collapse to their parent folder when the note stem exactly matches the parent
+  folder name (e.g., `Projects/Alpha/Alpha.md` -> `{external_root}/Projects/Alpha/`)
 - Notes in the vault root derive to direct children of the external root
   (e.g., `README.md` → `{external_root}/README/`)
 - Path components containing OS-invalid characters are sanitized by replacing each invalid
@@ -64,6 +66,8 @@ dry-run output.
 - Notes with OS-invalid characters in their paths require sanitization, which may produce
   unexpected external folder names
 - Deep vault hierarchies produce deep external hierarchies (no flattening option in MVP)
+- A root note and a folder note with the same name can derive to the same external path; this must
+  be surfaced as a collision by verification/reconcile behavior rather than auto-disambiguated
 
 ## Pros and Cons of the Options
 

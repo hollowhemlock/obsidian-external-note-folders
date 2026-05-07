@@ -1,3 +1,4 @@
+import path from 'node:path';
 import {
   describe,
   expect,
@@ -11,6 +12,7 @@ import type {
 
 import { buildVerifyReport } from './verify.ts';
 
+const OTHER_UUID = '123e4567-e89b-42d3-a456-426614174001';
 const VALID_UUID = '123e4567-e89b-42d3-a456-426614174000';
 
 describe('verify report builder', () => {
@@ -147,6 +149,34 @@ describe('verify report builder', () => {
         notePath: 'Notes/Alpha.md',
         uuid: VALID_UUID
       }
+    ]);
+  });
+
+  it('reports notes that derive to the same external folder path as an integrity error', () => {
+    const externalRootPath = path.resolve('external-root');
+    const vaultScan: VaultScanResult = {
+      bindings: new Map([
+        [OTHER_UUID, 'Projects/Alpha/Alpha.md'],
+        [VALID_UUID, 'Projects/Alpha.md']
+      ]),
+      duplicatePaths: new Map(),
+      invalidFrontmatter: []
+    };
+    const externalScan: ExternalScanResult = {
+      accessErrors: [],
+      bindings: new Map(),
+      directories: [],
+      duplicatePaths: new Map(),
+      malformedMarkers: [],
+      rootPath: externalRootPath,
+      skippedDirectories: []
+    };
+
+    const report = buildVerifyReport(vaultScan, externalScan);
+
+    expect(report.hasIntegrityErrors).toBe(true);
+    expect(report.errors).toEqual([
+      'Derived external folder path Projects/Alpha is shared by multiple notes: Projects/Alpha.md, Projects/Alpha/Alpha.md'
     ]);
   });
 });

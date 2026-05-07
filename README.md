@@ -6,6 +6,8 @@ This is a plugin for [Obsidian](https://obsidian.md/) that associates Obsidian v
 
 External Note Folders links a markdown note to an external folder by storing a canonical UUID in the note's `exnf` frontmatter field and writing the same UUID to a `.exnf` marker file in the external folder.
 
+External folder paths normally mirror the vault-relative note path without `.md`. Folder-note layouts collapse to the parent folder, so `Projects/Alpha/Alpha.md` uses `Projects/Alpha/` instead of `Projects/Alpha/Alpha/`.
+
 The current release supports:
 
 - Assigning an external folder identifier to the active note.
@@ -20,7 +22,7 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 ## Commands
 
 - `Assign external folder identifier`: Adds an `exnf` UUID to the active markdown note if one is missing. It never creates or changes external folders.
-- `Open external folder`: Ensures the active note has an `exnf` UUID, creates the derived external folder when needed, writes its `.exnf` marker, and opens the folder in the system file manager.
+- `Open external folder`: Ensures the active note has an `exnf` UUID, validates the expected external folder, creates it when needed, writes its `.exnf` marker, and opens the folder in the system file manager.
 - `Report external folder drift`: Read-only report that compares current note-derived external folder paths against existing external folders, highlights integrity errors, missing/orphaned/unexpected/occupied paths, and suggests likely matches.
 - `Reconcile external folders`: Builds a dry-run move plan and, only after explicit confirmation, moves existing bound external folders to their current note-derived paths. It never deletes folders or marker files and stops on first failure.
 
