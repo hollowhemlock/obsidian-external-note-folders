@@ -117,9 +117,8 @@ Feature and fix PRs should not manually update `package.json`, `manifest.json`,
 separate release PR with the package and manifest version bump plus changelog.
 
 Release PRs must also keep `versions.json` current. CI runs
-`npm run release:check-versions`; if it fails on a release PR, run
-`npm run release:update-versions`, commit the generated `versions.json`, and
-push it to the release PR branch.
+`npm run release:check-versions`; the `release-versions` workflow updates and
+commits `versions.json` automatically on Release Please PR branches.
 
 Review and merge the release PR only when you intend to publish a release. After
 that merge, Release Please creates the GitHub release and tag. The release asset
@@ -128,11 +127,13 @@ version, and uploads `main.js`, `styles.css`, and `manifest.json` to the
 release. The same workflow can be run manually for an existing tag if release
 asset publishing needs to be retried.
 
-Release automation requires repository Actions workflow permissions to allow
-read/write access and GitHub Actions pull request creation. If that setting is
-disabled, Release Please may update its release branch but fail to open the
-release PR; enable the permission and re-run the workflow, or manually open the
-release PR from the generated release branch.
+Release automation requires a `RELEASE_PLEASE_TOKEN` repository secret backed by
+a maintainer-owned PAT or GitHub App token. The token must be able to write
+contents, write pull requests, create releases, and trigger follow-up workflows.
+The default `GITHUB_TOKEN` is intentionally not used because bot-authored
+release PR updates and releases can otherwise fail to trigger CI or asset
+publishing. Repository Actions workflow permissions must also allow read/write
+access and GitHub Actions pull request creation.
 
 `versions.json` represents published Obsidian-compatible releases and is updated
 in reviewed release PRs, not by the post-release asset workflow. See

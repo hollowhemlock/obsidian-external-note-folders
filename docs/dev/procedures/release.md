@@ -5,13 +5,16 @@ This procedure defines how releases are generated, reviewed, and published in th
 ## Automation Overview
 
 - `release-please` workflow runs on pushes to `main`.
+- It requires the `RELEASE_PLEASE_TOKEN` repository secret so release PR updates
+  and release publication can trigger follow-up workflows.
 - It opens/updates a release PR with:
   - version bump in `package.json`
   - version bump in `manifest.json`
   - generated `CHANGELOG.md`
-- Release PR CI runs `npm run release:check-versions`; if it fails, run
-  `npm run release:update-versions`, commit `versions.json`, and push to the
-  release PR branch.
+- `release-versions` runs on Release Please PR branches and commits generated
+  `versions.json` updates before release publication.
+- Release PR CI runs `npm run release:check-versions` as a guardrail after the
+  generated metadata commit.
 - Opening or updating the release PR requires repository Actions workflow
   permissions with read/write access and GitHub Actions pull request creation
   enabled.
@@ -31,13 +34,12 @@ This procedure defines how releases are generated, reviewed, and published in th
 
 1. Merge conventional-commit PRs into `main`.
 2. Wait for/refresh the release PR created by Release Please.
-3. If release PR CI fails on `release:check-versions`, run
-   `npm run release:update-versions`, commit `versions.json`, and push to the
-   release PR branch.
+3. Wait for `release-versions` to update `versions.json` if the release PR
+   changed `manifest.json` version.
 4. Review the release PR for:
    - correct semver bump
    - accurate changelog entries
-   - expected files changed only
+   - expected files changed only, including generated `versions.json`
 5. Merge the release PR.
 6. Confirm the GitHub release was created and release assets are attached.
 7. Confirm the `publish-obsidian-assets` workflow completed successfully.
@@ -47,8 +49,10 @@ This procedure defines how releases are generated, reviewed, and published in th
 
 1. Ensure commit subjects match `<type>: <description>`.
 2. Do not manually edit release PR versions unless requested.
-3. If release PR CI reports stale `versions.json`, run
-   `npm run release:update-versions` and commit only the generated metadata.
+3. If release PR CI reports stale `versions.json`, first check whether
+   `release-versions` ran, failed, or is waiting on the `RELEASE_PLEASE_TOKEN`
+   secret. Only manually run `npm run release:update-versions` if the workflow
+   is unavailable.
 4. Before merge guidance, verify CI status on the release PR.
 5. After release, verify:
    - tag and `manifest.json` version match
@@ -62,8 +66,11 @@ This procedure defines how releases are generated, reviewed, and published in th
   enable read/write workflow permissions and GitHub Actions pull request
   creation, then re-run the workflow; alternatively, manually open a PR from the
   generated release branch.
-- If `versions.json` is stale: run `npm run release:update-versions`, commit the
-  result to the release PR branch, and let CI re-check it.
+- If Release Please or `release-versions` reports missing `RELEASE_PLEASE_TOKEN`:
+  add the repository secret and re-run the failed workflow.
+- If `versions.json` is stale: check the `release-versions` workflow first. If
+  manual recovery is still required, run `npm run release:update-versions`,
+  commit the result to the release PR branch, and let CI re-check it.
 - If tag/version mismatch fails release: fix `manifest.json` version via release PR and re-run release.
 - If build fails before release: fix code/build pipeline on `main`; Release
   Please will update the release PR.

@@ -33,12 +33,14 @@ Adopt **Release Please** as the release manager.
 
 Implementation choices:
 
-- Run `googleapis/release-please-action` on pushes to `main`
+- Run `googleapis/release-please-action` on pushes to `main` with a
+  maintainer-owned release token, not the default `GITHUB_TOKEN`
 - Use a manifest-based setup (`.github/.release-please-manifest.json`) with config in `.github/release-please-config.json`
 - Keep semver tags without a `v` prefix
 - Generate/update `CHANGELOG.md` through Release Please
 - Update `manifest.json` `version` via Release Please `extra-files` config
-- Maintain `versions.json` in the release PR using `npm run release:update-versions`
+- Maintain `versions.json` in the release PR using a dedicated
+  `release-versions` workflow that runs `npm run release:update-versions`
 - Trigger a separate workflow on GitHub Release `published` to build and upload `main.js`, `styles.css`, and `manifest.json`
 - Allow that release asset workflow to be manually rerun for an existing tag
 - Pin release validation and GitHub Actions build tooling to Node 24
@@ -56,7 +58,9 @@ Implementation choices:
 
 ### Negative / Trade-offs
 - Release process now depends on commit message quality (`feat`, `fix`, etc.)
-- Release PRs may require a follow-up `versions.json` commit when Release Please bumps the version
+- Release automation requires a configured `RELEASE_PLEASE_TOKEN` secret
+- Release PRs may temporarily show stale `versions.json` until the
+  `release-versions` workflow commits generated metadata
 
 ## Pros and Cons of the Options
 
