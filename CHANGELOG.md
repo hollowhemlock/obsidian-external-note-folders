@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/hollowhemlock/obsidian-external-note-folders/compare/external-note-folders-1.1.0...external-note-folders-1.1.1) (2026-05-07)
+
+
+### Bug Fixes
+
+* collapse folder-note paths and speed open command ([#11](https://github.com/hollowhemlock/obsidian-external-note-folders/issues/11)) ([027ce5d](https://github.com/hollowhemlock/obsidian-external-note-folders/commit/027ce5db8e35f1ea2f98fecab8dd1789bf895fa6))
+
 ## [1.1.0](https://github.com/hollowhemlock/obsidian-external-note-folders/compare/external-note-folders-1.0.0...external-note-folders-1.1.0) (2026-05-06)
 
 
