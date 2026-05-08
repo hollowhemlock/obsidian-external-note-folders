@@ -4,10 +4,7 @@ import {
   it
 } from 'vitest';
 
-import {
-  chooseInitialOpenExternalFolderAction,
-  chooseOpenExternalFolderFallbackAction
-} from './openExternalFolderFlow.ts';
+import { chooseInitialOpenExternalFolderAction } from './openExternalFolderFlow.ts';
 
 const VALID_UUID = '123e4567-e89b-42d3-a456-426614174000';
 const OTHER_UUID = '123e4567-e89b-42d3-a456-426614174001';
@@ -51,7 +48,7 @@ describe('open external folder flow', () => {
     });
   });
 
-  it('falls back to an external scan when the expected folder is not already bound', () => {
+  it('creates a missing expected folder without requesting a full external scan', () => {
     expect(chooseInitialOpenExternalFolderAction({
       expectedState: {
         folderPath: 'X:/External/Projects/Alpha',
@@ -62,41 +59,6 @@ describe('open external folder flow', () => {
         uuid: VALID_UUID
       }
     })).toEqual({
-      expectedState: {
-        folderPath: 'X:/External/Projects/Alpha',
-        kind: 'missing'
-      },
-      kind: 'scan-fallback',
-      uuid: VALID_UUID
-    });
-  });
-
-  it('opens a matching bound folder found elsewhere before creating or adopting expected folders', () => {
-    expect(chooseOpenExternalFolderFallbackAction({
-      expectedState: {
-        folderPath: 'X:/External/Projects/Alpha',
-        kind: 'missing'
-      },
-      hasIntegrityErrors: false,
-      matchingFolderPath: 'X:/External/Old/Alpha',
-      uuid: VALID_UUID
-    })).toEqual({
-      folderPath: 'X:/External/Old/Alpha',
-      kind: 'open-drifted',
-      uuid: VALID_UUID
-    });
-  });
-
-  it('creates a missing expected folder only when no matching uuid is found elsewhere', () => {
-    expect(chooseOpenExternalFolderFallbackAction({
-      expectedState: {
-        folderPath: 'X:/External/Projects/Alpha',
-        kind: 'missing'
-      },
-      hasIntegrityErrors: false,
-      matchingFolderPath: null,
-      uuid: VALID_UUID
-    })).toEqual({
       folderPath: 'X:/External/Projects/Alpha',
       kind: 'create-expected',
       uuid: VALID_UUID
@@ -104,14 +66,15 @@ describe('open external folder flow', () => {
   });
 
   it('prompts before adopting an unmarked expected folder', () => {
-    expect(chooseOpenExternalFolderFallbackAction({
+    expect(chooseInitialOpenExternalFolderAction({
       expectedState: {
         folderPath: 'X:/External/Projects/Alpha',
         kind: 'unmarked'
       },
-      hasIntegrityErrors: false,
-      matchingFolderPath: null,
-      uuid: VALID_UUID
+      identity: {
+        kind: 'valid',
+        uuid: VALID_UUID
+      }
     })).toEqual({
       folderPath: 'X:/External/Projects/Alpha',
       kind: 'prompt-adopt-expected',
@@ -119,16 +82,17 @@ describe('open external folder flow', () => {
     });
   });
 
-  it('blocks mismatched expected markers when no matching uuid is found elsewhere', () => {
-    expect(chooseOpenExternalFolderFallbackAction({
+  it('blocks mismatched expected markers without requesting a full external scan', () => {
+    expect(chooseInitialOpenExternalFolderAction({
       expectedState: {
         folderPath: 'X:/External/Projects/Alpha',
         kind: 'mismatched-marker',
         markerUuid: OTHER_UUID
       },
-      hasIntegrityErrors: false,
-      matchingFolderPath: null,
-      uuid: VALID_UUID
+      identity: {
+        kind: 'valid',
+        uuid: VALID_UUID
+      }
     })).toEqual({
       expectedState: {
         folderPath: 'X:/External/Projects/Alpha',
@@ -140,17 +104,18 @@ describe('open external folder flow', () => {
     });
   });
 
-  it('blocks malformed expected markers when no matching uuid is found elsewhere', () => {
-    expect(chooseOpenExternalFolderFallbackAction({
+  it('blocks malformed expected markers without requesting a full external scan', () => {
+    expect(chooseInitialOpenExternalFolderAction({
       expectedState: {
         folderPath: 'X:/External/Projects/Alpha',
         kind: 'malformed-marker',
         markerPath: 'X:/External/Projects/Alpha/.exnf',
         message: 'Invalid marker'
       },
-      hasIntegrityErrors: false,
-      matchingFolderPath: null,
-      uuid: VALID_UUID
+      identity: {
+        kind: 'valid',
+        uuid: VALID_UUID
+      }
     })).toEqual({
       expectedState: {
         folderPath: 'X:/External/Projects/Alpha',

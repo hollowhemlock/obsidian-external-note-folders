@@ -14,17 +14,14 @@ for pristine external roots.
   adoption.
 - Existing correctly bound expected folders open without a full external-root
   scan.
-- If the expected folder is not already bound, the command scans the external
-  root for the note UUID before creating or adopting anything.
-- If the UUID is found elsewhere, the command opens that actual bound folder and
-  warns that it is drifted.
-- If no UUID binding exists elsewhere and the expected folder is missing, the
-  command creates the folder, writes `.exnf`, and opens it.
-- If no UUID binding exists elsewhere and the expected folder already exists
-  without `.exnf`, the command shows a confirmation modal. Confirmation
-  revalidates the folder and writes only `.exnf`.
-- Mismatched or malformed expected markers block unless the matching UUID was
-  found elsewhere and opened as drifted.
+- The command does not scan the full external root. Drift detection belongs to
+  explicit verify, drift report, and reconcile commands.
+- If the expected folder is missing, the command creates the folder, writes
+  `.exnf`, and opens it.
+- If the expected folder already exists without `.exnf`, the command shows a
+  confirmation modal. Confirmation revalidates the folder and writes only
+  `.exnf`.
+- Mismatched or malformed expected markers block.
 
 ## PR 2: Bulk Adopt Existing External Folders
 
@@ -65,6 +62,6 @@ for pristine external roots.
   expose intermediate states.
 - Strict pristine adoption is conservative. Partially assigned roots require
   manual cleanup or reconcile before bulk adoption.
-- Full external-root scans remain possible on `Open external folder`, but only
-  after the exact expected-folder fast path fails for a note that already has
-  `exnf`.
+- `Open external folder` does not discover off-path `.exnf` markers. If a note's
+  marker was manually moved elsewhere, opening may create a new expected folder;
+  run drift report or reconcile first when drift is suspected.

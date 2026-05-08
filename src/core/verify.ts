@@ -29,6 +29,7 @@ export interface VerifyReport {
   classificationOmitted: boolean;
   errors: string[];
   hasIntegrityErrors: boolean;
+  markdownReport: string;
   ok: string[];
   okRows: VerifyTableRow[];
   summaryText: string;
@@ -111,6 +112,14 @@ export function buildVerifyReport(
     classificationOmitted,
     errors,
     hasIntegrityErrors: errors.length > 0,
+    markdownReport: buildMarkdownReport({
+      errors,
+      okRows: sortRows(okRows),
+      summaryText,
+      unavailableRows: sortRows(unavailableRows),
+      warningRows: sortRows(warningRows),
+      warnings: warnings.sort()
+    }),
     ok: ok.sort(),
     okRows: sortRows(okRows),
     summaryText,
@@ -119,6 +128,27 @@ export function buildVerifyReport(
     warningRows: sortRows(warningRows),
     warnings: warnings.sort()
   };
+}
+
+function buildMarkdownReport(input: {
+  errors: string[];
+  okRows: VerifyTableRow[];
+  summaryText: string;
+  unavailableRows: VerifyTableRow[];
+  warningRows: VerifyTableRow[];
+  warnings: string[];
+}): string {
+  return [
+    '# External Folder Verify Report',
+    '',
+    input.summaryText,
+    '',
+    formatMarkdownList('Errors', input.errors),
+    formatMarkdownList('Warnings', input.warnings),
+    formatVerifyRows('Orphan Bound Folders', input.warningRows),
+    formatVerifyRows('Unavailable', input.unavailableRows),
+    formatVerifyRows('OK', input.okRows)
+  ].join('\n');
 }
 
 function formatDerivedPathCollisionErrors(
@@ -159,6 +189,32 @@ function formatDuplicateErrors(scopeLabel: string, duplicatePaths: Map<string, s
     const sortedPaths = [...paths].sort().join(', ');
     return `${scopeLabel} UUID ${uuid} is duplicated at: ${sortedPaths}`;
   });
+}
+
+function formatMarkdownList(title: string, items: string[]): string {
+  if (items.length === 0) {
+    return `## ${title}\n\nNone.`;
+  }
+
+  return [
+    `## ${title}`,
+    '',
+    ...items.map((item) => `- ${item}`)
+  ].join('\n');
+}
+
+function formatVerifyRows(title: string, rows: VerifyTableRow[]): string {
+  if (rows.length === 0) {
+    return `## ${title}\n\nNone.`;
+  }
+
+  return [
+    `## ${title}`,
+    '',
+    '| Vault file | External folder | UUID |',
+    '| --- | --- | --- |',
+    ...rows.map((row) => `| ${row.notePath ?? '-'} | ${row.externalFolder ?? '-'} | ${row.uuid} |`)
+  ].join('\n');
 }
 
 function sortEntries<T>(map: Map<string, T>): [string, T][] {

@@ -78,6 +78,10 @@ describe('verify report builder', () => {
         uuid: '123e4567-e89b-42d3-a456-426614174999'
       }
     ]);
+    expect(report.markdownReport).toContain('# External Folder Verify Report');
+    expect(report.markdownReport).toContain('| Vault file | External folder | UUID |');
+    expect(report.markdownReport).toContain('| Notes/Alpha.md | Notes/Alpha | 123e4567-e89b-42d3-a456-426614174000 |');
+    expect(report.markdownReport).toContain('| - | Orphan | 123e4567-e89b-42d3-a456-426614174999 |');
   });
 
   it('omits availability classification when access errors exist', () => {
@@ -113,6 +117,7 @@ describe('verify report builder', () => {
     expect(report.errors).toEqual([
       'External root access error at X:\\External: External root is not configured.'
     ]);
+    expect(report.markdownReport).toContain('External root access error at X:\\External: External root is not configured.');
   });
 
   it('reports skipped descendant directories as non-blocking warnings', () => {

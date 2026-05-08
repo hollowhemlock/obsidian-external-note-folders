@@ -13,7 +13,6 @@ import type { ExpectedExternalFolderInspection } from './storage/boundExternalFo
 import { AdoptExpectedFolderModal } from './AdoptExpectedFolderModal.ts';
 import { AdoptionPlanModal } from './AdoptionPlanModal.ts';
 import { AdoptionResumeModal } from './AdoptionResumeModal.ts';
-import { getActiveFolderDrift } from './core/activeFolderDrift.ts';
 import {
   buildAdoptionPlan,
   haveSameAdoptionRows
@@ -21,10 +20,7 @@ import {
 import { toExternalRelativeDisplayPath } from './core/displayPath.ts';
 import { buildDriftReport } from './core/driftReport.ts';
 import { getExnfFrontmatterValue } from './core/frontmatter.ts';
-import {
-  chooseInitialOpenExternalFolderAction,
-  chooseOpenExternalFolderFallbackAction
-} from './core/openExternalFolderFlow.ts';
+import { chooseInitialOpenExternalFolderAction } from './core/openExternalFolderFlow.ts';
 import { buildReconcilePlan } from './core/reconcilePlan.ts';
 import { buildVerifyReport } from './core/verify.ts';
 import { DriftReportModal } from './DriftReportModal.ts';
@@ -310,28 +306,6 @@ export class Plugin extends ObsidianPlugin {
       folderPath: folderResult.folderPath,
       notePath,
       uuid
-    });
-  }
-
-  private async openDriftedExternalFolder(input: {
-    externalScan: ScanContext['externalScan'];
-    folderPath: string;
-    notePath: string;
-    uuid: string;
-  }): Promise<void> {
-    await openExternalFolderInFileManager(input.folderPath);
-    const drift = getActiveFolderDrift({
-      externalScan: input.externalScan,
-      notePath: input.notePath,
-      uuid: input.uuid
-    });
-
-    new Notice('Opened existing bound external folder at a non-expected path. Run reconcile when ready.');
-    this.logWarn('opened drifted external folder', {
-      drift,
-      folderPath: input.folderPath,
-      notePath: input.notePath,
-      uuid: input.uuid
     });
   }
 
@@ -628,65 +602,36 @@ export class Plugin extends ObsidianPlugin {
           return;
         }
 
-        if (initialAction.kind !== 'scan-fallback') {
-          throw new Error('Unexpected open external folder action after expected-folder inspection.');
-        }
-
-        const { externalScan, verifyReport } = await this.collectScanContext();
-        const fallbackAction = chooseOpenExternalFolderFallbackAction({
-          expectedState: initialAction.expectedState,
-          hasIntegrityErrors: verifyReport.hasIntegrityErrors,
-          matchingFolderPath: externalScan.bindings.get(initialAction.uuid) ?? null,
-          uuid: initialAction.uuid
-        });
-
-        if (fallbackAction.kind === 'open-drifted') {
-          await this.openDriftedExternalFolder({
-            externalScan,
-            folderPath: fallbackAction.folderPath,
-            notePath: activeFile.path,
-            uuid: fallbackAction.uuid
-          });
-          return;
-        }
-
-        if (fallbackAction.kind === 'block-integrity-errors') {
-          new Notice('Cannot create or adopt an external folder while integrity errors exist. Review the opened report for details.');
-          this.logWarn('external folder creation blocked by integrity errors', {
-            notePath: activeFile.path,
-            report: verifyReport,
-            uuid: fallbackAction.uuid
-          });
-          new VerifyReportModal(this.app, verifyReport, false).open();
-          return;
-        }
-
-        if (fallbackAction.kind === 'create-expected') {
+        if (initialAction.kind === 'create-expected') {
           const folderResult = await ensureExpectedBoundExternalFolder({
             createIfMissing: true,
-            externalRootPath: externalScan.rootPath,
+            externalRootPath,
             notePath: activeFile.path,
-            uuid: fallbackAction.uuid
+            uuid: initialAction.uuid
           });
           if (folderResult.kind === 'missing') {
             throw new Error('Expected external folder was not created.');
           }
 
-          await this.openBoundExternalFolder(folderResult, activeFile.path, fallbackAction.uuid);
+          await this.openBoundExternalFolder(folderResult, activeFile.path, initialAction.uuid);
           return;
         }
 
-        if (fallbackAction.kind === 'prompt-adopt-expected') {
+        if (initialAction.kind === 'prompt-adopt-expected') {
           this.openExpectedFolderAdoptionModal({
-            expectedFolderPath: fallbackAction.folderPath,
-            externalRootPath: externalScan.rootPath,
+            expectedFolderPath: initialAction.folderPath,
+            externalRootPath,
             notePath: activeFile.path,
-            uuid: fallbackAction.uuid
+            uuid: initialAction.uuid
           });
           return;
         }
 
-        throw new Error(this.getExpectedMarkerBlockMessage(fallbackAction.expectedState));
+        if (initialAction.kind === 'block-expected-marker') {
+          throw new Error(this.getExpectedMarkerBlockMessage(initialAction.expectedState));
+        }
+
+        throw new Error('Unexpected open external folder action after expected-folder inspection.');
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Failed to open external folder.';
         new Notice(message);

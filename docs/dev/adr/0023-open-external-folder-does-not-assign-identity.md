@@ -14,8 +14,9 @@ a side effect. That made a navigation command mutate vault frontmatter and could
 create bindings before the user had explicitly chosen to assign or adopt an
 external folder.
 
-The command also needs to avoid creating duplicate expected folders when the
-same UUID is already bound somewhere else under the external root.
+The command also needs to stay fast in large external roots. Full-root scans can
+surface unrelated orphan folders and permission errors when the configured
+external root contains other projects.
 
 ## Decision Drivers
 
@@ -23,13 +24,15 @@ same UUID is already bound somewhere else under the external root.
 - Avoid surprising frontmatter mutation from a command named "open"
 - Preserve fast open behavior when the expected folder is already correctly
   bound
-- Avoid duplicate folder creation when a drifted binding already exists
+- Keep open latency proportional to the active note's expected folder, not the
+  size of the external root
 
 ## Considered Options
 
 * Keep implicit assignment inside `Open external folder`
 * Split identity assignment from opening
 * Make `Open external folder` read-only forever
+* Scan the external root from `Open external folder` to find drifted bindings
 
 ## Decision Outcome
 
@@ -41,16 +44,20 @@ For notes that already have a valid `exnf`, the command uses this order:
 
 1. Inspect the derived expected folder.
 2. Open immediately if the expected folder has a matching `.exnf`.
-3. If the expected folder is not already bound, scan the external root for the
-   UUID before creating or adopting anything.
-4. If that UUID is found elsewhere, open the actual bound folder and warn that
-   it is drifted.
-5. If no binding exists and the expected folder is missing, create it, write
-   `.exnf`, and open it.
-6. If no binding exists and the expected folder exists without `.exnf`, prompt
-   before writing the marker.
-7. If the expected folder has a mismatched or malformed marker and no matching
-   UUID exists elsewhere, block.
+3. If the expected folder is missing, create it, write `.exnf`, and open it.
+4. If the expected folder exists without `.exnf`, prompt before writing the
+   marker.
+5. If the expected folder has a mismatched or malformed marker, block.
+
+The command does not scan the external root to find off-path `.exnf` markers.
+Drift discovery belongs to explicit verify, drift report, and reconcile
+commands.
+
+Earlier versions of this decision allowed a fallback scan before create/adopt to
+avoid duplicate folders when a matching UUID was already bound elsewhere. That
+was rejected because it made a navigation command traverse the whole external
+root, surface unrelated orphan folders, and report unrelated descendant access
+errors.
 
 ### Consequences
 
@@ -58,15 +65,18 @@ For notes that already have a valid `exnf`, the command uses this order:
 
 - Opening no longer mutates note frontmatter unexpectedly
 - Explicit assignment and adoption flows own identity creation
-- Drifted existing bindings are preferred over duplicate folder creation
-- Correctly bound expected folders still use a fast path without a full scan
+- Opening does not scan unrelated external-root descendants
+- Expected-folder validation remains local to the active note
 
 ### Negative / Trade-offs
 
 - Users must run one extra explicit command before opening a folder for a note
   without identity
-- Some open attempts perform a full external-root scan after the expected-folder
-  fast path fails
+- A drifted `.exnf` marker elsewhere in the external root is not discovered by
+  `Open external folder`
+- If a note's expected folder is missing while its marker exists elsewhere,
+  opening can create a new expected folder; users should run drift report or
+  reconcile when they suspect drift
 
 ## Pros and Cons of the Options
 
@@ -86,8 +96,18 @@ For notes that already have a valid `exnf`, the command uses this order:
 
 - Pros: Very simple command semantics
 - Cons: Would remove useful lazy folder creation for already-assigned notes
-- Why rejected: Creating a missing expected folder is safe after identity already
-  exists and no binding exists elsewhere
+- Why rejected: Creating a missing expected folder is useful after identity
+  already exists; whole-root drift checks remain available through explicit
+  commands
+
+### Scan the external root from `Open external folder` to find drifted bindings
+
+- Pros: Avoids duplicate folder creation when the note's UUID is already bound
+  somewhere else
+- Cons: Makes opening proportional to external-root size; surfaces unrelated
+  orphan markers and permission errors from unrelated descendants
+- Why rejected: Explicit drift commands are the right place for whole-root
+  analysis; a navigation command must remain fast and local
 
 ## More Information
 
