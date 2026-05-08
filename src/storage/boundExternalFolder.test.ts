@@ -17,8 +17,10 @@ import {
 
 import { EXNF_MARKER_FILE_NAME } from '../core/contracts.ts';
 import {
+  assertExpectedMarkerMatches,
   ensureExpectedBoundExternalFolder,
   inspectExpectedExternalFolder,
+  writeExpectedMarkerIfMissingOrMatching,
   writeExpectedMarkerIfUnmarked
 } from './boundExternalFolder.ts';
 
@@ -182,6 +184,18 @@ describe('bound external folder mutations', () => {
     });
   });
 
+  it('reports missing markers clearly when asserting a completed adoption entry', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    await mkdir(targetFolderPath, { recursive: true });
+
+    await expect(assertExpectedMarkerMatches({
+      externalRootPath,
+      notePath: 'Projects/Alpha.md',
+      uuid: VALID_UUID
+    })).rejects.toThrow('marker is missing');
+  });
+
   it('writes a marker into an expected folder only after revalidating it is still unmarked', async () => {
     const externalRootPath = await createTempRoot(tempDirectories);
     const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
@@ -229,6 +243,27 @@ describe('bound external folder mutations', () => {
       notePath: 'Projects/Alpha.md',
       uuid: VALID_UUID
     })).rejects.toThrow('already marked');
+  });
+
+  it('treats matching markers as successful idempotent adoption writes', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    await mkdir(targetFolderPath, { recursive: true });
+    await writeFile(path.join(targetFolderPath, EXNF_MARKER_FILE_NAME), `${VALID_UUID}\n`, 'utf8');
+
+    const result = await writeExpectedMarkerIfMissingOrMatching({
+      externalRootPath,
+      notePath: 'Projects/Alpha.md',
+      uuid: VALID_UUID
+    });
+
+    expect(result).toEqual({
+      folderPath: targetFolderPath,
+      markerWritten: false
+    });
+    expect(await readFile(path.join(targetFolderPath, EXNF_MARKER_FILE_NAME), 'utf8')).toBe(
+      `${VALID_UUID}\n`
+    );
   });
 
   it('rejects existing expected folders below symlinked parent directories', async () => {

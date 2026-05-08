@@ -48,6 +48,17 @@ export interface WriteExpectedMarkerIfUnmarkedResult {
   markerWritten: boolean;
 }
 
+export async function assertExpectedMarkerMatches(input: ExpectedExternalFolderInput): Promise<void> {
+  const inspection = await inspectExpectedExternalFolder(input);
+  if (inspection.kind !== 'bound') {
+    if (inspection.kind === 'unmarked') {
+      throw new Error(`Expected external folder marker is missing: ${inspection.folderPath}`);
+    }
+
+    throwExpectedInspectionError(inspection);
+  }
+}
+
 export async function ensureExpectedBoundExternalFolder(
   input: EnsureExpectedBoundExternalFolderInput
 ): Promise<EnsureExpectedBoundExternalFolderResult> {
@@ -175,6 +186,28 @@ export async function resolveExternalRootPath(externalRootPath: string): Promise
   }
 
   return await realpath(trimmedRootPath);
+}
+
+export async function writeExpectedMarkerIfMissingOrMatching(
+  input: ExpectedExternalFolderInput
+): Promise<WriteExpectedMarkerIfUnmarkedResult> {
+  const inspection = await inspectExpectedExternalFolder(input);
+  if (inspection.kind === 'bound') {
+    return {
+      folderPath: inspection.folderPath,
+      markerWritten: false
+    };
+  }
+
+  if (inspection.kind !== 'unmarked') {
+    throwExpectedInspectionError(inspection);
+  }
+
+  await writeNewMarkerFile(path.join(inspection.folderPath, EXNF_MARKER_FILE_NAME), input.uuid);
+  return {
+    folderPath: inspection.folderPath,
+    markerWritten: true
+  };
 }
 
 export async function writeExpectedMarkerIfUnmarked(
