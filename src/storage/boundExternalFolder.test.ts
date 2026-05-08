@@ -17,6 +17,7 @@ import {
 
 import { EXNF_MARKER_FILE_NAME } from '../core/contracts.ts';
 import {
+  assertExpectedMarkerMatches,
   ensureExpectedBoundExternalFolder,
   inspectExpectedExternalFolder,
   writeExpectedMarkerIfMissingOrMatching,
@@ -181,6 +182,18 @@ describe('bound external folder mutations', () => {
       folderPath: targetFolderPath,
       kind: 'unmarked'
     });
+  });
+
+  it('reports missing markers clearly when asserting a completed adoption entry', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    await mkdir(targetFolderPath, { recursive: true });
+
+    await expect(assertExpectedMarkerMatches({
+      externalRootPath,
+      notePath: 'Projects/Alpha.md',
+      uuid: VALID_UUID
+    })).rejects.toThrow('marker is missing');
   });
 
   it('writes a marker into an expected folder only after revalidating it is still unmarked', async () => {

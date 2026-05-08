@@ -51,6 +51,10 @@ export interface WriteExpectedMarkerIfUnmarkedResult {
 export async function assertExpectedMarkerMatches(input: ExpectedExternalFolderInput): Promise<void> {
   const inspection = await inspectExpectedExternalFolder(input);
   if (inspection.kind !== 'bound') {
+    if (inspection.kind === 'unmarked') {
+      throw new Error(`Expected external folder marker is missing: ${inspection.folderPath}`);
+    }
+
     throwExpectedInspectionError(inspection);
   }
 }

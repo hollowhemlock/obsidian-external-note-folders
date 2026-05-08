@@ -95,6 +95,18 @@ describe('adoption plan', () => {
     expect(plan.rows.filter((row) => row.kind === 'blocked-note')).toHaveLength(2);
   });
 
+  it('does not also report candidate directories as unmatched when notes are blocked', () => {
+    const folderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({ directories: [folderPath] }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md', 'Projects/Alpha/Alpha.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(plan.rows.filter((row) => row.kind === 'unmatched-external-folder')).toEqual([]);
+  });
+
   it('reports notes that cannot derive an external path as blocked rows', () => {
     const plan = buildAdoptionPlan({
       externalScan: buildExternalScan(),

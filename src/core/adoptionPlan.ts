@@ -132,7 +132,7 @@ function buildAdoptionRows(
     identity: normalizePathForIdentity(folderPath)
   }));
   const directoryCandidatesByIdentity = groupByIdentity(directoryCandidates);
-  const matchedDirectoryIdentities = new Set<string>();
+  const noteCandidateIdentities = new Set(noteCandidates.map((candidate) => candidate.identity));
   const rows: AdoptionPlanRow[] = [...blockedRows];
 
   for (const noteCandidate of noteCandidates) {
@@ -171,7 +171,6 @@ function buildAdoptionRows(
       continue;
     }
 
-    matchedDirectoryIdentities.add(noteCandidate.identity);
     rows.push({
       externalFolder: noteCandidate.externalFolder,
       folderPath: directoryCandidate.folderPath,
@@ -181,7 +180,7 @@ function buildAdoptionRows(
   }
 
   for (const directoryCandidate of directoryCandidates) {
-    if (matchedDirectoryIdentities.has(directoryCandidate.identity)) {
+    if (noteCandidateIdentities.has(directoryCandidate.identity)) {
       continue;
     }
 
