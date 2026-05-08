@@ -184,6 +184,28 @@ export async function resolveExternalRootPath(externalRootPath: string): Promise
   return await realpath(trimmedRootPath);
 }
 
+export async function writeExpectedMarkerIfMissingOrMatching(
+  input: ExpectedExternalFolderInput
+): Promise<WriteExpectedMarkerIfUnmarkedResult> {
+  const inspection = await inspectExpectedExternalFolder(input);
+  if (inspection.kind === 'bound') {
+    return {
+      folderPath: inspection.folderPath,
+      markerWritten: false
+    };
+  }
+
+  if (inspection.kind !== 'unmarked') {
+    throwExpectedInspectionError(inspection);
+  }
+
+  await writeNewMarkerFile(path.join(inspection.folderPath, EXNF_MARKER_FILE_NAME), input.uuid);
+  return {
+    folderPath: inspection.folderPath,
+    markerWritten: true
+  };
+}
+
 export async function writeExpectedMarkerIfUnmarked(
   input: ExpectedExternalFolderInput
 ): Promise<WriteExpectedMarkerIfUnmarkedResult> {

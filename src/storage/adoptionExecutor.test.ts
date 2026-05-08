@@ -1,5 +1,7 @@
 import {
   mkdtemp,
+  readdir,
+  readFile,
   rm,
   writeFile
 } from 'node:fs/promises';
@@ -23,6 +25,12 @@ import {
   listIncompleteAdoptionJournals,
   resumeAdoptionJournal
 } from './adoptionExecutor.ts';
+
+interface StoredAdoptionJournal {
+  entries: {
+    stage: unknown;
+  }[];
+}
 
 describe('adoption executor', () => {
   const tempDirectories: string[] = [];
@@ -65,6 +73,30 @@ describe('adoption executor', () => {
     expect(calls).toEqual(['write-marker', 'assert-marker', 'write-note', 'assert-note']);
     expect(result.journal.completedAt).not.toBeNull();
     expect(result.journal.entries[0]?.outcome).toBe('success');
+  });
+
+  it('persists stage changes before marker and frontmatter writes', async () => {
+    const journalRootPath = await createTempRoot(tempDirectories);
+    let stageDuringMarkerWrite: unknown;
+    let stageDuringNoteWrite: unknown;
+
+    await executeAdoptionPlan({
+      journalRootPath,
+      operations: {
+        assertMarkerMatches: vi.fn(async () => undefined),
+        assertNoteUuidMatches: vi.fn(async () => undefined),
+        writeMarker: vi.fn(async () => {
+          stageDuringMarkerWrite = (await readSingleStoredJournal(journalRootPath)).entries[0]?.stage;
+        }),
+        writeNoteUuid: vi.fn(async () => {
+          stageDuringNoteWrite = (await readSingleStoredJournal(journalRootPath)).entries[0]?.stage;
+        })
+      },
+      plan: buildPlan()
+    });
+
+    expect(stageDuringMarkerWrite).toBe('marker-write');
+    expect(stageDuringNoteWrite).toBe('frontmatter-write');
   });
 
   it('leaves an incomplete journal when frontmatter writing fails', async () => {
@@ -250,4 +282,13 @@ async function createTempRoot(tempDirectories: string[]): Promise<string> {
   const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'external-note-folders-'));
   tempDirectories.push(directoryPath);
   return directoryPath;
+}
+
+async function readSingleStoredJournal(journalRootPath: string): Promise<StoredAdoptionJournal> {
+  const journalFileName = (await readdir(journalRootPath)).find((fileName) => fileName.endsWith('.json'));
+  if (!journalFileName) {
+    throw new Error('Expected adoption journal file.');
+  }
+
+  return JSON.parse(await readFile(path.join(journalRootPath, journalFileName), 'utf8')) as unknown as StoredAdoptionJournal;
 }

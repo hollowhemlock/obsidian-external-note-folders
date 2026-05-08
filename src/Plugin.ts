@@ -49,6 +49,7 @@ import {
   inspectExpectedExternalFolder,
   openExternalFolderInFileManager,
   resolveExternalRootPath,
+  writeExpectedMarkerIfMissingOrMatching,
   writeExpectedMarkerIfUnmarked
 } from './storage/boundExternalFolder.ts';
 import {
@@ -160,7 +161,7 @@ export class Plugin extends ObsidianPlugin {
         assertNoteUuidMatches(this.app, this.getMarkdownFileByPath(row.notePath), uuid);
       },
       writeMarker: async (row, uuid): Promise<void> => {
-        await writeExpectedMarkerIfUnmarked({
+        await writeExpectedMarkerIfMissingOrMatching({
           externalRootPath,
           notePath: row.notePath,
           uuid

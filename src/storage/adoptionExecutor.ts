@@ -184,6 +184,8 @@ function buildNewJournal(plan: AdoptionPlan, runId: string): AdoptionJournal {
 }
 
 async function executeEntry(
+  journalPath: string,
+  journal: AdoptionJournal,
   entry: AdoptionJournalEntry,
   operations: AdoptionExecutionOperations
 ): Promise<void> {
@@ -192,6 +194,7 @@ async function executeEntry(
   entry.completedAt = null;
   entry.message = null;
   entry.outcome = 'pending';
+  await writeJournal(journalPath, journal);
 
   if (entry.stage === 'frontmatter-write') {
     await operations.assertMarkerMatches(row, entry.uuid);
@@ -200,19 +203,24 @@ async function executeEntry(
     entry.stage = 'complete';
     entry.outcome = 'success';
     entry.completedAt = new Date().toISOString();
+    await writeJournal(journalPath, journal);
     return;
   }
 
   entry.stage = 'preflight';
+  await writeJournal(journalPath, journal);
   entry.stage = 'marker-write';
+  await writeJournal(journalPath, journal);
   await operations.writeMarker(row, entry.uuid);
   await operations.assertMarkerMatches(row, entry.uuid);
   entry.stage = 'frontmatter-write';
+  await writeJournal(journalPath, journal);
   await operations.writeNoteUuid(row, entry.uuid);
   await operations.assertNoteUuidMatches(row, entry.uuid);
   entry.stage = 'complete';
   entry.outcome = 'success';
   entry.completedAt = new Date().toISOString();
+  await writeJournal(journalPath, journal);
 }
 
 async function executeJournalEntries(
@@ -225,7 +233,7 @@ async function executeJournalEntries(
       if (entry.outcome === 'success') {
         await assertCompletedEntry(entry, operations);
       } else {
-        await executeEntry(entry, operations);
+        await executeEntry(journalPath, journal, entry, operations);
       }
     } catch (error: unknown) {
       entry.outcome = 'failure';
