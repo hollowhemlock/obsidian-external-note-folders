@@ -246,12 +246,44 @@ async function executeJournalEntries(
 
 function isAdoptionJournal(input: unknown): input is AdoptionJournal {
   return (
-    typeof input === 'object'
-    && input !== null
-    && 'kind' in input
-    && input.kind === 'external-folder-adoption'
-    && 'schemaVersion' in input
-    && input.schemaVersion === 1
+    isRecord(input)
+    && input['kind'] === 'external-folder-adoption'
+    && input['schemaVersion'] === 1
+    && isNullOrString(input['completedAt'])
+    && Array.isArray(input['entries'])
+    && input['entries'].every(isAdoptionJournalEntry)
+    && typeof input['externalRootPath'] === 'string'
+    && typeof input['runId'] === 'string'
+    && typeof input['startedAt'] === 'string'
+  );
+}
+
+function isAdoptionJournalEntry(input: unknown): input is AdoptionJournalEntry {
+  return (
+    isRecord(input)
+    && isNullOrString(input['completedAt'])
+    && typeof input['externalFolder'] === 'string'
+    && typeof input['folderPath'] === 'string'
+    && isNullOrString(input['message'])
+    && typeof input['notePath'] === 'string'
+    && isAdoptionJournalOutcome(input['outcome'])
+    && isAdoptionJournalStage(input['stage'])
+    && isNullOrString(input['startedAt'])
+    && typeof input['uuid'] === 'string'
+  );
+}
+
+function isAdoptionJournalOutcome(input: unknown): input is AdoptionJournalEntry['outcome'] {
+  return input === 'failure' || input === 'pending' || input === 'success';
+}
+
+function isAdoptionJournalStage(input: unknown): input is AdoptionJournalStage {
+  return (
+    input === 'complete'
+    || input === 'frontmatter-write'
+    || input === 'marker-write'
+    || input === 'pending'
+    || input === 'preflight'
   );
 }
 
@@ -262,6 +294,14 @@ function isMissingFileError(error: unknown): boolean {
     && 'code' in error
     && error.code === 'ENOENT'
   );
+}
+
+function isNullOrString(input: unknown): input is null | string {
+  return input === null || typeof input === 'string';
+}
+
+function isRecord(input: unknown): input is Record<string, unknown> {
+  return typeof input === 'object' && input !== null;
 }
 
 function toAdoptionRow(entry: AdoptionJournalEntry): AdoptionAdoptRow {

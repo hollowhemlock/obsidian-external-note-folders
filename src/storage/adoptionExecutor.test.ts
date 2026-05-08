@@ -203,6 +203,27 @@ describe('adoption executor', () => {
 
     await expect(listIncompleteAdoptionJournals(journalRootPath)).resolves.toEqual([]);
   });
+
+  it('rejects partial adoption journal JSON before listing it', async () => {
+    const journalRootPath = await createTempRoot(tempDirectories);
+    const journalPath = path.join(journalRootPath, 'partial.json');
+    await writeFile(
+      journalPath,
+      `${
+        JSON.stringify(
+          {
+            kind: 'external-folder-adoption',
+            schemaVersion: 1
+          },
+          null,
+          2
+        )
+      }\n`,
+      'utf8'
+    );
+
+    await expect(listIncompleteAdoptionJournals(journalRootPath)).rejects.toThrow(`Invalid adoption journal: ${journalPath}`);
+  });
 });
 
 function buildPlan(): AdoptionPlan {

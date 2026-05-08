@@ -309,7 +309,12 @@ function formatRows(title: string, rows: readonly AdoptionPlanRow[]): string {
 function groupByIdentity<T extends { identity: string }>(items: readonly T[]): Map<string, T[]> {
   const groups = new Map<string, T[]>();
   for (const item of items) {
-    groups.set(item.identity, [...(groups.get(item.identity) ?? []), item]);
+    const group = groups.get(item.identity);
+    if (group) {
+      group.push(item);
+    } else {
+      groups.set(item.identity, [item]);
+    }
   }
   return groups;
 }
