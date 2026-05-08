@@ -8,17 +8,12 @@ export type ExpectedExternalFolderState =
   | { folderPath: string; kind: 'unmarked' };
 
 export type InitialOpenExternalFolderAction =
-  | { expectedState: Exclude<ExpectedExternalFolderState, { kind: 'bound' }>; kind: 'scan-fallback'; uuid: string }
-  | { folderPath: string; kind: 'open-expected'; uuid: string }
-  | { kind: 'block-invalid-identity'; message: string }
-  | { kind: 'notice-missing-identity' };
-
-export type OpenExternalFolderFallbackAction =
   | { expectedState: Extract<ExpectedExternalFolderState, { kind: 'malformed-marker' | 'mismatched-marker' }>; kind: 'block-expected-marker'; uuid: string }
   | { folderPath: string; kind: 'create-expected'; uuid: string }
-  | { folderPath: string; kind: 'open-drifted'; uuid: string }
+  | { folderPath: string; kind: 'open-expected'; uuid: string }
   | { folderPath: string; kind: 'prompt-adopt-expected'; uuid: string }
-  | { kind: 'block-integrity-errors'; uuid: string };
+  | { kind: 'block-invalid-identity'; message: string }
+  | { kind: 'notice-missing-identity' };
 
 export function chooseInitialOpenExternalFolderAction(input: {
   expectedState: ExpectedExternalFolderState | null;
@@ -47,39 +42,11 @@ export function chooseInitialOpenExternalFolderAction(input: {
     };
   }
 
-  return {
-    expectedState: input.expectedState,
-    kind: 'scan-fallback',
-    uuid: input.identity.uuid
-  };
-}
-
-export function chooseOpenExternalFolderFallbackAction(input: {
-  expectedState: Exclude<ExpectedExternalFolderState, { kind: 'bound' }>;
-  hasIntegrityErrors: boolean;
-  matchingFolderPath: null | string;
-  uuid: string;
-}): OpenExternalFolderFallbackAction {
-  if (input.matchingFolderPath) {
-    return {
-      folderPath: input.matchingFolderPath,
-      kind: 'open-drifted',
-      uuid: input.uuid
-    };
-  }
-
-  if (input.hasIntegrityErrors) {
-    return {
-      kind: 'block-integrity-errors',
-      uuid: input.uuid
-    };
-  }
-
   if (input.expectedState.kind === 'missing') {
     return {
       folderPath: input.expectedState.folderPath,
       kind: 'create-expected',
-      uuid: input.uuid
+      uuid: input.identity.uuid
     };
   }
 
@@ -87,13 +54,13 @@ export function chooseOpenExternalFolderFallbackAction(input: {
     return {
       folderPath: input.expectedState.folderPath,
       kind: 'prompt-adopt-expected',
-      uuid: input.uuid
+      uuid: input.identity.uuid
     };
   }
 
   return {
     expectedState: input.expectedState,
     kind: 'block-expected-marker',
-    uuid: input.uuid
+    uuid: input.identity.uuid
   };
 }

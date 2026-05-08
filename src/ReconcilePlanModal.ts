@@ -10,6 +10,8 @@ import type {
   ReconcilePlanRow
 } from './core/reconcilePlan.ts';
 
+import { renderCopyableReport } from './modalReport.ts';
+
 export class ReconcilePlanModal extends Modal {
   private executeArmed: boolean;
 
@@ -54,12 +56,7 @@ export class ReconcilePlanModal extends Modal {
     this.renderTableSection(contentEl, 'Conflicts', conflictRows, 'No move conflicts detected.');
     this.renderTableSection(contentEl, 'Other Rows', this.plan.rows.filter((row) => row.kind !== 'move' && row.kind !== 'conflict'), 'No other rows.');
 
-    contentEl.createEl('h3', { text: 'Copyable plan' });
-    const reportEl = contentEl.createEl('textarea', {
-      cls: 'external-note-folders-report-textarea'
-    });
-    reportEl.value = this.plan.markdownReport;
-    reportEl.readOnly = true;
+    renderCopyableReport(contentEl, 'Copyable plan', this.plan.markdownReport);
 
     const actionsEl = contentEl.createDiv({
       cls: 'external-note-folders-modal-actions'
