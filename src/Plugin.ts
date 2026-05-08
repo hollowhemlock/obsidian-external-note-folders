@@ -434,7 +434,7 @@ export class Plugin extends ObsidianPlugin {
       if (plan.hasGlobalErrors) {
         new Notice('Cannot execute adoption while global blockers exist. Review the dry-run plan for details.');
         this.logWarn('adoption execution blocked by global errors', { plan });
-        return;
+        return false;
       }
 
       if (plan.mutationSequence !== this.mutationSequence) {
@@ -443,7 +443,7 @@ export class Plugin extends ObsidianPlugin {
           currentMutationSequence: this.mutationSequence,
           planMutationSequence: plan.mutationSequence
         });
-        return;
+        return false;
       }
 
       const currentPlan = await this.buildAdoptionDryRunPlan();
@@ -465,7 +465,7 @@ export class Plugin extends ObsidianPlugin {
           },
           true
         ).open();
-        return;
+        return false;
       }
 
       const result = await executeAdoptionPlan({
@@ -476,11 +476,12 @@ export class Plugin extends ObsidianPlugin {
       if (result.succeeded) {
         new Notice(`External folder adoption complete. Journal: ${result.journalPath}`);
         this.logInfo('external folder adoption complete', { result });
-        return;
+        return true;
       }
 
       new Notice(`External folder adoption stopped after a failure. Journal: ${result.journalPath}`);
       this.logWarn('external folder adoption stopped after failure', { result });
+      return true;
     });
   }
 
@@ -544,7 +545,7 @@ export class Plugin extends ObsidianPlugin {
 
   private async runMutatingCommand(
     actionDescription: string,
-    operation: () => Promise<void>
+    operation: () => Promise<unknown>
   ): Promise<void> {
     if (this.isMutationInProgress) {
       new Notice(`Cannot ${actionDescription} while another mutating command is already running.`);
@@ -552,11 +553,14 @@ export class Plugin extends ObsidianPlugin {
     }
 
     this.isMutationInProgress = true;
+    let shouldAdvanceMutationSequence = true;
     try {
-      await operation();
+      shouldAdvanceMutationSequence = await operation() !== false;
     } finally {
       this.isMutationInProgress = false;
-      this.mutationSequence += 1;
+      if (shouldAdvanceMutationSequence) {
+        this.mutationSequence += 1;
+      }
     }
   }
 
@@ -725,7 +729,7 @@ export class Plugin extends ObsidianPlugin {
       if (plan.hasGlobalErrors) {
         new Notice('Cannot execute reconcile while integrity errors exist. Review the dry-run plan for details.');
         this.logWarn('reconcile execution blocked by global errors', { plan });
-        return;
+        return false;
       }
 
       if (plan.mutationSequence !== this.mutationSequence) {
@@ -734,7 +738,7 @@ export class Plugin extends ObsidianPlugin {
           currentMutationSequence: this.mutationSequence,
           planMutationSequence: plan.mutationSequence
         });
-        return;
+        return false;
       }
 
       const result = await executeReconcilePlan({
@@ -744,11 +748,12 @@ export class Plugin extends ObsidianPlugin {
       if (result.succeeded) {
         new Notice(`Reconcile execution complete. Journal: ${result.journalPath}`);
         this.logInfo('reconcile execution complete', { result });
-        return;
+        return true;
       }
 
       new Notice(`Reconcile stopped after a failed move. Journal: ${result.journalPath}`);
       this.logWarn('reconcile execution stopped after failure', { result });
+      return true;
     });
   }
 
