@@ -48,6 +48,13 @@ export interface WriteExpectedMarkerIfUnmarkedResult {
   markerWritten: boolean;
 }
 
+export async function assertExpectedMarkerMatches(input: ExpectedExternalFolderInput): Promise<void> {
+  const inspection = await inspectExpectedExternalFolder(input);
+  if (inspection.kind !== 'bound') {
+    throwExpectedInspectionError(inspection);
+  }
+}
+
 export async function ensureExpectedBoundExternalFolder(
   input: EnsureExpectedBoundExternalFolderInput
 ): Promise<EnsureExpectedBoundExternalFolderResult> {

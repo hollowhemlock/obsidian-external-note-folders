@@ -228,6 +228,7 @@ describe('obsidian CLI integration', () => {
 
     const combinedOutput = `${commandsResult.stdout}\n${commandsResult.stderr}`;
     expect(combinedOutput).toContain(`${pluginId}:assign-external-folder-uuid`);
+    expect(combinedOutput).toContain(`${pluginId}:adopt-existing-external-folders`);
     expect(combinedOutput).toContain(`${pluginId}:open-external-folder`);
     expect(combinedOutput).toContain(`${pluginId}:reconcile-external-folders`);
     expect(combinedOutput).toContain(`${pluginId}:report-external-folder-drift`);
@@ -270,7 +271,7 @@ describe('obsidian CLI integration', () => {
     expect(modalResult.status, formatCliResult(modalResult)).toBe(0);
     expect(modalResult.stdout).toContain('External folder drift report');
     expect(modalResult.stdout).toContain(
-      '1 error(s), 2 unexpected path(s), 1 missing expected folder(s), 1 orphan folder(s), 1 occupied target(s), 3 suggestion(s)'
+      '1 error(s), 0 warning(s), 2 unexpected path(s), 1 missing expected folder(s), 1 orphan folder(s), 1 occupied target(s), 3 suggestion(s)'
     );
     expect(modalResult.stdout).toContain(renamedNotePath);
     expect(modalResult.stdout).toContain(`${matrixFolder}/Renamed/Old Name`);

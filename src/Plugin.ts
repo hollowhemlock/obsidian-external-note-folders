@@ -1,16 +1,23 @@
-import type { TFile } from 'obsidian';
-
 import {
   Notice,
-  Plugin as ObsidianPlugin
+  Plugin as ObsidianPlugin,
+  TFile
 } from 'obsidian';
 
+import type { AdoptionPlan } from './core/adoptionPlan.ts';
 import type { ExnfFrontmatterValue } from './core/frontmatter.ts';
 import type { PluginSettings } from './PluginSettings.ts';
+import type { AdoptionExecutionOperations } from './storage/adoptionExecutor.ts';
 import type { ExpectedExternalFolderInspection } from './storage/boundExternalFolder.ts';
 
 import { AdoptExpectedFolderModal } from './AdoptExpectedFolderModal.ts';
+import { AdoptionPlanModal } from './AdoptionPlanModal.ts';
+import { AdoptionResumeModal } from './AdoptionResumeModal.ts';
 import { getActiveFolderDrift } from './core/activeFolderDrift.ts';
+import {
+  buildAdoptionPlan,
+  haveSameAdoptionRows
+} from './core/adoptionPlan.ts';
 import { toExternalRelativeDisplayPath } from './core/displayPath.ts';
 import { buildDriftReport } from './core/driftReport.ts';
 import { getExnfFrontmatterValue } from './core/frontmatter.ts';
@@ -23,17 +30,31 @@ import { buildVerifyReport } from './core/verify.ts';
 import { DriftReportModal } from './DriftReportModal.ts';
 import { assignUuidToNote } from './obsidian/assignUuidToNote.ts';
 import { scanVault } from './obsidian/scanVault.ts';
+import {
+  assertNoteUuidMatches,
+  writeUuidToNoteIfMissing
+} from './obsidian/writeUuidToNote.ts';
 import { DEFAULT_SETTINGS } from './PluginSettings.ts';
 import { PluginSettingsTab } from './PluginSettingsTab.ts';
 import { ReconcilePlanModal } from './ReconcilePlanModal.ts';
 import {
+  executeAdoptionPlan,
+  listIncompleteAdoptionJournals,
+  readAdoptionJournal,
+  resumeAdoptionJournal
+} from './storage/adoptionExecutor.ts';
+import {
+  assertExpectedMarkerMatches,
   ensureExpectedBoundExternalFolder,
   inspectExpectedExternalFolder,
   openExternalFolderInFileManager,
   resolveExternalRootPath,
   writeExpectedMarkerIfUnmarked
 } from './storage/boundExternalFolder.ts';
-import { buildJournalRootPath } from './storage/journalPath.ts';
+import {
+  buildAdoptionJournalRootPath,
+  buildJournalRootPath
+} from './storage/journalPath.ts';
 import { executeReconcilePlan } from './storage/reconcileExecutor.ts';
 import { scanExternalRoot } from './storage/scanExternalRoot.ts';
 import { VerifyReportModal } from './VerifyReportModal.ts';
@@ -83,6 +104,16 @@ export class Plugin extends ObsidianPlugin {
 
     this.addCommand({
       callback: () => {
+        this.runAdoptExistingExternalFoldersCommand().catch((error: unknown) => {
+          this.showUnexpectedError(error);
+        });
+      },
+      id: 'adopt-existing-external-folders',
+      name: 'Adopt existing external folders'
+    });
+
+    this.addCommand({
+      callback: () => {
         this.runOpenExternalFolderCommand().catch((error: unknown) => {
           this.showUnexpectedError(error);
         });
@@ -104,6 +135,41 @@ export class Plugin extends ObsidianPlugin {
 
   public async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
+  }
+
+  private async buildAdoptionDryRunPlan(): Promise<AdoptionPlan> {
+    const { externalScan, vaultScan } = await this.collectScanContext();
+    return buildAdoptionPlan({
+      externalScan,
+      mutationSequence: this.mutationSequence,
+      notePaths: this.getMarkdownNotePaths(),
+      vaultScan
+    });
+  }
+
+  private buildAdoptionExecutionOperations(externalRootPath: string): AdoptionExecutionOperations {
+    return {
+      assertMarkerMatches: async (row, uuid): Promise<void> => {
+        await assertExpectedMarkerMatches({
+          externalRootPath,
+          notePath: row.notePath,
+          uuid
+        });
+      },
+      assertNoteUuidMatches: async (row, uuid): Promise<void> => {
+        assertNoteUuidMatches(this.app, this.getMarkdownFileByPath(row.notePath), uuid);
+      },
+      writeMarker: async (row, uuid): Promise<void> => {
+        await writeExpectedMarkerIfUnmarked({
+          externalRootPath,
+          notePath: row.notePath,
+          uuid
+        });
+      },
+      writeNoteUuid: async (row, uuid): Promise<void> => {
+        await writeUuidToNoteIfMissing(this.app, this.getMarkdownFileByPath(row.notePath), uuid);
+      }
+    };
   }
 
   private async collectScanContext(): Promise<ScanContext> {
@@ -135,6 +201,14 @@ export class Plugin extends ObsidianPlugin {
     return activeFile;
   }
 
+  private getAdoptionJournalRootPath(): string {
+    return buildAdoptionJournalRootPath({
+      configDir: this.app.vault.configDir,
+      pluginId: this.manifest.id,
+      vaultRootPath: this.getVaultRootPath()
+    });
+  }
+
   private getExpectedMarkerBlockMessage(
     expectedState: Extract<ExpectedExternalFolderInspection, { kind: 'malformed-marker' | 'mismatched-marker' }>
   ): string {
@@ -151,6 +225,21 @@ export class Plugin extends ObsidianPlugin {
       pluginId: this.manifest.id,
       vaultRootPath: this.getVaultRootPath()
     });
+  }
+
+  private getMarkdownFileByPath(notePath: string): TFile {
+    const file = this.app.vault.getAbstractFileByPath(notePath);
+    if (!(file instanceof TFile) || file.extension !== 'md') {
+      throw new Error(`Markdown note not found: ${notePath}`);
+    }
+
+    return file;
+  }
+
+  private getMarkdownNotePaths(): string[] {
+    return this.app.vault.getMarkdownFiles()
+      .map((file) => file.path)
+      .sort();
   }
 
   private getVaultRootPath(): string {
@@ -287,6 +376,129 @@ export class Plugin extends ObsidianPlugin {
       },
       uuid: input.uuid
     }).open();
+  }
+
+  private async runAdoptExistingExternalFoldersCommand(): Promise<void> {
+    const incompleteJournals = await listIncompleteAdoptionJournals(this.getAdoptionJournalRootPath());
+    if (incompleteJournals.length > 1) {
+      new Notice('Multiple incomplete adoption journals exist. Inspect the journal folder before resuming adoption.');
+      this.logWarn('adoption blocked by multiple incomplete journals', { incompleteJournals });
+      return;
+    }
+
+    if (incompleteJournals.length === 1) {
+      const journal = incompleteJournals[0];
+      if (!journal) {
+        throw new Error('Unable to load incomplete adoption journal.');
+      }
+
+      new AdoptionResumeModal(
+        this.app,
+        journal,
+        async () => {
+          try {
+            await this.runAdoptionResumeCommand(journal.journalPath);
+          } catch (error: unknown) {
+            this.showUnexpectedError(error);
+          }
+        }
+      ).open();
+      return;
+    }
+
+    this.logInfo('external folder adoption dry-run started', {
+      externalRootPath: this.settings.externalRootPath,
+      vaultRootPath: this.getVaultRootPath()
+    });
+
+    const plan = await this.buildAdoptionDryRunPlan();
+    new Notice(`External folder adoption dry-run complete: ${plan.summaryText}.`);
+    this.logInfo('external folder adoption dry-run complete', { plan });
+    new AdoptionPlanModal(
+      this.app,
+      plan,
+      async () => {
+        try {
+          await this.runAdoptionExecuteCommand(plan);
+        } catch (error: unknown) {
+          this.showUnexpectedError(error);
+        }
+      },
+      this.settings.dryRunByDefault
+    ).open();
+  }
+
+  private async runAdoptionExecuteCommand(plan: AdoptionPlan): Promise<void> {
+    await this.runMutatingCommand('execute external folder adoption', async () => {
+      if (plan.hasGlobalErrors) {
+        new Notice('Cannot execute adoption while global blockers exist. Review the dry-run plan for details.');
+        this.logWarn('adoption execution blocked by global errors', { plan });
+        return;
+      }
+
+      if (plan.mutationSequence !== this.mutationSequence) {
+        new Notice('Cannot execute adoption from a stale dry-run plan. Run adoption again.');
+        this.logWarn('adoption execution blocked by stale plan', {
+          currentMutationSequence: this.mutationSequence,
+          planMutationSequence: plan.mutationSequence
+        });
+        return;
+      }
+
+      const currentPlan = await this.buildAdoptionDryRunPlan();
+      if (currentPlan.hasGlobalErrors || !haveSameAdoptionRows(plan, currentPlan)) {
+        new Notice('Adoption preflight changed. Review the opened dry-run plan before executing.');
+        this.logWarn('adoption execution blocked by changed preflight', {
+          currentPlan,
+          plan
+        });
+        new AdoptionPlanModal(
+          this.app,
+          currentPlan,
+          async () => {
+            try {
+              await this.runAdoptionExecuteCommand(currentPlan);
+            } catch (error: unknown) {
+              this.showUnexpectedError(error);
+            }
+          },
+          true
+        ).open();
+        return;
+      }
+
+      const result = await executeAdoptionPlan({
+        journalRootPath: this.getAdoptionJournalRootPath(),
+        operations: this.buildAdoptionExecutionOperations(currentPlan.externalRootPath),
+        plan: currentPlan
+      });
+      if (result.succeeded) {
+        new Notice(`External folder adoption complete. Journal: ${result.journalPath}`);
+        this.logInfo('external folder adoption complete', { result });
+        return;
+      }
+
+      new Notice(`External folder adoption stopped after a failure. Journal: ${result.journalPath}`);
+      this.logWarn('external folder adoption stopped after failure', { result });
+    });
+  }
+
+  private async runAdoptionResumeCommand(journalPath: string): Promise<void> {
+    await this.runMutatingCommand('resume external folder adoption', async () => {
+      const journal = await readAdoptionJournal(journalPath);
+      const result = await resumeAdoptionJournal({
+        journalPath,
+        operations: this.buildAdoptionExecutionOperations(journal.externalRootPath)
+      });
+      if (result.succeeded) {
+        new Notice(`External folder adoption resume complete. Journal: ${result.journalPath}`);
+        this.logInfo('external folder adoption resume complete', { result });
+        return;
+      }
+
+      new Notice(`External folder adoption resume stopped after a failure. Journal: ${result.journalPath}`);
+      this.logWarn('external folder adoption resume stopped after failure', { result });
+    });
   }
 
   private async runAssignUuidCommand(): Promise<void> {
