@@ -30,27 +30,68 @@ export type EnsureExpectedBoundExternalFolderResult =
   | { created: boolean; folderPath: string; kind: 'bound' }
   | { folderPath: string; kind: 'missing' };
 
+export interface ExpectedExternalFolderInput {
+  externalRootPath: string;
+  notePath: string;
+  uuid: string;
+}
+
+export type ExpectedExternalFolderInspection =
+  | { folderPath: string; kind: 'bound' }
+  | { folderPath: string; kind: 'malformed-marker'; markerPath: string; message: string }
+  | { folderPath: string; kind: 'mismatched-marker'; markerUuid: string }
+  | { folderPath: string; kind: 'missing' }
+  | { folderPath: string; kind: 'unmarked' };
+
+export interface WriteExpectedMarkerIfUnmarkedResult {
+  folderPath: string;
+  markerWritten: boolean;
+}
+
 export async function ensureExpectedBoundExternalFolder(
   input: EnsureExpectedBoundExternalFolderInput
 ): Promise<EnsureExpectedBoundExternalFolderResult> {
-  const canonicalRootPath = await resolveExternalRootPath(input.externalRootPath);
-  const targetFolderPath = deriveExternalFolderPath(input.notePath, canonicalRootPath);
-  const targetStat = await tryLstat(targetFolderPath);
-  if (!targetStat) {
+  const inspection = await inspectExpectedExternalFolder(input);
+  if (inspection.kind === 'missing') {
     if (!input.createIfMissing) {
       return {
-        folderPath: targetFolderPath,
+        folderPath: inspection.folderPath,
         kind: 'missing'
       };
     }
 
-    await assertSafeCreationPath(canonicalRootPath, targetFolderPath);
-    await mkdir(targetFolderPath, { recursive: true });
-    await writeMarker(targetFolderPath, input.uuid);
+    const canonicalRootPath = await resolveExternalRootPath(input.externalRootPath);
+    await assertSafeCreationPath(canonicalRootPath, inspection.folderPath);
+    await mkdir(inspection.folderPath, { recursive: true });
+    await writeMarker(inspection.folderPath, input.uuid);
     return {
       created: true,
-      folderPath: targetFolderPath,
+      folderPath: inspection.folderPath,
       kind: 'bound'
+    };
+  }
+
+  if (inspection.kind === 'bound') {
+    return {
+      created: false,
+      folderPath: inspection.folderPath,
+      kind: 'bound'
+    };
+  }
+
+  throwExpectedInspectionError(inspection);
+}
+
+export async function inspectExpectedExternalFolder(
+  input: ExpectedExternalFolderInput
+): Promise<ExpectedExternalFolderInspection> {
+  const canonicalRootPath = await resolveExternalRootPath(input.externalRootPath);
+  const targetFolderPath = deriveExternalFolderPath(input.notePath, canonicalRootPath);
+  const targetStat = await tryLstat(targetFolderPath);
+  if (!targetStat) {
+    return {
+      folderPath: targetFolderPath,
+      kind: 'missing'
     };
   }
 
@@ -70,18 +111,29 @@ export async function ensureExpectedBoundExternalFolder(
     markerUuid = parseExnfMarker(await readFile(markerPath, 'utf8'));
   } catch (error: unknown) {
     if (isMissingFileError(error)) {
-      throw new Error(`Derived external folder path is already occupied: ${targetFolderPath}`, { cause: error });
+      return {
+        folderPath: targetFolderPath,
+        kind: 'unmarked'
+      };
     }
 
-    throw new Error(`Derived external folder marker is malformed at ${markerPath}: ${toError(error).message}`, { cause: error });
+    return {
+      folderPath: targetFolderPath,
+      kind: 'malformed-marker',
+      markerPath,
+      message: toError(error).message
+    };
   }
 
   if (markerUuid !== input.uuid) {
-    throw new Error(`Derived external folder path is already bound to UUID ${markerUuid}: ${targetFolderPath}`);
+    return {
+      folderPath: targetFolderPath,
+      kind: 'mismatched-marker',
+      markerUuid
+    };
   }
 
   return {
-    created: false,
     folderPath: targetFolderPath,
     kind: 'bound'
   };
@@ -123,6 +175,25 @@ export async function resolveExternalRootPath(externalRootPath: string): Promise
   }
 
   return await realpath(trimmedRootPath);
+}
+
+export async function writeExpectedMarkerIfUnmarked(
+  input: ExpectedExternalFolderInput
+): Promise<WriteExpectedMarkerIfUnmarkedResult> {
+  const inspection = await inspectExpectedExternalFolder(input);
+  if (inspection.kind !== 'unmarked') {
+    if (inspection.kind === 'bound') {
+      throw new Error(`Expected external folder is already marked: ${inspection.folderPath}`);
+    }
+
+    throwExpectedInspectionError(inspection);
+  }
+
+  await writeNewMarkerFile(path.join(inspection.folderPath, EXNF_MARKER_FILE_NAME), input.uuid);
+  return {
+    folderPath: inspection.folderPath,
+    markerWritten: true
+  };
 }
 
 async function assertExistingPathHasNoSymlinks(externalRootPath: string, targetFolderPath: string): Promise<void> {
@@ -198,6 +269,31 @@ function isMissingFileError(error: unknown): boolean {
   );
 }
 
+function isPathAlreadyExistsError(error: unknown): boolean {
+  return (
+    typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && error.code === 'EEXIST'
+  );
+}
+
+function throwExpectedInspectionError(inspection: Exclude<ExpectedExternalFolderInspection, { kind: 'bound' }>): never {
+  if (inspection.kind === 'missing') {
+    throw new Error(`Expected external folder is missing: ${inspection.folderPath}`);
+  }
+
+  if (inspection.kind === 'unmarked') {
+    throw new Error(`Derived external folder path is already occupied: ${inspection.folderPath}`);
+  }
+
+  if (inspection.kind === 'malformed-marker') {
+    throw new Error(`Derived external folder marker is malformed at ${inspection.markerPath}: ${inspection.message}`);
+  }
+
+  throw new Error(`Derived external folder path is already bound to UUID ${inspection.markerUuid}: ${inspection.folderPath}`);
+}
+
 function toError(error: unknown): Error {
   if (error instanceof Error) {
     return error;
@@ -234,8 +330,26 @@ async function writeMarker(boundFolderPath: string, uuid: string): Promise<void>
     throw new Error(`Existing marker UUID ${existingUuid} does not match ${uuid}.`);
   } catch (error: unknown) {
     if (isMissingFileError(error)) {
-      await writeFile(markerPath, serializeExnfMarker(uuid), 'utf8');
+      await writeNewMarkerFile(markerPath, uuid);
       return;
+    }
+
+    throw error;
+  }
+}
+
+async function writeNewMarkerFile(markerPath: string, uuid: string): Promise<void> {
+  try {
+    await writeFile(markerPath, serializeExnfMarker(uuid), {
+      encoding: 'utf8',
+      flag: 'wx'
+    });
+  } catch (error: unknown) {
+    if (isPathAlreadyExistsError(error)) {
+      const existingUuid = parseExnfMarker(await readFile(markerPath, 'utf8'));
+      if (existingUuid === uuid) {
+        return;
+      }
     }
 
     throw error;

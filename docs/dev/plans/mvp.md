@@ -177,17 +177,17 @@ Reference:
 
 #### 9.2 Open External Folder
 
-- [x] If UUID missing: assign UUID first
+- [x] If UUID missing: stop and direct the user to explicit assignment
 - [x] Validate the active note and expected external folder before opening
 - [x] Fast path: if expected folder already has the matching marker, open it
-- [x] Fast path: if UUID was just assigned, create the expected folder without
-      a full external-root scan
 - [x] Drift path: if an existing UUID has no expected folder, scan the external
       map to find whether that UUID is bound elsewhere before creating
 - [x] If UUID already bound at the expected folder: open existing folder
 - [x] If UUID unbound:
   - [x] Derive target path using path policy
-  - [x] If target path occupied: report conflict and abort with notice
+  - [x] If target path occupied without marker: prompt before writing `.exnf`
+  - [x] If target path occupied with mismatched or malformed marker: report
+        conflict and abort with notice
   - [x] Create directory
   - [x] Write `.exnf`
   - [x] Open folder

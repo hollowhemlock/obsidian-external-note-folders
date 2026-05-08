@@ -12,7 +12,7 @@ The current release supports:
 
 - Assigning an external folder identifier to the active note.
 - Opening the note's bound external folder.
-- Creating a bound external folder on first open when no binding exists.
+- Creating a bound external folder on first open for an already-identified note when no binding exists.
 - Integrity preflights before mutating commands.
 - Reporting drift between note-derived paths and existing bound external folders.
 - Explicitly reconciling existing bound external folders after note renames or moves.
@@ -22,7 +22,7 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 ## Commands
 
 - `Assign external folder identifier`: Adds an `exnf` UUID to the active markdown note if one is missing. It never creates or changes external folders.
-- `Open external folder`: Ensures the active note has an `exnf` UUID, validates the expected external folder, creates it when needed, writes its `.exnf` marker, and opens the folder in the system file manager.
+- `Open external folder`: Requires an existing valid `exnf` UUID, opens the matching bound folder, creates the missing expected folder when no binding exists elsewhere, or prompts before adopting an existing unmarked expected folder.
 - `Report external folder drift`: Read-only report that compares current note-derived external folder paths against existing external folders, highlights integrity errors, missing/orphaned/unexpected/occupied paths, and suggests likely matches.
 - `Reconcile external folders`: Builds a dry-run move plan and, only after explicit confirmation, moves existing bound external folders to their current note-derived paths. It never deletes folders or marker files and stops on first failure.
 
@@ -52,6 +52,7 @@ reconciliation.
 
 - Reconcile only moves already-bound external folders to note-derived paths. It does not infer new bindings, repair invalid markers, relink folders, delete folders, or resolve conflicts automatically.
 - `Report external folder drift` is read-only and can be used before reconcile to inspect missing, orphaned, unexpected, occupied, and likely moved folders without changing the vault or external root.
+- `Open external folder` does not assign note identity. Run `Assign external folder identifier` first for notes without `exnf`.
 - Concurrent UUID assignment across unsynced devices can create orphan external folders.
 - Sync tool conflicts in note frontmatter or external marker files are outside the plugin's repair scope; `Report external folder drift` surfaces the resulting state.
 

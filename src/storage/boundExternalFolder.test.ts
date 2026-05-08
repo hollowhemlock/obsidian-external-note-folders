@@ -16,7 +16,11 @@ import {
 } from 'vitest';
 
 import { EXNF_MARKER_FILE_NAME } from '../core/contracts.ts';
-import { ensureExpectedBoundExternalFolder } from './boundExternalFolder.ts';
+import {
+  ensureExpectedBoundExternalFolder,
+  inspectExpectedExternalFolder,
+  writeExpectedMarkerIfUnmarked
+} from './boundExternalFolder.ts';
 
 const VALID_UUID = '123e4567-e89b-42d3-a456-426614174000';
 const OTHER_UUID = '123e4567-e89b-42d3-a456-426614174001';
@@ -159,6 +163,72 @@ describe('bound external folder mutations', () => {
       folderPath: targetFolderPath,
       kind: 'bound'
     });
+  });
+
+  it('inspects existing unmarked expected folders without mutating them', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    await mkdir(targetFolderPath, { recursive: true });
+
+    const result = await inspectExpectedExternalFolder({
+      externalRootPath,
+      notePath: 'Projects/Alpha.md',
+      uuid: VALID_UUID
+    });
+
+    expect(result).toEqual({
+      folderPath: targetFolderPath,
+      kind: 'unmarked'
+    });
+  });
+
+  it('writes a marker into an expected folder only after revalidating it is still unmarked', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    await mkdir(targetFolderPath, { recursive: true });
+
+    const result = await writeExpectedMarkerIfUnmarked({
+      externalRootPath,
+      notePath: 'Projects/Alpha.md',
+      uuid: VALID_UUID
+    });
+
+    expect(result).toEqual({
+      folderPath: targetFolderPath,
+      markerWritten: true
+    });
+    expect(await readFile(path.join(targetFolderPath, EXNF_MARKER_FILE_NAME), 'utf8')).toBe(
+      `${VALID_UUID}\n`
+    );
+  });
+
+  it('does not overwrite a marker that appears before confirm-time adoption', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    await mkdir(targetFolderPath, { recursive: true });
+    await writeFile(path.join(targetFolderPath, EXNF_MARKER_FILE_NAME), `${OTHER_UUID}\n`, 'utf8');
+
+    await expect(writeExpectedMarkerIfUnmarked({
+      externalRootPath,
+      notePath: 'Projects/Alpha.md',
+      uuid: VALID_UUID
+    })).rejects.toThrow(OTHER_UUID);
+    expect(await readFile(path.join(targetFolderPath, EXNF_MARKER_FILE_NAME), 'utf8')).toBe(
+      `${OTHER_UUID}\n`
+    );
+  });
+
+  it('blocks when any marker appears before confirm-time adoption', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    await mkdir(targetFolderPath, { recursive: true });
+    await writeFile(path.join(targetFolderPath, EXNF_MARKER_FILE_NAME), `${VALID_UUID}\n`, 'utf8');
+
+    await expect(writeExpectedMarkerIfUnmarked({
+      externalRootPath,
+      notePath: 'Projects/Alpha.md',
+      uuid: VALID_UUID
+    })).rejects.toThrow('already marked');
   });
 
   it('rejects existing expected folders below symlinked parent directories', async () => {

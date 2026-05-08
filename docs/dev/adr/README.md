@@ -2,7 +2,7 @@
 
 This index is optimized for fast human and LLM retrieval.
 
-Last generated: 2026-05-02
+Last generated: 2026-05-07
 
 ## Procedures
 - **[review-checklist.md](review-checklist.md)** - Use when reviewing an ADR before accepting it.
@@ -45,6 +45,8 @@ Last generated: 2026-05-02
 | [ADR-0020](0020-release-please-for-versioning-and-changelog.md) | Accepted | 2026-03-03 | Use Release Please for Versioning and Changelog | `release` | Before changing release automation or version policy. |
 | [ADR-0021](0021-obsidian-cli-integration-testing.md) | Accepted | 2026-03-03 | Use Manual Obsidian CLI Integration Testing (v1.12+) | `testing`, `tooling` | Before adding or changing test strategy and fixtures. |
 | [ADR-0022](0022-reconcile-planner-and-execution-contract.md) | Accepted | 2026-05-02 | Reconcile Planner and Execution Contract | `reconcile` | Before changing reconcile planning/execution behavior. |
+| [ADR-0023](0023-open-external-folder-does-not-assign-identity.md) | Accepted | 2026-05-07 | Open External Folder Does Not Assign Identity | `external-root`, `safety` | Before changing trust boundaries or destructive behavior. |
+| [ADR-0024](0024-strict-exact-adoption-with-journaled-marker-first-writes.md) | Accepted | 2026-05-07 | Strict Exact Adoption with Journaled Marker-First Writes | `external-root` | Before changing external folder derivation and marker rules. |
 
 ## Discovery Tips
 - Search by tags first, then scan "When to read".
