@@ -23,10 +23,21 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 ## Commands
 
 - `Assign external folder identifier`: Adds an `exnf` UUID to the active markdown note if one is missing. It never creates or changes external folders.
-- `Open external folder`: Requires an existing valid `exnf` UUID, opens the matching bound folder, creates the missing expected folder when no binding exists elsewhere, or prompts before adopting an existing unmarked expected folder.
+- `Open external folder`: Requires an existing valid `exnf` UUID, checks only the active note's expected external folder, opens it when its `.exnf` marker matches, creates it when it is missing, or prompts before adopting it when it already exists without `.exnf`.
 - `Adopt existing external folders`: Builds a dry-run plan for a pristine vault/external-root pair and, after confirmation, writes `.exnf` markers first and note frontmatter second for exact one-to-one derived-path matches.
 - `Report external folder drift`: Read-only report that compares current note-derived external folder paths against existing external folders, highlights integrity errors, missing/orphaned/unexpected/occupied paths, and suggests likely matches.
 - `Reconcile external folders`: Builds a dry-run move plan and, only after explicit confirmation, moves existing bound external folders to their current note-derived paths. It never deletes folders or marker files and stops on first failure.
+
+## Open Behavior and Drift
+
+`Open external folder` is intentionally local and fast. It does not scan the
+external root for the current note's UUID in other `.exnf` markers. If a note's
+external folder may have been manually renamed or moved, run `Report external
+folder drift` or `Reconcile external folders` before opening.
+
+The external root should ideally be dedicated to this plugin. If it contains
+unrelated projects, explicit whole-root commands may report orphan `.exnf`
+markers or permission warnings from unrelated descendant directories.
 
 ## Safety Model
 
@@ -37,6 +48,20 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 - The plugin does not auto-rename folders to resolve conflicts.
 - External-root scans skip symlinks, junctions, and reparse points by default.
 - Unreadable descendant directories under the external root are reported as warnings and skipped, not treated as global integrity errors.
+
+## Failure Mode Reference
+
+| Situation | `Open external folder` behavior | Whole-root report/reconcile behavior | References |
+| --- | --- | --- | --- |
+| Active note has no `exnf` | Stops and directs the user to explicit assignment or adoption. | Not treated as an external-folder binding. | [ADR-0001](docs/dev/adr/0001-vault-is-source-of-truth.md), [ADR-0023](docs/dev/adr/0023-open-external-folder-does-not-assign-identity.md), [ADR-0024](docs/dev/adr/0024-strict-exact-adoption-with-journaled-marker-first-writes.md) |
+| Active note has invalid `exnf` | Stops before touching the external root. | Reported as an integrity error. | [ADR-0007](docs/dev/adr/0007-uuid-regeneration-and-manual-edits.md), [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0014](docs/dev/adr/0014-exnf-marker-format-and-validation.md) |
+| Expected folder has matching `.exnf` | Opens the expected folder without a whole-root scan. | Reported as OK. | [ADR-0005](docs/dev/adr/0005-bound-folder-marker.md), [ADR-0015](docs/dev/adr/0015-external-folder-path-derivation.md), [ADR-0023](docs/dev/adr/0023-open-external-folder-does-not-assign-identity.md) |
+| Expected folder is missing | Creates the expected folder, writes `.exnf`, and opens it; it does not search for the UUID elsewhere first. | Can report a missing expected folder or an unexpected off-path folder if one exists. | [ADR-0002](docs/dev/adr/0002-missing-external-is-normal.md), [ADR-0015](docs/dev/adr/0015-external-folder-path-derivation.md), [ADR-0023](docs/dev/adr/0023-open-external-folder-does-not-assign-identity.md) |
+| Expected folder exists without `.exnf` | Prompts before writing `.exnf`; confirmation revalidates and never overwrites an existing marker. | Reported as an occupied target path when a bound folder is expected there. | [ADR-0005](docs/dev/adr/0005-bound-folder-marker.md), [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0023](docs/dev/adr/0023-open-external-folder-does-not-assign-identity.md) |
+| Expected folder has malformed or mismatched `.exnf` | Blocks opening through that expected path. | Reported as an integrity error or occupied target. | [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0014](docs/dev/adr/0014-exnf-marker-format-and-validation.md), [ADR-0023](docs/dev/adr/0023-open-external-folder-does-not-assign-identity.md) |
+| Same UUID is bound somewhere else | Not discovered by `Open external folder`. | Reported as unexpected drift and can be reconciled explicitly. | [ADR-0006](docs/dev/adr/0006-reconcile-is-explicit.md), [ADR-0022](docs/dev/adr/0022-reconcile-planner-and-execution-contract.md), [ADR-0023](docs/dev/adr/0023-open-external-folder-does-not-assign-identity.md) |
+| `.exnf` marker has no matching vault note | Not relevant to the active-note open path. | Reported as an orphan bound folder. | [ADR-0008](docs/dev/adr/0008-no-reverse-reconciliation.md), [ADR-0009](docs/dev/adr/0009-status-model.md) |
+| External root or expected path is inaccessible, outside root, or crosses a symlink/reparse point | Stops fail-closed. | Root access failures are errors; descendant unreadable directories are warnings and skipped. | [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0013](docs/dev/adr/0013-filesystem-boundary-and-path-identity.md) |
 
 ## Obsidian Boundary
 
@@ -56,6 +81,7 @@ reconciliation.
 - Bulk adoption is strict: it requires no existing `exnf` frontmatter or `.exnf` markers and only adopts exact derived-path matches.
 - `Report external folder drift` is read-only and can be used before reconcile to inspect missing, orphaned, unexpected, occupied, and likely moved folders without changing the vault or external root.
 - `Open external folder` does not assign note identity. Run `Assign external folder identifier` first for notes without `exnf`.
+- `Open external folder` does not search for off-path `.exnf` markers. Use drift report or reconcile when manual moves or renames may have happened.
 - Concurrent UUID assignment across unsynced devices can create orphan external folders.
 - Sync tool conflicts in note frontmatter or external marker files are outside the plugin's repair scope; `Report external folder drift` surfaces the resulting state.
 
