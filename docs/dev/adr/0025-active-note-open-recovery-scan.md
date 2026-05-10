@@ -71,8 +71,9 @@ Candidate matching is exact normalized basename equality only:
 
 - derive the expected folder basename from ADR-0015 path derivation
 - normalize Unicode to NFC
-- compare case-insensitively on Windows and macOS platform defaults, matching
-  the current path identity policy
+- use ADR-0013 path identity for case sensitivity: compare according to the
+  configured external root's filesystem probe result, defaulting to
+  case-insensitive only when the probe is inconclusive
 - do not use fuzzy, suffix, tree-tail, or similarity matching
 
 ### Marker Format

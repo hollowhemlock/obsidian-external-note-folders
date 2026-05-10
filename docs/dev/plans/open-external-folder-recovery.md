@@ -46,7 +46,9 @@ Candidate matching uses exact normalized basename equality:
 
 - derive the expected folder basename through the existing path derivation rule
 - normalize Unicode to NFC
-- compare case-insensitively on Windows and macOS platform defaults
+- compare according to ADR-0013 path identity, using the configured external
+  root's filesystem case-sensitivity probe and falling back to case-insensitive
+  only when the probe is inconclusive
 - do not use fuzzy, suffix, tree-tail, or similarity matching
 
 The scan does not build full Drift Report or Reconcile plans. It does not report
