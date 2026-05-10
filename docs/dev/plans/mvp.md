@@ -156,8 +156,9 @@ Implement one guarded module for all mutations.
         actionable notice
   - [x] This includes configured-root access/boundary failures (strict
         fail-closed); unreadable descendant directories are warning-only skips
-  - [x] `Open External Folder` uses an active-note fast path and only falls
-        back to full external scan when an existing UUID has no expected folder
+  - [x] `Open External Folder` validates only the active note's expected folder;
+        whole-root drift detection is handled by explicit report/reconcile
+        commands
 - [x] Reject overlapping mutating commands with clear user notice
 - [x] Read-only reports may run during mutation but results must be labeled as
       possibly stale
@@ -180,8 +181,6 @@ Reference:
 - [x] If UUID missing: stop and direct the user to explicit assignment
 - [x] Validate the active note and expected external folder before opening
 - [x] Fast path: if expected folder already has the matching marker, open it
-- [x] Drift path: if an existing UUID has no expected folder, scan the external
-      map to find whether that UUID is bound elsewhere before creating
 - [x] If UUID already bound at the expected folder: open existing folder
 - [x] If UUID unbound:
   - [x] Derive target path using path policy

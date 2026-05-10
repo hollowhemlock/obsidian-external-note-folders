@@ -5,6 +5,8 @@ import {
 
 import type { IncompleteAdoptionJournal } from './storage/adoptionExecutor.ts';
 
+import { renderCopyableReport } from './modalReport.ts';
+
 export class AdoptionResumeModal extends Modal {
   public constructor(
     app: Modal['app'],
@@ -31,6 +33,7 @@ export class AdoptionResumeModal extends Modal {
       cls: 'setting-item-description',
       text: `Started: ${this.journal.startedAt}; entries: ${String(this.journal.entryCount)}`
     });
+    renderCopyableReport(contentEl, 'Copyable details', this.buildCopyableReport());
 
     const actionsEl = contentEl.createDiv({
       cls: 'external-note-folders-modal-actions'
@@ -52,5 +55,17 @@ export class AdoptionResumeModal extends Modal {
           this.close();
         });
       });
+  }
+
+  private buildCopyableReport(): string {
+    return [
+      '# Resume External Folder Adoption',
+      '',
+      '| Field | Value |',
+      '| --- | --- |',
+      `| Journal | ${this.journal.journalPath} |`,
+      `| Started | ${this.journal.startedAt} |`,
+      `| Entries | ${String(this.journal.entryCount)} |`
+    ].join('\n');
   }
 }

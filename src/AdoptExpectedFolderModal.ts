@@ -4,6 +4,8 @@ import {
   Notice
 } from 'obsidian';
 
+import { renderCopyableReport } from './modalReport.ts';
+
 export interface AdoptExpectedFolderModalInput {
   expectedExternalFolder: string;
   expectedFolderPath: string;
@@ -39,6 +41,7 @@ export class AdoptExpectedFolderModal extends Modal {
     this.renderRow(bodyEl, 'Expected external folder', this.input.expectedExternalFolder);
     this.renderRow(bodyEl, 'Full external path', this.input.expectedFolderPath);
     this.renderRow(bodyEl, 'UUID', this.input.uuid);
+    renderCopyableReport(contentEl, 'Copyable details', this.buildCopyableReport());
 
     const actionsEl = contentEl.createDiv({
       cls: 'external-note-folders-modal-actions'
@@ -62,6 +65,19 @@ export class AdoptExpectedFolderModal extends Modal {
           confirmButton.setDisabled(false);
         });
       });
+  }
+
+  private buildCopyableReport(): string {
+    return [
+      '# Adopt Existing External Folder',
+      '',
+      '| Field | Value |',
+      '| --- | --- |',
+      `| Vault file | ${this.input.notePath} |`,
+      `| Expected external folder | ${this.input.expectedExternalFolder} |`,
+      `| Full external path | ${this.input.expectedFolderPath} |`,
+      `| UUID | ${this.input.uuid} |`
+    ].join('\n');
   }
 
   private renderRow(bodyEl: HTMLTableSectionElement, label: string, value: string): void {

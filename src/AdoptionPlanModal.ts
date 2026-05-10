@@ -10,6 +10,7 @@ import type {
 } from './core/adoptionPlan.ts';
 
 import { getAdoptionRows } from './core/adoptionPlan.ts';
+import { renderCopyableReport } from './modalReport.ts';
 
 export class AdoptionPlanModal extends Modal {
   private executeArmed: boolean;
@@ -55,12 +56,7 @@ export class AdoptionPlanModal extends Modal {
     this.renderTableSection(contentEl, 'Blocked Notes', blockedRows, 'No note collisions detected.');
     this.renderTableSection(contentEl, 'Other Rows', this.plan.rows.filter((row) => row.kind !== 'adopt' && row.kind !== 'blocked-note'), 'No unmatched rows.');
 
-    contentEl.createEl('h3', { text: 'Copyable plan' });
-    const reportEl = contentEl.createEl('textarea', {
-      cls: 'external-note-folders-report-textarea'
-    });
-    reportEl.value = this.plan.markdownReport;
-    reportEl.readOnly = true;
+    renderCopyableReport(contentEl, 'Copyable plan', this.plan.markdownReport);
 
     const actionsEl = contentEl.createDiv({
       cls: 'external-note-folders-modal-actions'

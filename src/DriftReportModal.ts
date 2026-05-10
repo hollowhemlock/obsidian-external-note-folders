@@ -7,6 +7,8 @@ import type {
   DriftSuggestion
 } from './core/driftReport.ts';
 
+import { renderCopyableReport } from './modalReport.ts';
+
 export class DriftReportModal extends Modal {
   public constructor(
     app: Modal['app'],
@@ -39,12 +41,7 @@ export class DriftReportModal extends Modal {
     this.renderOccupiedSection(contentEl, 'Occupied Target Paths', this.driftReport.occupiedRows, 'No expected target paths are occupied.');
     this.renderSuggestionSection(contentEl, 'Suggestions', this.driftReport.suggestions, 'No likely matches found.');
 
-    contentEl.createEl('h3', { text: 'Copyable report' });
-    const reportEl = contentEl.createEl('textarea', {
-      cls: 'external-note-folders-report-textarea'
-    });
-    reportEl.value = this.driftReport.markdownReport;
-    reportEl.readOnly = true;
+    renderCopyableReport(contentEl, 'Copyable report', this.driftReport.markdownReport);
   }
 
   private renderBindingSection(

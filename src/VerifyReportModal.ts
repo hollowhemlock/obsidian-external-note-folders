@@ -5,6 +5,8 @@ import type {
   VerifyTableRow
 } from './core/verify.ts';
 
+import { renderCopyableReport } from './modalReport.ts';
+
 export class VerifyReportModal extends Modal {
   public constructor(
     app: Modal['app'],
@@ -43,6 +45,7 @@ export class VerifyReportModal extends Modal {
     this.renderTableSection(contentEl, 'Orphan Bound Folders', this.verifyReport.warningRows, 'No orphan bound folders detected.');
     this.renderTableSection(contentEl, 'Unavailable', this.verifyReport.unavailableRows, 'No missing bound folders detected.');
     this.renderTableSection(contentEl, 'OK', this.verifyReport.okRows, 'No healthy bindings were discovered.');
+    renderCopyableReport(contentEl, 'Copyable report', this.verifyReport.markdownReport);
   }
 
   private renderTableSection(
