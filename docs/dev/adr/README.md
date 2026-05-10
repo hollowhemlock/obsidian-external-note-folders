@@ -2,7 +2,7 @@
 
 This index is optimized for fast human and LLM retrieval.
 
-Last generated: 2026-05-07
+Last generated: 2026-05-10
 
 ## Procedures
 - **[review-checklist.md](review-checklist.md)** - Use when reviewing an ADR before accepting it.
@@ -47,6 +47,7 @@ Last generated: 2026-05-07
 | [ADR-0022](0022-reconcile-planner-and-execution-contract.md) | Accepted | 2026-05-02 | Reconcile Planner and Execution Contract | `reconcile` | Before changing reconcile planning/execution behavior. |
 | [ADR-0023](0023-open-external-folder-does-not-assign-identity.md) | Accepted | 2026-05-07 | Open External Folder Does Not Assign Identity | `external-root`, `safety` | Before changing trust boundaries or destructive behavior. |
 | [ADR-0024](0024-strict-exact-adoption-with-journaled-marker-first-writes.md) | Accepted | 2026-05-07 | Strict Exact Adoption with Journaled Marker-First Writes | `external-root` | Before changing external folder derivation and marker rules. |
+| [ADR-0025](0025-active-note-open-recovery-scan.md) | Proposed | 2026-05-10 | Active-Note Open Recovery Scan | `external-root`, `safety`, `status-model` | Before changing active-note open fallback or recovery behavior. |
 
 ## Discovery Tips
 - Search by tags first, then scan "When to read".
