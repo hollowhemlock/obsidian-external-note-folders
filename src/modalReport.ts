@@ -3,6 +3,7 @@ export function renderCopyableReport(containerEl: HTMLElement, title: string, re
   const reportEl = containerEl.createEl('textarea', {
     cls: 'external-note-folders-report-textarea'
   });
+  reportEl.setAttribute('aria-label', title);
   reportEl.value = reportText;
   reportEl.readOnly = true;
 }
