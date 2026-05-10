@@ -12,16 +12,17 @@ for pristine external roots.
 - `Open external folder` never creates note identity. If the active note has no
   valid `exnf`, it stops and directs the user to explicit assignment or
   adoption.
-- Existing correctly bound expected folders open without a full external-root
+- Existing correctly bound expected folders open immediately without a recovery
   scan.
-- The command does not scan the full external root. Drift detection belongs to
-  explicit verify, drift report, and reconcile commands.
-- If the expected folder is missing, the command creates the folder, writes
-  `.exnf`, and opens it.
-- If the expected folder already exists without `.exnf`, the command shows a
-  confirmation modal. Confirmation revalidates the folder and writes only
-  `.exnf`.
-- Mismatched or malformed expected markers block.
+- If expected-folder inspection does not find a matching `.exnf`, the proposed
+  active-note recovery scan runs as specified in
+  [open-external-folder-recovery.md](open-external-folder-recovery.md) and
+  [ADR-0025](../adr/0025-active-note-open-recovery-scan.md).
+- Recovery scan is scoped to the active note: current UUID matches, exact-name
+  candidates, candidate marker status, owner note where known, skipped
+  directories, and malformed-marker warning summaries.
+- Safe modal actions revalidate before writing and never overwrite existing
+  markers.
 
 ## PR 2: Bulk Adopt Existing External Folders
 
@@ -62,6 +63,6 @@ for pristine external roots.
   expose intermediate states.
 - Strict pristine adoption is conservative. Partially assigned roots require
   manual cleanup or reconcile before bulk adoption.
-- `Open external folder` does not discover off-path `.exnf` markers. If a note's
-  marker was manually moved elsewhere, opening may create a new expected folder;
-  run drift report or reconcile first when drift is suspected.
+- Active-note open recovery may traverse the external root after expected-path
+  failure. Ignore rules, scan caps, progress UI, cancellation, and cached indexes
+  are out of scope until performance requires them.

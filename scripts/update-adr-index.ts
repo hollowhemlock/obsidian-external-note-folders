@@ -162,8 +162,12 @@ async function loadAdrRecords(): Promise<AdrRecord[]> {
     const id = fileName.slice(0, 4);
     const status = frontMatter['status'] ?? extractFirstMatch(content, /^\*\*Status:\*\*\s+(.+)$/m, 'Unknown');
     const date = frontMatter['date'] ?? extractFirstMatch(content, /^\*\*Date:\*\*\s+(.+)$/m, 'Unknown');
-    const tags = inferTags(`${title} ${fileName}`);
-    const whenToRead = inferWhenToRead(tags, title);
+    const explicitTags = frontMatter['tags']
+      ?.split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    const tags = explicitTags && explicitTags.length > 0 ? explicitTags : inferTags(`${title} ${fileName}`);
+    const whenToRead = frontMatter['when_to_read'] ?? inferWhenToRead(tags, title);
 
     return { date, fileName, id: `ADR-${id}`, status, tags, title, whenToRead };
   }));
