@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/hollowhemlock/obsidian-external-note-folders/compare/external-note-folders-1.2.0...external-note-folders-1.2.1) (2026-05-10)
+
+
+### Bug Fixes
+
+* keep open external folder local ([#18](https://github.com/hollowhemlock/obsidian-external-note-folders/issues/18)) ([896cabe](https://github.com/hollowhemlock/obsidian-external-note-folders/commit/896cabee20f4646d269a5ea704c40b95f54c4f94))
+
 ## [1.2.0](https://github.com/hollowhemlock/obsidian-external-note-folders/compare/external-note-folders-1.1.2...external-note-folders-1.2.0) (2026-05-08)
 
 
