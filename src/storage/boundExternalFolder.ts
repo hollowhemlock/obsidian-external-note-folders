@@ -48,6 +48,12 @@ export interface WriteExpectedMarkerIfUnmarkedResult {
   markerWritten: boolean;
 }
 
+export interface WriteMarkerToExistingUnmarkedFolderInput {
+  externalRootPath: string;
+  folderPath: string;
+  uuid: string;
+}
+
 export async function assertExpectedMarkerMatches(input: ExpectedExternalFolderInput): Promise<void> {
   const inspection = await inspectExpectedExternalFolder(input);
   if (inspection.kind !== 'bound') {
@@ -225,6 +231,34 @@ export async function writeExpectedMarkerIfUnmarked(
   await writeNewMarkerFile(path.join(inspection.folderPath, EXNF_MARKER_FILE_NAME), input.uuid);
   return {
     folderPath: inspection.folderPath,
+    markerWritten: true
+  };
+}
+
+export async function writeMarkerToExistingUnmarkedFolder(
+  input: WriteMarkerToExistingUnmarkedFolderInput
+): Promise<WriteExpectedMarkerIfUnmarkedResult> {
+  const canonicalRootPath = await resolveExternalRootPath(input.externalRootPath);
+  const folderPath = path.resolve(input.folderPath);
+  await assertExistingPathHasNoSymlinks(canonicalRootPath, folderPath);
+
+  const targetStat = await lstat(folderPath);
+  if (targetStat.isSymbolicLink()) {
+    throw new Error(`External folder path crosses a symbolic link or reparse point: ${folderPath}`);
+  }
+
+  if (!targetStat.isDirectory()) {
+    throw new Error(`External folder path is not a directory: ${folderPath}`);
+  }
+
+  const markerPath = path.join(folderPath, EXNF_MARKER_FILE_NAME);
+  if (await tryLstat(markerPath)) {
+    throw new Error(`External folder is already marked: ${folderPath}`);
+  }
+
+  await writeNewMarkerFile(markerPath, input.uuid);
+  return {
+    folderPath,
     markerWritten: true
   };
 }

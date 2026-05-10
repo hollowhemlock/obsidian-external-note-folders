@@ -14,7 +14,7 @@ for pristine external roots.
   adoption.
 - Existing correctly bound expected folders open immediately without a recovery
   scan.
-- If expected-folder inspection does not find a matching `.exnf`, the proposed
+- If expected-folder inspection does not find a matching `.exnf`, the
   active-note recovery scan runs as specified in
   [open-external-folder-recovery.md](open-external-folder-recovery.md) and
   [ADR-0025](../adr/0025-active-note-open-recovery-scan.md).

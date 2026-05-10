@@ -1,5 +1,5 @@
 ---
-status: "Proposed"
+status: "Accepted"
 date: "2026-05-10"
 decision-makers: "Maintainers"
 tags: "external-root, safety, status-model"
@@ -39,8 +39,7 @@ whether exact-name candidate folders were available for adoption.
 
 ## Decision Outcome
 
-This ADR is proposed until the first implementation validates the UX and
-performance. If accepted, `Open external folder` will use this model:
+`Open external folder` uses this model:
 
 1. Inspect the active note's derived expected folder.
 2. If the expected folder has a matching `.exnf`, open immediately and do not
@@ -116,8 +115,7 @@ adds migration cost without solving the dominant performance cost.
 - Pros: Fastest and simplest
 - Cons: Cannot find active-note markers moved elsewhere; may create duplicate
   expected folders
-- Why rejected/proposed to supersede: Too little recovery information for real
-  migrated roots
+- Why rejected: Too little recovery information for real migrated roots
 
 ### Full drift report inside `Open external folder`
 
@@ -132,7 +130,7 @@ adds migration cost without solving the dominant performance cost.
 - Pros: Finds relevant moved folders and duplicates while keeping the common
   path fast
 - Cons: Still traverses the root on failure paths
-- Why proposed: Best fit for active-note recovery without broad report noise
+- Why accepted: Best fit for active-note recovery without broad report noise
 
 ### Rename markers to `{uuid}.exnf`
 

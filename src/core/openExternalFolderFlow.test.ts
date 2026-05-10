@@ -48,7 +48,7 @@ describe('open external folder flow', () => {
     });
   });
 
-  it('creates a missing expected folder without requesting a full external scan', () => {
+  it('runs recovery when the expected folder is missing', () => {
     expect(chooseInitialOpenExternalFolderAction({
       expectedState: {
         folderPath: 'X:/External/Projects/Alpha',
@@ -59,13 +59,16 @@ describe('open external folder flow', () => {
         uuid: VALID_UUID
       }
     })).toEqual({
-      folderPath: 'X:/External/Projects/Alpha',
-      kind: 'create-expected',
+      expectedState: {
+        folderPath: 'X:/External/Projects/Alpha',
+        kind: 'missing'
+      },
+      kind: 'run-recovery',
       uuid: VALID_UUID
     });
   });
 
-  it('prompts before adopting an unmarked expected folder', () => {
+  it('runs recovery before adopting an unmarked expected folder', () => {
     expect(chooseInitialOpenExternalFolderAction({
       expectedState: {
         folderPath: 'X:/External/Projects/Alpha',
@@ -76,13 +79,16 @@ describe('open external folder flow', () => {
         uuid: VALID_UUID
       }
     })).toEqual({
-      folderPath: 'X:/External/Projects/Alpha',
-      kind: 'prompt-adopt-expected',
+      expectedState: {
+        folderPath: 'X:/External/Projects/Alpha',
+        kind: 'unmarked'
+      },
+      kind: 'run-recovery',
       uuid: VALID_UUID
     });
   });
 
-  it('blocks mismatched expected markers without requesting a full external scan', () => {
+  it('runs recovery when the expected marker is mismatched', () => {
     expect(chooseInitialOpenExternalFolderAction({
       expectedState: {
         folderPath: 'X:/External/Projects/Alpha',
@@ -99,12 +105,12 @@ describe('open external folder flow', () => {
         kind: 'mismatched-marker',
         markerUuid: OTHER_UUID
       },
-      kind: 'block-expected-marker',
+      kind: 'run-recovery',
       uuid: VALID_UUID
     });
   });
 
-  it('blocks malformed expected markers without requesting a full external scan', () => {
+  it('runs recovery when the expected marker is malformed', () => {
     expect(chooseInitialOpenExternalFolderAction({
       expectedState: {
         folderPath: 'X:/External/Projects/Alpha',
@@ -123,7 +129,7 @@ describe('open external folder flow', () => {
         markerPath: 'X:/External/Projects/Alpha/.exnf',
         message: 'Invalid marker'
       },
-      kind: 'block-expected-marker',
+      kind: 'run-recovery',
       uuid: VALID_UUID
     });
   });

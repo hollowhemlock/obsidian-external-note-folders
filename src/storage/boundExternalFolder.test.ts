@@ -21,7 +21,8 @@ import {
   ensureExpectedBoundExternalFolder,
   inspectExpectedExternalFolder,
   writeExpectedMarkerIfMissingOrMatching,
-  writeExpectedMarkerIfUnmarked
+  writeExpectedMarkerIfUnmarked,
+  writeMarkerToExistingUnmarkedFolder
 } from './boundExternalFolder.ts';
 
 const VALID_UUID = '123e4567-e89b-42d3-a456-426614174000';
@@ -264,6 +265,39 @@ describe('bound external folder mutations', () => {
     expect(await readFile(path.join(targetFolderPath, EXNF_MARKER_FILE_NAME), 'utf8')).toBe(
       `${VALID_UUID}\n`
     );
+  });
+
+  it('writes a marker into a selected unmarked folder without deriving from note path', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const selectedFolderPath = path.join(externalRootPath, 'Archive', 'Alpha');
+    await mkdir(selectedFolderPath, { recursive: true });
+
+    const result = await writeMarkerToExistingUnmarkedFolder({
+      externalRootPath,
+      folderPath: selectedFolderPath,
+      uuid: VALID_UUID
+    });
+
+    expect(result).toEqual({
+      folderPath: selectedFolderPath,
+      markerWritten: true
+    });
+    expect(await readFile(path.join(selectedFolderPath, EXNF_MARKER_FILE_NAME), 'utf8')).toBe(
+      `${VALID_UUID}\n`
+    );
+  });
+
+  it('does not overwrite a selected folder marker that appears before confirmation', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const selectedFolderPath = path.join(externalRootPath, 'Archive', 'Alpha');
+    await mkdir(selectedFolderPath, { recursive: true });
+    await writeFile(path.join(selectedFolderPath, EXNF_MARKER_FILE_NAME), `${OTHER_UUID}\n`, 'utf8');
+
+    await expect(writeMarkerToExistingUnmarkedFolder({
+      externalRootPath,
+      folderPath: selectedFolderPath,
+      uuid: VALID_UUID
+    })).rejects.toThrow('already marked');
   });
 
   it('rejects existing expected folders below symlinked parent directories', async () => {
