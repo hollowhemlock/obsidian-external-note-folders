@@ -583,67 +583,65 @@ export class Plugin extends ObsidianPlugin {
       return;
     }
 
-    await this.runMutatingCommand('open an external folder', async () => {
-      try {
-        const externalRootPath = await resolveExternalRootPath(this.settings.externalRootPath);
-        const expectedState = await inspectExpectedExternalFolder({
-          externalRootPath,
-          notePath: activeFile.path,
-          uuid: exnfValue.uuid
-        });
-        const initialAction = chooseInitialOpenExternalFolderAction({
-          expectedState,
-          identity: exnfValue
-        });
+    try {
+      const externalRootPath = await resolveExternalRootPath(this.settings.externalRootPath);
+      const expectedState = await inspectExpectedExternalFolder({
+        externalRootPath,
+        notePath: activeFile.path,
+        uuid: exnfValue.uuid
+      });
+      const initialAction = chooseInitialOpenExternalFolderAction({
+        expectedState,
+        identity: exnfValue
+      });
 
-        if (initialAction.kind === 'open-expected') {
-          await this.openBoundExternalFolder(
-            {
-              created: false,
-              folderPath: initialAction.folderPath,
-              kind: 'bound'
-            },
-            activeFile.path,
-            initialAction.uuid
-          );
-          return;
-        }
-
-        if (initialAction.kind === 'notice-missing-identity') {
-          new Notice('This note does not have an external folder identifier. Run Assign external folder identifier first.');
-          return;
-        }
-
-        if (initialAction.kind === 'run-recovery') {
-          const vaultScan = scanVault(this.app);
-          const externalScan = await scanExternalRoot(externalRootPath);
-          const plan = buildOpenExternalFolderRecoveryPlan({
-            expectedState: initialAction.expectedState,
-            externalScan,
-            notePath: activeFile.path,
-            uuid: initialAction.uuid,
-            vaultScan
-          });
-
-          if (plan.autoOpenFolderPath) {
-            await openExternalFolderInFileManager(plan.autoOpenFolderPath);
-            new Notice(`Opened recovered external folder for ${activeFile.path}. Review the opened recovery details.`);
-            this.logWarn('opened external folder from recovery scan', { plan });
-          } else {
-            new Notice(`External folder recovery scan complete: ${plan.summaryText}.`);
-            this.logInfo('external folder recovery scan complete', { plan });
-          }
-          this.openRecoveryModal(plan);
-          return;
-        }
-
-        throw new Error('Unexpected open external folder action after expected-folder inspection.');
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Failed to open external folder.';
-        new Notice(message);
-        this.logError('open external folder failed', error, { notePath: activeFile.path });
+      if (initialAction.kind === 'open-expected') {
+        await this.openBoundExternalFolder(
+          {
+            created: false,
+            folderPath: initialAction.folderPath,
+            kind: 'bound'
+          },
+          activeFile.path,
+          initialAction.uuid
+        );
+        return;
       }
-    });
+
+      if (initialAction.kind === 'notice-missing-identity') {
+        new Notice('This note does not have an external folder identifier. Run Assign external folder identifier first.');
+        return;
+      }
+
+      if (initialAction.kind === 'run-recovery') {
+        const vaultScan = scanVault(this.app);
+        const externalScan = await scanExternalRoot(externalRootPath);
+        const plan = buildOpenExternalFolderRecoveryPlan({
+          expectedState: initialAction.expectedState,
+          externalScan,
+          notePath: activeFile.path,
+          uuid: initialAction.uuid,
+          vaultScan
+        });
+
+        if (plan.autoOpenFolderPath) {
+          await openExternalFolderInFileManager(plan.autoOpenFolderPath);
+          new Notice(`Opened recovered external folder for ${activeFile.path}. Review the opened recovery details.`);
+          this.logWarn('opened external folder from recovery scan', { plan });
+        } else {
+          new Notice(`External folder recovery scan complete: ${plan.summaryText}.`);
+          this.logInfo('external folder recovery scan complete', { plan });
+        }
+        this.openRecoveryModal(plan);
+        return;
+      }
+
+      throw new Error('Unexpected open external folder action after expected-folder inspection.');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to open external folder.';
+      new Notice(message);
+      this.logError('open external folder failed', error, { notePath: activeFile.path });
+    }
   }
 
   private async runReconcileCommand(): Promise<void> {

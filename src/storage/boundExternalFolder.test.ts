@@ -300,6 +300,17 @@ describe('bound external folder mutations', () => {
     })).rejects.toThrow('already marked');
   });
 
+  it('reports selected folders outside the root without calling them derived paths', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const selectedFolderPath = await createTempRoot(tempDirectories);
+
+    await expect(writeMarkerToExistingUnmarkedFolder({
+      externalRootPath,
+      folderPath: selectedFolderPath,
+      uuid: VALID_UUID
+    })).rejects.toThrow('Selected external folder path escapes the configured root');
+  });
+
   it('rejects existing expected folders below symlinked parent directories', async () => {
     const externalRootPath = await createTempRoot(tempDirectories);
     const symlinkTargetPath = await createTempRoot(tempDirectories);

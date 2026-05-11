@@ -91,11 +91,14 @@ export class OpenRecoveryModal extends Modal {
       .setButtonText(label)
       .onClick(() => {
         button.setDisabled(true);
-        onClick().catch((error: unknown) => {
-          const message = error instanceof Error ? error.message : `${label} failed.`;
-          new Notice(message);
-          button.setDisabled(false);
-        });
+        onClick()
+          .catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : `${label} failed.`;
+            new Notice(message);
+          })
+          .finally(() => {
+            button.setDisabled(false);
+          });
       });
   }
 

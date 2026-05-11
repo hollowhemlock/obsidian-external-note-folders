@@ -112,7 +112,7 @@ export async function inspectExpectedExternalFolder(
     };
   }
 
-  await assertExistingPathHasNoSymlinks(canonicalRootPath, targetFolderPath);
+  await assertExistingPathHasNoSymlinks(canonicalRootPath, targetFolderPath, 'Derived external folder path');
 
   if (targetStat.isSymbolicLink()) {
     throw new Error(`External folder path crosses a symbolic link or reparse point: ${targetFolderPath}`);
@@ -240,7 +240,7 @@ export async function writeMarkerToExistingUnmarkedFolder(
 ): Promise<WriteExpectedMarkerIfUnmarkedResult> {
   const canonicalRootPath = await resolveExternalRootPath(input.externalRootPath);
   const folderPath = path.resolve(input.folderPath);
-  await assertExistingPathHasNoSymlinks(canonicalRootPath, folderPath);
+  await assertExistingPathHasNoSymlinks(canonicalRootPath, folderPath, 'Selected external folder path');
 
   const targetStat = await lstat(folderPath);
   if (targetStat.isSymbolicLink()) {
@@ -263,10 +263,14 @@ export async function writeMarkerToExistingUnmarkedFolder(
   };
 }
 
-async function assertExistingPathHasNoSymlinks(externalRootPath: string, targetFolderPath: string): Promise<void> {
+async function assertExistingPathHasNoSymlinks(
+  externalRootPath: string,
+  targetFolderPath: string,
+  pathDescription: string
+): Promise<void> {
   const relativePath = path.relative(externalRootPath, targetFolderPath);
   if (relativePath.startsWith('..') || path.isAbsolute(relativePath) || relativePath === '') {
-    throw new Error(`Derived external folder path escapes the configured root: ${targetFolderPath}`);
+    throw new Error(`${pathDescription} escapes the configured root: ${targetFolderPath}`);
   }
 
   const segments = relativePath.split(path.sep).filter((segment) => segment.length > 0);
