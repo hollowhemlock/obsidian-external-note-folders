@@ -23,25 +23,25 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 ## Commands
 
 - `Assign external folder identifier`: Adds an `exnf` UUID to the active markdown note if one is missing. It never creates or changes external folders.
-- `Open external folder`: Requires an existing valid `exnf` UUID and never assigns note identity. It opens the expected folder immediately when its `.exnf` marker matches; ADR-0025 proposes an active-note recovery scan for fallback cases where the expected folder is missing, unmarked, malformed, or bound to another UUID.
+- `Open external folder`: Requires an existing valid `exnf` UUID and never assigns note identity. It opens the expected folder immediately when its `.exnf` marker matches; otherwise it runs an active-note recovery scan for fallback cases where the expected folder is missing, unmarked, malformed, or bound to another UUID.
 - `Adopt existing external folders`: Builds a dry-run plan for a pristine vault/external-root pair and, after confirmation, writes `.exnf` markers first and note frontmatter second for exact one-to-one derived-path matches.
 - `Report external folder drift`: Read-only report that compares current note-derived external folder paths against existing external folders, highlights integrity errors, missing/orphaned/unexpected/occupied paths, and suggests likely matches.
 - `Reconcile external folders`: Builds a dry-run move plan and, only after explicit confirmation, moves existing bound external folders to their current note-derived paths. It never deletes folders or marker files and stops on first failure.
 
 ## Open Behavior and Drift
 
-`Open external folder` must not assign note identity. The proposed recovery
-behavior keeps the expected-folder fast path: if the expected folder has a
-matching `.exnf`, it opens immediately and does not search elsewhere. If
-expected-folder inspection fails, ADR-0025 proposes an active-note-scoped
-recovery scan that can find the current UUID elsewhere, list exact-name
-candidates, and show a persistent copyable modal.
+`Open external folder` must not assign note identity. The recovery behavior keeps
+the expected-folder fast path: if the expected folder has a matching `.exnf`, it
+opens immediately and does not search elsewhere. If expected-folder inspection
+fails, the command runs an active-note-scoped recovery scan that can find the
+current UUID elsewhere, list exact-name candidates, and show a persistent
+copyable modal.
 
 The recovery scan is not a full drift report. It is scoped to the active note and
 its exact-name candidates; full root-wide diagnosis still belongs to `Report
 external folder drift` and `Reconcile external folders`.
 
-Detailed proposed behavior lives in
+Detailed behavior lives in
 [`docs/dev/plans/open-external-folder-recovery.md`](docs/dev/plans/open-external-folder-recovery.md)
 and [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md).
 
@@ -61,7 +61,7 @@ markers or permission warnings from unrelated descendant directories.
 
 ## Failure Mode Reference
 
-| Situation | Planned `Open external folder` behavior | Whole-root report/reconcile behavior | References |
+| Situation | `Open external folder` behavior | Whole-root report/reconcile behavior | References |
 | --- | --- | --- | --- |
 | Active note has no `exnf` | Stops and directs the user to explicit assignment or adoption. | Not treated as an external-folder binding. | [ADR-0001](docs/dev/adr/0001-vault-is-source-of-truth.md), [ADR-0023](docs/dev/adr/0023-open-external-folder-does-not-assign-identity.md), [ADR-0024](docs/dev/adr/0024-strict-exact-adoption-with-journaled-marker-first-writes.md) |
 | Active note has invalid `exnf` | Stops before touching the external root. | Reported as an integrity error. | [ADR-0007](docs/dev/adr/0007-uuid-regeneration-and-manual-edits.md), [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0014](docs/dev/adr/0014-exnf-marker-format-and-validation.md) |
@@ -91,7 +91,7 @@ reconciliation.
 - Bulk adoption is strict: it requires no existing `exnf` frontmatter or `.exnf` markers and only adopts exact derived-path matches.
 - `Report external folder drift` is read-only and can be used before reconcile to inspect missing, orphaned, unexpected, occupied, and likely moved folders without changing the vault or external root.
 - `Open external folder` does not assign note identity. Run `Assign external folder identifier` first for notes without `exnf`.
-- ADR-0025 recovery scans are proposed, not a substitute for full drift reporting. Ignore rules, scan caps, progress UI, cancellation, and cached indexes are intentionally out of scope until performance requires them.
+- ADR-0025 recovery scans are active-note scoped, not a substitute for full drift reporting. Ignore rules, scan caps, progress UI, cancellation, and cached indexes are intentionally out of scope until performance requires them.
 - Concurrent UUID assignment across unsynced devices can create orphan external folders.
 - Sync tool conflicts in note frontmatter or external marker files are outside the plugin's repair scope; `Report external folder drift` surfaces the resulting state.
 

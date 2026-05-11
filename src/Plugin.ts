@@ -6,21 +6,23 @@ import {
 
 import type { AdoptionPlan } from './core/adoptionPlan.ts';
 import type { ExnfFrontmatterValue } from './core/frontmatter.ts';
+import type {
+  OpenExternalFolderRecoveryPlan,
+  OpenRecoveryCandidateRow
+} from './core/openExternalFolderRecovery.ts';
 import type { PluginSettings } from './PluginSettings.ts';
 import type { AdoptionExecutionOperations } from './storage/adoptionExecutor.ts';
-import type { ExpectedExternalFolderInspection } from './storage/boundExternalFolder.ts';
 
-import { AdoptExpectedFolderModal } from './AdoptExpectedFolderModal.ts';
 import { AdoptionPlanModal } from './AdoptionPlanModal.ts';
 import { AdoptionResumeModal } from './AdoptionResumeModal.ts';
 import {
   buildAdoptionPlan,
   haveSameAdoptionRows
 } from './core/adoptionPlan.ts';
-import { toExternalRelativeDisplayPath } from './core/displayPath.ts';
 import { buildDriftReport } from './core/driftReport.ts';
 import { getExnfFrontmatterValue } from './core/frontmatter.ts';
 import { chooseInitialOpenExternalFolderAction } from './core/openExternalFolderFlow.ts';
+import { buildOpenExternalFolderRecoveryPlan } from './core/openExternalFolderRecovery.ts';
 import { buildReconcilePlan } from './core/reconcilePlan.ts';
 import { buildVerifyReport } from './core/verify.ts';
 import { DriftReportModal } from './DriftReportModal.ts';
@@ -30,6 +32,7 @@ import {
   assertNoteUuidMatches,
   writeUuidToNoteIfMissing
 } from './obsidian/writeUuidToNote.ts';
+import { OpenRecoveryModal } from './OpenRecoveryModal.ts';
 import { DEFAULT_SETTINGS } from './PluginSettings.ts';
 import { PluginSettingsTab } from './PluginSettingsTab.ts';
 import { ReconcilePlanModal } from './ReconcilePlanModal.ts';
@@ -46,7 +49,8 @@ import {
   openExternalFolderInFileManager,
   resolveExternalRootPath,
   writeExpectedMarkerIfMissingOrMatching,
-  writeExpectedMarkerIfUnmarked
+  writeExpectedMarkerIfUnmarked,
+  writeMarkerToExistingUnmarkedFolder
 } from './storage/boundExternalFolder.ts';
 import {
   buildAdoptionJournalRootPath,
@@ -206,16 +210,6 @@ export class Plugin extends ObsidianPlugin {
     });
   }
 
-  private getExpectedMarkerBlockMessage(
-    expectedState: Extract<ExpectedExternalFolderInspection, { kind: 'malformed-marker' | 'mismatched-marker' }>
-  ): string {
-    if (expectedState.kind === 'malformed-marker') {
-      return `Derived external folder marker is malformed at ${expectedState.markerPath}: ${expectedState.message}`;
-    }
-
-    return `Derived external folder path is already bound to UUID ${expectedState.markerUuid}: ${expectedState.folderPath}`;
-  }
-
   private getJournalRootPath(): string {
     return buildJournalRootPath({
       configDir: this.app.vault.configDir,
@@ -309,47 +303,65 @@ export class Plugin extends ObsidianPlugin {
     });
   }
 
-  private openExpectedFolderAdoptionModal(input: {
-    expectedFolderPath: string;
-    externalRootPath: string;
-    notePath: string;
-    uuid: string;
-  }): void {
-    new AdoptExpectedFolderModal(this.app, {
-      expectedExternalFolder: toExternalRelativeDisplayPath(input.externalRootPath, input.expectedFolderPath),
-      expectedFolderPath: input.expectedFolderPath,
-      notePath: input.notePath,
-      onConfirm: async (): Promise<void> => {
-        await this.runMutatingCommand('adopt an existing external folder', async () => {
-          try {
-            const result = await writeExpectedMarkerIfUnmarked({
-              externalRootPath: input.externalRootPath,
-              notePath: input.notePath,
-              uuid: input.uuid
-            });
-            await openExternalFolderInFileManager(result.folderPath);
-            new Notice(
-              result.markerWritten
-                ? `Adopted and opened external folder for ${input.notePath}.`
-                : `Opened external folder for ${input.notePath}.`
-            );
-            this.logInfo('adopted expected external folder marker', {
-              folderPath: result.folderPath,
-              markerWritten: result.markerWritten,
-              notePath: input.notePath,
-              uuid: input.uuid
-            });
-          } catch (error: unknown) {
-            this.logError('adopt expected external folder failed', error, {
-              expectedFolderPath: input.expectedFolderPath,
-              notePath: input.notePath,
-              uuid: input.uuid
-            });
-            throw error;
-          }
+  private openRecoveryModal(plan: OpenExternalFolderRecoveryPlan): void {
+    new OpenRecoveryModal(this.app, {
+      onAdoptCandidate: async (row: OpenRecoveryCandidateRow): Promise<void> => {
+        await this.runMutatingCommand('adopt an exact-name candidate external folder', async () => {
+          const result = await writeMarkerToExistingUnmarkedFolder({
+            externalRootPath: plan.externalRootPath,
+            folderPath: row.folderPath,
+            uuid: plan.uuid
+          });
+          await openExternalFolderInFileManager(result.folderPath);
+          new Notice(`Adopted and opened external folder for ${plan.notePath}.`);
+          this.logInfo('adopted recovery candidate external folder', {
+            folderPath: result.folderPath,
+            notePath: plan.notePath,
+            uuid: plan.uuid
+          });
         });
       },
-      uuid: input.uuid
+      onAdoptExpected: async (): Promise<void> => {
+        await this.runMutatingCommand('adopt the expected external folder', async () => {
+          const result = await writeExpectedMarkerIfUnmarked({
+            externalRootPath: plan.externalRootPath,
+            notePath: plan.notePath,
+            uuid: plan.uuid
+          });
+          await openExternalFolderInFileManager(result.folderPath);
+          new Notice(`Adopted and opened external folder for ${plan.notePath}.`);
+          this.logInfo('adopted expected external folder marker', {
+            folderPath: result.folderPath,
+            notePath: plan.notePath,
+            uuid: plan.uuid
+          });
+        });
+      },
+      onCreateExpected: async (): Promise<void> => {
+        await this.runMutatingCommand('create the expected external folder', async () => {
+          const folderResult = await ensureExpectedBoundExternalFolder({
+            createIfMissing: true,
+            externalRootPath: plan.externalRootPath,
+            notePath: plan.notePath,
+            uuid: plan.uuid
+          });
+          if (folderResult.kind === 'missing') {
+            throw new Error('Expected external folder was not created.');
+          }
+
+          await this.openBoundExternalFolder(folderResult, plan.notePath, plan.uuid);
+        });
+      },
+      onOpenFolder: async (folderPath: string): Promise<void> => {
+        await openExternalFolderInFileManager(folderPath);
+        new Notice(`Opened external folder for ${plan.notePath}.`);
+        this.logInfo('opened recovery external folder', {
+          folderPath,
+          notePath: plan.notePath,
+          uuid: plan.uuid
+        });
+      },
+      plan
     }).open();
   }
 
@@ -571,73 +583,65 @@ export class Plugin extends ObsidianPlugin {
       return;
     }
 
-    await this.runMutatingCommand('open an external folder', async () => {
-      try {
-        const externalRootPath = await resolveExternalRootPath(this.settings.externalRootPath);
-        const expectedState = await inspectExpectedExternalFolder({
-          externalRootPath,
-          notePath: activeFile.path,
-          uuid: exnfValue.uuid
-        });
-        const initialAction = chooseInitialOpenExternalFolderAction({
-          expectedState,
-          identity: exnfValue
-        });
+    try {
+      const externalRootPath = await resolveExternalRootPath(this.settings.externalRootPath);
+      const expectedState = await inspectExpectedExternalFolder({
+        externalRootPath,
+        notePath: activeFile.path,
+        uuid: exnfValue.uuid
+      });
+      const initialAction = chooseInitialOpenExternalFolderAction({
+        expectedState,
+        identity: exnfValue
+      });
 
-        if (initialAction.kind === 'open-expected') {
-          await this.openBoundExternalFolder(
-            {
-              created: false,
-              folderPath: initialAction.folderPath,
-              kind: 'bound'
-            },
-            activeFile.path,
-            initialAction.uuid
-          );
-          return;
-        }
-
-        if (initialAction.kind === 'notice-missing-identity') {
-          new Notice('This note does not have an external folder identifier. Run Assign external folder identifier first.');
-          return;
-        }
-
-        if (initialAction.kind === 'create-expected') {
-          const folderResult = await ensureExpectedBoundExternalFolder({
-            createIfMissing: true,
-            externalRootPath,
-            notePath: activeFile.path,
-            uuid: initialAction.uuid
-          });
-          if (folderResult.kind === 'missing') {
-            throw new Error('Expected external folder was not created.');
-          }
-
-          await this.openBoundExternalFolder(folderResult, activeFile.path, initialAction.uuid);
-          return;
-        }
-
-        if (initialAction.kind === 'prompt-adopt-expected') {
-          this.openExpectedFolderAdoptionModal({
-            expectedFolderPath: initialAction.folderPath,
-            externalRootPath,
-            notePath: activeFile.path,
-            uuid: initialAction.uuid
-          });
-          return;
-        }
-
-        if (initialAction.kind === 'block-expected-marker') {
-          throw new Error(this.getExpectedMarkerBlockMessage(initialAction.expectedState));
-        }
-
-        throw new Error('Unexpected open external folder action after expected-folder inspection.');
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Failed to open external folder.';
-        new Notice(message);
-        this.logError('open external folder failed', error, { notePath: activeFile.path });
+      if (initialAction.kind === 'open-expected') {
+        await this.openBoundExternalFolder(
+          {
+            created: false,
+            folderPath: initialAction.folderPath,
+            kind: 'bound'
+          },
+          activeFile.path,
+          initialAction.uuid
+        );
+        return;
       }
-    });
+
+      if (initialAction.kind === 'notice-missing-identity') {
+        new Notice('This note does not have an external folder identifier. Run Assign external folder identifier first.');
+        return;
+      }
+
+      if (initialAction.kind === 'run-recovery') {
+        const vaultScan = scanVault(this.app);
+        const externalScan = await scanExternalRoot(externalRootPath);
+        const plan = buildOpenExternalFolderRecoveryPlan({
+          expectedState: initialAction.expectedState,
+          externalScan,
+          notePath: activeFile.path,
+          uuid: initialAction.uuid,
+          vaultScan
+        });
+
+        if (plan.autoOpenFolderPath) {
+          await openExternalFolderInFileManager(plan.autoOpenFolderPath);
+          new Notice(`Opened recovered external folder for ${activeFile.path}. Review the opened recovery details.`);
+          this.logWarn('opened external folder from recovery scan', { plan });
+        } else {
+          new Notice(`External folder recovery scan complete: ${plan.summaryText}.`);
+          this.logInfo('external folder recovery scan complete', { plan });
+        }
+        this.openRecoveryModal(plan);
+        return;
+      }
+
+      throw new Error('Unexpected open external folder action after expected-folder inspection.');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to open external folder.';
+      new Notice(message);
+      this.logError('open external folder failed', error, { notePath: activeFile.path });
+    }
   }
 
   private async runReconcileCommand(): Promise<void> {

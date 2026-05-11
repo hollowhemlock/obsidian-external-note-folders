@@ -8,10 +8,8 @@ export type ExpectedExternalFolderState =
   | { folderPath: string; kind: 'unmarked' };
 
 export type InitialOpenExternalFolderAction =
-  | { expectedState: Extract<ExpectedExternalFolderState, { kind: 'malformed-marker' | 'mismatched-marker' }>; kind: 'block-expected-marker'; uuid: string }
-  | { folderPath: string; kind: 'create-expected'; uuid: string }
+  | { expectedState: Exclude<ExpectedExternalFolderState, { kind: 'bound' }>; kind: 'run-recovery'; uuid: string }
   | { folderPath: string; kind: 'open-expected'; uuid: string }
-  | { folderPath: string; kind: 'prompt-adopt-expected'; uuid: string }
   | { kind: 'block-invalid-identity'; message: string }
   | { kind: 'notice-missing-identity' };
 
@@ -44,23 +42,23 @@ export function chooseInitialOpenExternalFolderAction(input: {
 
   if (input.expectedState.kind === 'missing') {
     return {
-      folderPath: input.expectedState.folderPath,
-      kind: 'create-expected',
+      expectedState: input.expectedState,
+      kind: 'run-recovery',
       uuid: input.identity.uuid
     };
   }
 
   if (input.expectedState.kind === 'unmarked') {
     return {
-      folderPath: input.expectedState.folderPath,
-      kind: 'prompt-adopt-expected',
+      expectedState: input.expectedState,
+      kind: 'run-recovery',
       uuid: input.identity.uuid
     };
   }
 
   return {
     expectedState: input.expectedState,
-    kind: 'block-expected-marker',
+    kind: 'run-recovery',
     uuid: input.identity.uuid
   };
 }
