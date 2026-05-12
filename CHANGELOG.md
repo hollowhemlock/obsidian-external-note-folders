@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/hollowhemlock/obsidian-external-note-folders/compare/external-note-folders-1.2.1...external-note-folders-1.3.0) (2026-05-11)
+
+
+### Features
+
+* add active-note open recovery ([#21](https://github.com/hollowhemlock/obsidian-external-note-folders/issues/21)) ([327229d](https://github.com/hollowhemlock/obsidian-external-note-folders/commit/327229d3024f2252b25e12336df966016c17769d))
+
 ## [1.2.1](https://github.com/hollowhemlock/obsidian-external-note-folders/compare/external-note-folders-1.2.0...external-note-folders-1.2.1) (2026-05-10)
 
 
