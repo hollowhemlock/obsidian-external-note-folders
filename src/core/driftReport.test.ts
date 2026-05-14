@@ -232,4 +232,45 @@ describe('drift report builder', () => {
     expect(report.expectedRows).toEqual([]);
     expect(report.missingRows).toEqual([]);
   });
+
+  it('reports ignored expected folders with actual off-path bindings', () => {
+    const externalRootPath = path.resolve('external-root');
+    const expectedFolderPath = path.join(externalRootPath, 'Notes', 'Alpha');
+    const actualFolderPath = path.join(externalRootPath, 'Archive', 'Alpha');
+    const report = buildDriftReport(
+      {
+        bindings: new Map([[EXPECTED_UUID, 'Notes/Alpha.md']]),
+        duplicatePaths: new Map(),
+        invalidFrontmatter: []
+      },
+      {
+        accessErrors: [],
+        bindings: new Map([[EXPECTED_UUID, actualFolderPath]]),
+        directories: [actualFolderPath],
+        duplicatePaths: new Map(),
+        ignoredDirectories: [
+          {
+            folderPath: expectedFolderPath,
+            relativePath: 'Notes/Alpha'
+          }
+        ],
+        ignoreErrors: [],
+        ignorePatterns: ['Notes/Alpha/'],
+        malformedMarkers: [],
+        rootPath: externalRootPath,
+        skippedDirectories: []
+      }
+    );
+
+    expect(report.ignoredRows).toEqual([
+      {
+        actualExternalFolder: 'Archive/Alpha',
+        expectedExternalFolder: 'Notes/Alpha',
+        notePath: 'Notes/Alpha.md',
+        uuid: EXPECTED_UUID
+      }
+    ]);
+    expect(report.unexpectedRows).toEqual([]);
+    expect(report.missingRows).toEqual([]);
+  });
 });

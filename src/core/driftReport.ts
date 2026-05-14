@@ -69,7 +69,9 @@ export function buildDriftReport(vaultScan: VaultScanResult, externalScan: Exter
 
       if (ignoreMatcher.ignoresAbsoluteDirectoryPath(expectedFolderPath)) {
         ignoredRows.push({
-          actualExternalFolder: null,
+          actualExternalFolder: actualFolderPath
+            ? toExternalRelativeDisplayPath(externalScan.rootPath, actualFolderPath)
+            : null,
           expectedExternalFolder,
           notePath,
           uuid
