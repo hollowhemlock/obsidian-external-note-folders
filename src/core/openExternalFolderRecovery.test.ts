@@ -194,6 +194,36 @@ describe('open external folder recovery plan', () => {
       `Skipped external directory at ${path.join(externalRootPath, '.tmp')}: EPERM`
     ]);
   });
+
+  it('does not use ignored folders as marker evidence for fallback recovery', () => {
+    const externalRootPath = path.resolve('external-root');
+    const ignoredFolderPath = path.join(externalRootPath, 'Archive', 'Alpha');
+    const plan = buildOpenExternalFolderRecoveryPlan({
+      expectedState: {
+        folderPath: path.join(externalRootPath, 'Projects', 'Alpha'),
+        kind: 'missing'
+      },
+      externalScan: buildExternalScan({
+        ignoredDirectories: [
+          {
+            folderPath: ignoredFolderPath,
+            relativePath: 'Archive/Alpha'
+          }
+        ],
+        ignorePatterns: ['Archive/'],
+        rootPath: externalRootPath
+      }),
+      notePath: 'Projects/Alpha.md',
+      uuid: UUID,
+      vaultScan: buildVaultScan()
+    });
+
+    expect(plan.activeMatches).toEqual([]);
+    expect(plan.candidateRows).toEqual([]);
+    expect(plan.warnings).toEqual([
+      'Ignored 1 external directory: Archive/Alpha'
+    ]);
+  });
 });
 
 function buildExternalScan(input: Partial<ExternalScanResult> = {}): ExternalScanResult {
@@ -202,6 +232,9 @@ function buildExternalScan(input: Partial<ExternalScanResult> = {}): ExternalSca
     bindings: new Map(),
     directories: [],
     duplicatePaths: new Map(),
+    ignoredDirectories: [],
+    ignoreErrors: [],
+    ignorePatterns: [],
     malformedMarkers: [],
     rootPath: path.resolve('external-root'),
     skippedDirectories: [],

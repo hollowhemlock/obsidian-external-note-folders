@@ -51,7 +51,7 @@ Use a fresh sandbox at the start of a validation pass. Use refresh between scena
 | Duplicate UUID in external root | Create two bound folders with `.exnf` files containing the same UUID. | `Verify` reports duplicate-external `Error`; mutating commands abort. |
 | Malformed `.exnf` | Add BOM, extra content, extra lines, or a non-canonical UUID to a marker. | Marker is classified as malformed `Error`; mutation preflight aborts. |
 | Occupied target path | Create an unbound directory at the derived destination path before `Open External Folder`. | Command reports conflict and aborts; no auto-rename occurs. |
-| Existing root adoption | Use a vault and external root with no existing `exnf` or `.exnf`, and matching note-derived folder paths. | `Adopt existing external folders` shows exact matches in dry-run, writes markers before frontmatter after confirmation, and journals the run. |
+| Existing root adoption | Use unassigned notes and matching note-derived external folder paths. Unrelated existing `exnf`, `.exnf`, skipped directories, or ignored directories may be present. | `Adopt existing external folders` shows exact safe matches in dry-run, reports unrelated state as warnings/blocked rows, writes markers before frontmatter after confirmation, and journals the run. |
 | Root escape / reparse point attempt | Create a symlink, junction, or other reparse point under the external root. | Scan and mutation stay within the configured root and do not follow the escape path. |
 
 ## Manual Verification Notes

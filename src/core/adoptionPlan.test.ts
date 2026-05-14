@@ -64,10 +64,11 @@ describe('adoption plan', () => {
     ]);
   });
 
-  it('blocks execution when the vault or external root is not pristine', () => {
+  it('keeps unrelated existing identities and markers as warnings', () => {
     const plan = buildAdoptionPlan({
       externalScan: buildExternalScan({
-        bindings: new Map([[EXISTING_UUID, path.join(EXTERNAL_ROOT, 'Projects', 'Alpha')]])
+        bindings: new Map([[EXISTING_UUID, path.join(EXTERNAL_ROOT, 'Projects', 'Alpha')]]),
+        directories: [path.join(EXTERNAL_ROOT, 'Projects', 'Beta')]
       }),
       mutationSequence: 0,
       notePaths: ['Projects/Beta.md'],
@@ -76,10 +77,152 @@ describe('adoption plan', () => {
       })
     });
 
-    expect(plan.hasGlobalErrors).toBe(true);
-    expect(plan.errors).toContain(`Existing vault identity at Projects/Alpha.md: ${EXISTING_UUID}`);
-    expect(plan.errors).toContain(`Existing external marker at Projects/Alpha: ${EXISTING_UUID}`);
-    expect(plan.rows).toEqual([]);
+    expect(plan.hasGlobalErrors).toBe(false);
+    expect(plan.errors).toEqual([]);
+    expect(plan.warnings).toContain(`Existing vault identity at Projects/Alpha.md: ${EXISTING_UUID}`);
+    expect(plan.warnings).toContain(`Existing external marker at Projects/Alpha: ${EXISTING_UUID}`);
+    expect(getAdoptionRows(plan)).toEqual([
+      {
+        externalFolder: 'Projects/Beta',
+        folderPath: path.join(EXTERNAL_ROOT, 'Projects', 'Beta'),
+        kind: 'adopt',
+        notePath: 'Projects/Beta.md'
+      }
+    ]);
+  });
+
+  it('adopts an exact match when unrelated markers and skipped directories exist', () => {
+    const healthFolderPath = path.join(EXTERNAL_ROOT, 'projects', 'health_mental');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        bindings: new Map([[EXISTING_UUID, path.join(EXTERNAL_ROOT, 'projects', 'old')]]),
+        directories: [
+          healthFolderPath,
+          path.join(EXTERNAL_ROOT, 'projects', 'old'),
+          path.join(EXTERNAL_ROOT, 'tmp')
+        ],
+        skippedDirectories: [
+          {
+            location: path.join(EXTERNAL_ROOT, 'tmp'),
+            message: 'EPERM'
+          }
+        ]
+      }),
+      mutationSequence: 0,
+      notePaths: ['projects/health_mental/health_mental.md'],
+      vaultScan: buildVaultScan({
+        bindings: new Map([[EXISTING_UUID, 'projects/old.md']])
+      })
+    });
+
+    expect(plan.hasGlobalErrors).toBe(false);
+    expect(getAdoptionRows(plan)).toEqual([
+      {
+        externalFolder: 'projects/health_mental',
+        folderPath: healthFolderPath,
+        kind: 'adopt',
+        notePath: 'projects/health_mental/health_mental.md'
+      }
+    ]);
+    expect(plan.warnings).toContain(`Skipped external directory at ${path.join(EXTERNAL_ROOT, 'tmp')}: EPERM`);
+  });
+
+  it('blocks only the note whose target folder has an existing marker', () => {
+    const alphaFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
+    const betaFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Beta');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        bindings: new Map([[EXISTING_UUID, alphaFolderPath]]),
+        directories: [alphaFolderPath, betaFolderPath]
+      }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md', 'Projects/Beta.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(getAdoptionRows(plan)).toEqual([
+      {
+        externalFolder: 'Projects/Beta',
+        folderPath: betaFolderPath,
+        kind: 'adopt',
+        notePath: 'Projects/Beta.md'
+      }
+    ]);
+    expect(plan.rows).toContainEqual({
+      externalFolder: 'Projects/Alpha',
+      kind: 'blocked-note',
+      message: `Derived external folder path already has marker UUID(s): ${EXISTING_UUID}`,
+      notePath: 'Projects/Alpha.md',
+      reason: 'target-already-bound'
+    });
+  });
+
+  it('blocks only the note whose target folder has a malformed marker', () => {
+    const alphaFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
+    const betaFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Beta');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        directories: [alphaFolderPath, betaFolderPath],
+        malformedMarkers: [
+          {
+            location: path.join(alphaFolderPath, '.exnf'),
+            message: 'Invalid marker'
+          }
+        ]
+      }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md', 'Projects/Beta.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(getAdoptionRows(plan)).toEqual([
+      {
+        externalFolder: 'Projects/Beta',
+        folderPath: betaFolderPath,
+        kind: 'adopt',
+        notePath: 'Projects/Beta.md'
+      }
+    ]);
+    expect(plan.rows).toContainEqual({
+      externalFolder: 'Projects/Alpha',
+      kind: 'blocked-note',
+      message: 'Derived external folder path contains a malformed marker.',
+      notePath: 'Projects/Alpha.md',
+      reason: 'target-has-malformed-marker'
+    });
+  });
+
+  it('blocks notes whose derived target is ignored', () => {
+    const folderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        directories: [],
+        ignoredDirectories: [
+          {
+            folderPath,
+            relativePath: 'Projects/Alpha'
+          }
+        ],
+        ignorePatterns: ['Projects/Alpha/']
+      }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(getAdoptionRows(plan)).toEqual([]);
+    expect(plan.rows).toEqual([
+      {
+        externalFolder: 'Projects/Alpha',
+        kind: 'blocked-note',
+        message: 'Derived external folder path is ignored by external root ignore patterns.',
+        notePath: 'Projects/Alpha.md',
+        reason: 'ignored-target'
+      }
+    ]);
+    expect(plan.warnings).toEqual([
+      'Ignored 1 external directory: Projects/Alpha'
+    ]);
   });
 
   it('reports duplicate note targets without adopting either note', () => {
@@ -160,6 +303,9 @@ function buildExternalScan(input: Partial<ExternalScanResult> = {}): ExternalSca
     bindings: new Map(),
     directories: [],
     duplicatePaths: new Map(),
+    ignoredDirectories: [],
+    ignoreErrors: [],
+    ignorePatterns: [],
     malformedMarkers: [],
     rootPath: EXTERNAL_ROOT,
     skippedDirectories: [],

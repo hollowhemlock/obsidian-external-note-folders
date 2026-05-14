@@ -2,7 +2,7 @@
 
 This index is optimized for fast human and LLM retrieval.
 
-Last generated: 2026-05-10
+Last generated: 2026-05-12
 
 ## Procedures
 - **[review-checklist.md](review-checklist.md)** - Use when reviewing an ADR before accepting it.
@@ -46,8 +46,9 @@ Last generated: 2026-05-10
 | [ADR-0021](0021-obsidian-cli-integration-testing.md) | Accepted | 2026-03-03 | Use Manual Obsidian CLI Integration Testing (v1.12+) | `testing`, `tooling` | Before adding or changing test strategy and fixtures. |
 | [ADR-0022](0022-reconcile-planner-and-execution-contract.md) | Accepted | 2026-05-02 | Reconcile Planner and Execution Contract | `reconcile` | Before changing reconcile planning/execution behavior. |
 | [ADR-0023](0023-open-external-folder-does-not-assign-identity.md) | Accepted | 2026-05-07 | Open External Folder Does Not Assign Identity | `external-root`, `safety` | Before changing trust boundaries or destructive behavior. |
-| [ADR-0024](0024-strict-exact-adoption-with-journaled-marker-first-writes.md) | Accepted | 2026-05-07 | Strict Exact Adoption with Journaled Marker-First Writes | `external-root` | Before changing external folder derivation and marker rules. |
+| [ADR-0024](0024-strict-exact-adoption-with-journaled-marker-first-writes.md) | Superseded | 2026-05-07 | Strict Exact Adoption with Journaled Marker-First Writes | `external-root` | Before changing external folder derivation and marker rules. |
 | [ADR-0025](0025-active-note-open-recovery-scan.md) | Accepted | 2026-05-10 | Active-Note Open Recovery Scan | `external-root`, `safety`, `status-model` | Before changing active-note open fallback or recovery behavior. |
+| [ADR-0026](0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md) | Accepted | 2026-05-12 | Safe Partial Exact Adoption with External Root Ignore Patterns | `external-root`, `safety`, `status-model` | Before changing bulk adoption, external-root ignore patterns, or scan evidence policy. |
 
 ## Discovery Tips
 - Search by tags first, then scan "When to read".

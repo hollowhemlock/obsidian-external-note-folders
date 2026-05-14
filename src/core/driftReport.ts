@@ -4,6 +4,7 @@ import type {
 } from './verify.ts';
 
 import { toExternalRelativeDisplayPath } from './displayPath.ts';
+import { buildExternalRootIgnoreMatcher } from './externalRootIgnore.ts';
 import {
   deriveExternalFolderPath,
   normalizePathForIdentity
@@ -27,6 +28,7 @@ export interface DriftOccupiedRow {
 export interface DriftReport {
   errors: string[];
   expectedRows: DriftBindingRow[];
+  ignoredRows: DriftBindingRow[];
   markdownReport: string;
   missingRows: DriftBindingRow[];
   occupiedRows: DriftOccupiedRow[];
@@ -49,6 +51,7 @@ export interface DriftSuggestion {
 export function buildDriftReport(vaultScan: VaultScanResult, externalScan: ExternalScanResult): DriftReport {
   const verifyReport = buildVerifyReport(vaultScan, externalScan);
   const expectedRows: DriftBindingRow[] = [];
+  const ignoredRows: DriftBindingRow[] = [];
   const missingRows: DriftBindingRow[] = [];
   const occupiedRows: DriftOccupiedRow[] = [];
   const orphanRows: DriftBindingRow[] = [];
@@ -57,11 +60,22 @@ export function buildDriftReport(vaultScan: VaultScanResult, externalScan: Exter
   if (!verifyReport.classificationOmitted) {
     const bindingPathsByIdentity = buildBindingPathsByIdentity(externalScan.bindings);
     const directoryIdentities = new Set(externalScan.directories.map((directoryPath) => normalizePathForIdentity(directoryPath)));
+    const ignoreMatcher = buildExternalRootIgnoreMatcher(externalScan.rootPath, externalScan.ignorePatterns);
 
     for (const [uuid, notePath] of sortEntries(vaultScan.bindings)) {
       const expectedFolderPath = deriveExternalFolderPath(notePath, externalScan.rootPath);
       const expectedExternalFolder = toExternalRelativeDisplayPath(externalScan.rootPath, expectedFolderPath);
       const actualFolderPath = externalScan.bindings.get(uuid);
+
+      if (ignoreMatcher.ignoresAbsoluteDirectoryPath(expectedFolderPath)) {
+        ignoredRows.push({
+          actualExternalFolder: null,
+          expectedExternalFolder,
+          notePath,
+          uuid
+        });
+        continue;
+      }
 
       if (!actualFolderPath) {
         missingRows.push({
@@ -132,6 +146,7 @@ export function buildDriftReport(vaultScan: VaultScanResult, externalScan: Exter
     `${String(verifyReport.errors.length)} error(s)`,
     `${String(verifyReport.warnings.length)} warning(s)`,
     `${String(unexpectedRows.length)} unexpected path(s)`,
+    `${String(ignoredRows.length)} ignored/unchecked`,
     `${String(missingRows.length)} missing expected folder(s)`,
     `${String(orphanRows.length)} orphan folder(s)`,
     `${String(occupiedRows.length)} occupied target(s)`,
@@ -141,8 +156,10 @@ export function buildDriftReport(vaultScan: VaultScanResult, externalScan: Exter
   return {
     errors: verifyReport.errors,
     expectedRows: sortRows(expectedRows),
+    ignoredRows: sortRows(ignoredRows),
     markdownReport: buildMarkdownReport({
       errors: verifyReport.errors,
+      ignoredRows: sortRows(ignoredRows),
       missingRows: sortRows(missingRows),
       occupiedRows: sortOccupiedRows(occupiedRows),
       orphanRows: sortRows(orphanRows),
@@ -198,6 +215,7 @@ function buildBindingPathsByIdentity(bindings: Map<string, string>): Map<string,
 
 function buildMarkdownReport(input: {
   errors: string[];
+  ignoredRows: DriftBindingRow[];
   missingRows: DriftBindingRow[];
   occupiedRows: DriftOccupiedRow[];
   orphanRows: DriftBindingRow[];
@@ -214,6 +232,7 @@ function buildMarkdownReport(input: {
     formatMarkdownList('Errors', input.errors),
     formatMarkdownList('Warnings', input.warnings),
     formatBindingRows('Unexpected Paths', input.unexpectedRows),
+    formatBindingRows('Ignored / Unchecked', input.ignoredRows),
     formatBindingRows('Missing Expected Folders', input.missingRows),
     formatBindingRows('Orphan Folders', input.orphanRows),
     formatOccupiedRows(input.occupiedRows),

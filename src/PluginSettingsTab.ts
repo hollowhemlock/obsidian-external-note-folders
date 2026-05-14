@@ -6,6 +6,8 @@ import {
 
 import type { Plugin } from './Plugin.ts';
 
+import { normalizeExternalRootIgnorePatterns } from './core/externalRootIgnore.ts';
+
 const EXAMPLE_WINDOWS_EXTERNAL_ROOT = 'C:\\ExternalNoteFolders';
 const TEXT_INPUT_VISIBLE_SIZE = 48;
 
@@ -39,6 +41,27 @@ export class PluginSettingsTab extends PluginSettingTab {
         text.inputEl.size = TEXT_INPUT_VISIBLE_SIZE;
       });
 
+    const ignoreValidationMessageEl = containerEl.createEl('p', {
+      cls: 'setting-item-description'
+    });
+
+    new Setting(containerEl)
+      .setName('External root ignore patterns')
+      .setDesc(
+        'Newline-separated .gitignore-style patterns relative to the external root. Ignored folders are excluded from all scans. Negation patterns are not supported.'
+      )
+      .addTextArea((textArea) => {
+        textArea
+          .setPlaceholder('Enter one ignore pattern per line.')
+          .setValue(this.plugin.settings.externalRootIgnorePatterns.join('\n'))
+          .onChange((value) => {
+            this.handleIgnorePatternsChanged(value, ignoreValidationMessageEl).catch((error: unknown) => {
+              const message = error instanceof Error ? error.message : 'Unable to save ignore patterns.';
+              ignoreValidationMessageEl.setText(message);
+            });
+          });
+      });
+
     new Setting(containerEl)
       .setName('Dry-run reconcile by default')
       .setDesc('Show a reconcile plan before any external folders can be moved.')
@@ -68,6 +91,27 @@ export class PluginSettingsTab extends PluginSettingTab {
     }
 
     this.plugin.settings.externalRootPath = trimmedValue;
+    await this.plugin.saveSettings();
+  }
+
+  private async handleIgnorePatternsChanged(
+    rawValue: string,
+    validationMessageEl: HTMLParagraphElement
+  ): Promise<void> {
+    const storedPatterns = rawValue
+      .split(/\r?\n/u)
+      .map((pattern) => pattern.trim().replaceAll('\\', '/'))
+      .filter((pattern) => pattern.length > 0);
+    const normalizedPatterns = normalizeExternalRootIgnorePatterns(storedPatterns);
+    validationMessageEl.setText(
+      normalizedPatterns.errors.length === 0
+        ? ''
+        : normalizedPatterns.errors
+          .map((error) => `${error.pattern}: ${error.message}`)
+          .join('; ')
+    );
+
+    this.plugin.settings.externalRootIgnorePatterns = storedPatterns;
     await this.plugin.saveSettings();
   }
 }

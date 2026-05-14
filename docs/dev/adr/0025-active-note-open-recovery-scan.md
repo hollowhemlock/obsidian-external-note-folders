@@ -56,6 +56,7 @@ whether exact-name candidate folders were available for adoption.
    - owner vault note when a candidate is bound to a UUID known in vault
      metadata
    - skipped descendant-directory warnings
+   - ignored descendant-directory summaries from external-root ignore settings
 6. If exactly one off-path folder is bound to the active note UUID, the command
    opens that folder and shows a persistent recovery modal.
 7. If multiple folders are bound to the active note UUID, the command does not
@@ -82,9 +83,17 @@ The marker remains `.exnf` with a strict UUID payload. Renaming markers to
 tree traversal when markers can exist anywhere, exposes UUIDs in filenames, and
 adds migration cost without solving the dominant performance cost.
 
+### Relationship to Ignore Patterns
+
+External-root ignore pattern semantics are governed by
+[ADR-0026](0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md).
+Ignored folders are not traversed and do not contribute marker evidence to the
+active-note recovery scan. If the expected folder itself is ignored, recovery can
+still explain that state but safe create/adopt actions for that ignored target
+are disabled.
+
 ### Out of Scope
 
-- Ignore rules for backups, archives, build outputs, or unrelated projects
 - Scan caps, progress UI, cancellation, cache/indexing, or background indexing
 - Full drift classification from within `Open external folder`
 - Changing `.exnf` marker format or adding marker filename variants
@@ -149,4 +158,5 @@ adds migration cost without solving the dominant performance cost.
 - [ADR-0014](0014-exnf-marker-format-and-validation.md)
 - [ADR-0015](0015-external-folder-path-derivation.md)
 - [ADR-0023](0023-open-external-folder-does-not-assign-identity.md)
+- [ADR-0026](0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md)
 - [docs/dev/plans/open-external-folder-recovery.md](../plans/open-external-folder-recovery.md)

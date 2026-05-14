@@ -132,6 +132,33 @@ describe('reconcile planner', () => {
     expect(plan.markdownReport).toContain('## Warnings');
   });
 
+  it('reports ignored target folders as conflicts instead of unavailable', () => {
+    const externalRootPath = path.resolve('external-root');
+    const plan = buildReconcilePlan({
+      externalScan: buildExternalScan(externalRootPath, {
+        ignoredDirectories: [
+          {
+            folderPath: path.join(externalRootPath, 'Projects', 'Alpha'),
+            relativePath: 'Projects/Alpha'
+          }
+        ],
+        ignorePatterns: ['Projects/Alpha/']
+      }),
+      mutationSequence: 0,
+      vaultScan: buildVaultScan(new Map([[MOVE_UUID, 'Projects/Alpha.md']]))
+    });
+
+    expect(plan.rows).toContainEqual({
+      currentExternalFolder: null,
+      kind: 'conflict',
+      message: 'Target folder is ignored by external root ignore patterns.',
+      notePath: 'Projects/Alpha.md',
+      reason: 'target-ignored',
+      targetExternalFolder: 'Projects/Alpha',
+      uuid: MOVE_UUID
+    });
+  });
+
   it('reports occupied target conflicts without aborting unrelated moves', () => {
     const externalRootPath = path.resolve('external-root');
     const plan = buildReconcilePlan({
@@ -211,6 +238,9 @@ function buildExternalScan(
     bindings: new Map(),
     directories: [],
     duplicatePaths: new Map(),
+    ignoredDirectories: [],
+    ignoreErrors: [],
+    ignorePatterns: [],
     malformedMarkers: [],
     rootPath,
     skippedDirectories: [],

@@ -71,11 +71,13 @@ describe('external root scanning', () => {
     const externalRootPath = await createTempRoot(tempDirectories);
 
     const result = await scanExternalRoot(externalRootPath, {
-      readDirectoryEntries: async () => {
-        throw new Error('root denied');
-      },
-      readMarkerFile: async (markerPath) => readFile(markerPath, 'utf8'),
-      resolveRealPath: realpath
+      fileSystem: {
+        readDirectoryEntries: async () => {
+          throw new Error('root denied');
+        },
+        readMarkerFile: async (markerPath) => readFile(markerPath, 'utf8'),
+        resolveRealPath: realpath
+      }
     });
 
     expect(result.accessErrors).toEqual([
@@ -95,18 +97,20 @@ describe('external root scanning', () => {
     await writeMarker(readableFolderPath, VALID_UUID);
 
     const result = await scanExternalRoot(externalRootPath, {
-      readDirectoryEntries: async (directoryPath) => {
-        if (directoryPath === skippedFolderPath) {
-          throw new Error('permission denied');
-        }
+      fileSystem: {
+        readDirectoryEntries: async (directoryPath) => {
+          if (directoryPath === skippedFolderPath) {
+            throw new Error('permission denied');
+          }
 
-        return readdir(directoryPath, {
-          encoding: 'utf8',
-          withFileTypes: true
-        });
-      },
-      readMarkerFile: async (markerPath) => readFile(markerPath, 'utf8'),
-      resolveRealPath: realpath
+          return readdir(directoryPath, {
+            encoding: 'utf8',
+            withFileTypes: true
+          });
+        },
+        readMarkerFile: async (markerPath) => readFile(markerPath, 'utf8'),
+        resolveRealPath: realpath
+      }
     });
 
     expect(result.accessErrors).toEqual([]);
@@ -171,6 +175,60 @@ describe('external root scanning', () => {
     const result = await scanExternalRoot(externalRootPath);
 
     expect(result.bindings).toEqual(new Map());
+  });
+
+  it('skips ignored descendant directories before reading them', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const readableFolderPath = path.join(externalRootPath, 'Projects', 'Readable');
+    const ignoredFolderPath = path.join(externalRootPath, 'Projects', 'Ignored');
+    await mkdir(ignoredFolderPath, { recursive: true });
+    await writeMarker(readableFolderPath, VALID_UUID);
+
+    const result = await scanExternalRoot(externalRootPath, {
+      fileSystem: {
+        readDirectoryEntries: async (directoryPath) => {
+          if (directoryPath === ignoredFolderPath) {
+            throw new Error('ignored directory should not be read');
+          }
+
+          return readdir(directoryPath, {
+            encoding: 'utf8',
+            withFileTypes: true
+          });
+        },
+        readMarkerFile: async (markerPath) => readFile(markerPath, 'utf8'),
+        resolveRealPath: realpath
+      },
+      ignorePatterns: ['Projects/Ignored/']
+    });
+
+    expect(result.accessErrors).toEqual([]);
+    expect(result.skippedDirectories).toEqual([]);
+    expect(result.ignoredDirectories).toEqual([
+      {
+        folderPath: ignoredFolderPath,
+        relativePath: 'Projects/Ignored'
+      }
+    ]);
+    expect(result.bindings).toEqual(new Map([[VALID_UUID, readableFolderPath]]));
+  });
+
+  it('does not collect markers from ignored subtrees', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const ignoredFolderPath = path.join(externalRootPath, 'Projects', 'Ignored');
+    await writeMarker(ignoredFolderPath, VALID_UUID);
+
+    const result = await scanExternalRoot(externalRootPath, {
+      ignorePatterns: ['Projects/Ignored/']
+    });
+
+    expect(result.bindings).toEqual(new Map());
+    expect(result.ignoredDirectories).toEqual([
+      {
+        folderPath: ignoredFolderPath,
+        relativePath: 'Projects/Ignored'
+      }
+    ]);
   });
 });
 

@@ -9,6 +9,10 @@ import {
   normalizeDisplayPath,
   toExternalRelativeDisplayPath
 } from './displayPath.ts';
+import {
+  buildExternalRootIgnoreMatcher,
+  formatIgnoredDirectoryWarnings
+} from './externalRootIgnore.ts';
 import { normalizePathForIdentity } from './pathPolicy.ts';
 
 export interface OpenExternalFolderRecoveryPlan {
@@ -65,8 +69,12 @@ export function buildOpenExternalFolderRecoveryPlan(input: {
 }): OpenExternalFolderRecoveryPlan {
   const errors = input.externalScan.accessErrors
     .map((issue) => `External root access error at ${issue.location}: ${issue.message}`)
+    .concat(input.externalScan.ignoreErrors
+      .map((issue) => `Invalid external root ignore pattern ${issue.pattern}: ${issue.message}`))
     .sort();
   const expectedFolderPath = input.expectedState.folderPath;
+  const ignoreMatcher = buildExternalRootIgnoreMatcher(input.externalScan.rootPath, input.externalScan.ignorePatterns);
+  const expectedFolderIgnored = ignoreMatcher.ignoresAbsoluteDirectoryPath(expectedFolderPath);
   const expectedFolderIdentity = normalizePathForIdentity(expectedFolderPath);
   const expectedBasenameIdentity = normalizeBasenameForIdentity(expectedFolderPath);
   const activeMatches = buildActiveMatches(input.externalScan, input.uuid);
@@ -88,7 +96,11 @@ export function buildOpenExternalFolderRecoveryPlan(input: {
     );
   const candidateIdentities = new Set(candidateRows.map((row) => normalizePathForIdentity(row.folderPath)));
   const warnings = [
+    ...formatIgnoredDirectoryWarnings(input.externalScan.ignoredDirectories),
     ...input.externalScan.skippedDirectories.map(formatSkippedDirectoryWarning),
+    ...(expectedFolderIgnored
+      ? [`Expected external folder is ignored by settings: ${toExternalRelativeDisplayPath(input.externalScan.rootPath, expectedFolderPath)}`]
+      : []),
     ...input.externalScan.malformedMarkers
       .filter((issue) => {
         const parentIdentity = normalizePathForIdentity(getParentPath(issue.location));
@@ -96,7 +108,7 @@ export function buildOpenExternalFolderRecoveryPlan(input: {
       })
       .map((issue) => `Malformed non-candidate marker at ${issue.location}: ${issue.message}`)
   ].sort();
-  const canOfferExpectedActions = errors.length === 0 && activeMatches.length === 0;
+  const canOfferExpectedActions = errors.length === 0 && activeMatches.length === 0 && !expectedFolderIgnored;
   const sortedActiveMatches = sortActiveMatches(activeMatches);
   const sortedCandidateRows = sortCandidateRows(candidateRows);
   const summaryText = buildSummaryText({

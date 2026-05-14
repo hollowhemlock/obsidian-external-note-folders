@@ -53,6 +53,9 @@ describe('drift report builder', () => {
         path.join(externalRootPath, 'Notes', 'Unmarked Occupied')
       ],
       duplicatePaths: new Map(),
+      ignoredDirectories: [],
+      ignoreErrors: [],
+      ignorePatterns: [],
       malformedMarkers: [],
       rootPath: externalRootPath,
       skippedDirectories: []
@@ -135,6 +138,9 @@ describe('drift report builder', () => {
         bindings: new Map(),
         directories: [],
         duplicatePaths: new Map(),
+        ignoredDirectories: [],
+        ignoreErrors: [],
+        ignorePatterns: [],
         malformedMarkers: [],
         rootPath: '',
         skippedDirectories: []
@@ -165,6 +171,9 @@ describe('drift report builder', () => {
           path.join(externalRootPath, 'Unreadable')
         ],
         duplicatePaths: new Map(),
+        ignoredDirectories: [],
+        ignoreErrors: [],
+        ignorePatterns: [],
         malformedMarkers: [],
         rootPath: externalRootPath,
         skippedDirectories: [
@@ -182,5 +191,45 @@ describe('drift report builder', () => {
     ]);
     expect(report.expectedRows).toHaveLength(1);
     expect(report.markdownReport).toContain('## Warnings');
+  });
+
+  it('reports ignored linked folders as ignored instead of missing or healthy', () => {
+    const externalRootPath = path.resolve('external-root');
+    const externalFolderPath = path.join(externalRootPath, 'Notes', 'Alpha');
+    const report = buildDriftReport(
+      {
+        bindings: new Map([[EXPECTED_UUID, 'Notes/Alpha.md']]),
+        duplicatePaths: new Map(),
+        invalidFrontmatter: []
+      },
+      {
+        accessErrors: [],
+        bindings: new Map(),
+        directories: [],
+        duplicatePaths: new Map(),
+        ignoredDirectories: [
+          {
+            folderPath: externalFolderPath,
+            relativePath: 'Notes/Alpha'
+          }
+        ],
+        ignoreErrors: [],
+        ignorePatterns: ['Notes/Alpha/'],
+        malformedMarkers: [],
+        rootPath: externalRootPath,
+        skippedDirectories: []
+      }
+    );
+
+    expect(report.ignoredRows).toEqual([
+      {
+        actualExternalFolder: null,
+        expectedExternalFolder: 'Notes/Alpha',
+        notePath: 'Notes/Alpha.md',
+        uuid: EXPECTED_UUID
+      }
+    ]);
+    expect(report.expectedRows).toEqual([]);
+    expect(report.missingRows).toEqual([]);
   });
 });

@@ -1,6 +1,7 @@
 import { Modal } from 'obsidian';
 
 import type {
+  VerifyIgnoredRow,
   VerifyReport,
   VerifyTableRow
 } from './core/verify.ts';
@@ -43,9 +44,41 @@ export class VerifyReportModal extends Modal {
     this.renderTextSection(contentEl, 'Errors', this.verifyReport.errors, 'No integrity errors detected.');
     this.renderTextSection(contentEl, 'Warnings', this.verifyReport.warnings, 'No scan warnings detected.');
     this.renderTableSection(contentEl, 'Orphan Bound Folders', this.verifyReport.warningRows, 'No orphan bound folders detected.');
+    this.renderIgnoredTableSection(contentEl, 'Ignored / Unchecked', this.verifyReport.ignoredRows, 'No ignored bindings detected.');
     this.renderTableSection(contentEl, 'Unavailable', this.verifyReport.unavailableRows, 'No missing bound folders detected.');
     this.renderTableSection(contentEl, 'OK', this.verifyReport.okRows, 'No healthy bindings were discovered.');
     renderCopyableReport(contentEl, 'Copyable report', this.verifyReport.markdownReport);
+  }
+
+  private renderIgnoredTableSection(
+    containerEl: HTMLElement,
+    title: string,
+    rows: readonly VerifyIgnoredRow[],
+    emptyMessage: string
+  ): void {
+    containerEl.createEl('h3', { text: title });
+    if (rows.length === 0) {
+      containerEl.createEl('p', { text: emptyMessage });
+      return;
+    }
+
+    const tableEl = containerEl.createEl('table');
+    tableEl.addClass('external-note-folders-verify-table');
+
+    const headerRowEl = tableEl.createEl('thead').createEl('tr');
+    headerRowEl.createEl('th', { text: 'Vault file' });
+    headerRowEl.createEl('th', { text: 'Expected external folder' });
+    headerRowEl.createEl('th', { text: 'Actual external folder' });
+    headerRowEl.createEl('th', { text: 'UUID' });
+
+    const bodyEl = tableEl.createEl('tbody');
+    for (const row of rows) {
+      const rowEl = bodyEl.createEl('tr');
+      rowEl.createEl('td', { text: row.notePath });
+      rowEl.createEl('td', { text: row.expectedExternalFolder });
+      rowEl.createEl('td', { text: row.actualExternalFolder ?? '-' });
+      rowEl.createEl('td', { text: row.uuid });
+    }
   }
 
   private renderTableSection(

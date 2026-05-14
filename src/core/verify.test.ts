@@ -42,6 +42,9 @@ describe('verify report builder', () => {
         'X:\\External\\Orphan'
       ],
       duplicatePaths: new Map(),
+      ignoredDirectories: [],
+      ignoreErrors: [],
+      ignorePatterns: [],
       malformedMarkers: [],
       rootPath: 'X:\\External',
       skippedDirectories: []
@@ -100,6 +103,9 @@ describe('verify report builder', () => {
       bindings: new Map(),
       directories: [],
       duplicatePaths: new Map(),
+      ignoredDirectories: [],
+      ignoreErrors: [],
+      ignorePatterns: [],
       malformedMarkers: [],
       rootPath: 'X:\\External',
       skippedDirectories: []
@@ -131,6 +137,9 @@ describe('verify report builder', () => {
       bindings: new Map([[VALID_UUID, 'X:\\External\\Notes\\Alpha']]),
       directories: ['X:\\External\\Notes', 'X:\\External\\Notes\\Alpha', 'X:\\External\\Unreadable'],
       duplicatePaths: new Map(),
+      ignoredDirectories: [],
+      ignoreErrors: [],
+      ignorePatterns: [],
       malformedMarkers: [],
       rootPath: 'X:\\External',
       skippedDirectories: [
@@ -172,6 +181,9 @@ describe('verify report builder', () => {
       bindings: new Map(),
       directories: [],
       duplicatePaths: new Map(),
+      ignoredDirectories: [],
+      ignoreErrors: [],
+      ignorePatterns: [],
       malformedMarkers: [],
       rootPath: externalRootPath,
       skippedDirectories: []
@@ -183,5 +195,86 @@ describe('verify report builder', () => {
     expect(report.errors).toEqual([
       'Derived external folder path Projects/Alpha is shared by multiple notes: Projects/Alpha.md, Projects/Alpha/Alpha.md'
     ]);
+  });
+
+  it('reports ignored linked folders as ignored instead of unavailable', () => {
+    const externalRootPath = path.resolve('external-root');
+    const externalFolderPath = path.join(externalRootPath, 'Notes', 'Alpha');
+    const vaultScan: VaultScanResult = {
+      bindings: new Map([[VALID_UUID, 'Notes/Alpha.md']]),
+      duplicatePaths: new Map(),
+      invalidFrontmatter: []
+    };
+    const externalScan: ExternalScanResult = {
+      accessErrors: [],
+      bindings: new Map(),
+      directories: [],
+      duplicatePaths: new Map(),
+      ignoredDirectories: [
+        {
+          folderPath: externalFolderPath,
+          relativePath: 'Notes/Alpha'
+        }
+      ],
+      ignoreErrors: [],
+      ignorePatterns: ['Notes/Alpha/'],
+      malformedMarkers: [],
+      rootPath: externalRootPath,
+      skippedDirectories: []
+    };
+
+    const report = buildVerifyReport(vaultScan, externalScan);
+
+    expect(report.ignoredRows).toEqual([
+      {
+        actualExternalFolder: null,
+        expectedExternalFolder: 'Notes/Alpha',
+        notePath: 'Notes/Alpha.md',
+        uuid: VALID_UUID
+      }
+    ]);
+    expect(report.unavailableRows).toEqual([]);
+    expect(report.okRows).toEqual([]);
+  });
+
+  it('reports ignored expected folders with actual off-path bindings', () => {
+    const externalRootPath = path.resolve('external-root');
+    const ignoredExpectedFolderPath = path.join(externalRootPath, 'Notes', 'Alpha');
+    const actualFolderPath = path.join(externalRootPath, 'Archive', 'Alpha');
+    const vaultScan: VaultScanResult = {
+      bindings: new Map([[VALID_UUID, 'Notes/Alpha.md']]),
+      duplicatePaths: new Map(),
+      invalidFrontmatter: []
+    };
+    const externalScan: ExternalScanResult = {
+      accessErrors: [],
+      bindings: new Map([[VALID_UUID, actualFolderPath]]),
+      directories: [actualFolderPath],
+      duplicatePaths: new Map(),
+      ignoredDirectories: [
+        {
+          folderPath: ignoredExpectedFolderPath,
+          relativePath: 'Notes/Alpha'
+        }
+      ],
+      ignoreErrors: [],
+      ignorePatterns: ['Notes/Alpha/'],
+      malformedMarkers: [],
+      rootPath: externalRootPath,
+      skippedDirectories: []
+    };
+
+    const report = buildVerifyReport(vaultScan, externalScan);
+
+    expect(report.ignoredRows).toEqual([
+      {
+        actualExternalFolder: 'Archive/Alpha',
+        expectedExternalFolder: 'Notes/Alpha',
+        notePath: 'Notes/Alpha.md',
+        uuid: VALID_UUID
+      }
+    ]);
+    expect(report.okRows).toEqual([]);
+    expect(report.markdownReport).toContain('| Notes/Alpha.md | Notes/Alpha | Archive/Alpha | 123e4567-e89b-42d3-a456-426614174000 |');
   });
 });

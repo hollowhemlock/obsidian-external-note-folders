@@ -36,6 +36,9 @@
     "version": "obsidian-dev-utils version",
     "prepare": "husky"
   },
+  "dependencies": {
+    "ignore": "^7.0.5"
+  },
   "devDependencies": {
     "@codemirror/language": "latest",
     "@codemirror/state": "latest",

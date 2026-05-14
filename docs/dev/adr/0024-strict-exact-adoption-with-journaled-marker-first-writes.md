@@ -1,10 +1,15 @@
 ---
-status: "Accepted"
+status: "Superseded"
 date: "2026-05-07"
 decision-makers: "Maintainers"
+superseded_by: "ADR-0026"
 ---
 
 # Strict Exact Adoption with Journaled Marker-First Writes
+
+Superseded by [ADR-0026](0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md).
+The marker-first, journaled execution contract remains; the whole-root pristine
+precondition was replaced with row-local exact adoption for mixed roots.
 
 ## Context and Problem Statement
 

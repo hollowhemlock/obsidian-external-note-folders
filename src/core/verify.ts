@@ -1,4 +1,13 @@
+import type {
+  ExternalRootIgnoreError,
+  IgnoredDirectory
+} from './externalRootIgnore.ts';
+
 import { toExternalRelativeDisplayPath } from './displayPath.ts';
+import {
+  buildExternalRootIgnoreMatcher,
+  formatIgnoredDirectoryWarnings
+} from './externalRootIgnore.ts';
 import {
   deriveExternalFolderPath,
   normalizePathForIdentity
@@ -9,6 +18,9 @@ export interface ExternalScanResult {
   bindings: Map<string, string>;
   directories: string[];
   duplicatePaths: Map<string, string[]>;
+  ignoredDirectories: IgnoredDirectory[];
+  ignoreErrors: ExternalRootIgnoreError[];
+  ignorePatterns: string[];
   malformedMarkers: ScanIssue[];
   rootPath: string;
   skippedDirectories: ScanIssue[];
@@ -25,10 +37,18 @@ export interface VaultScanResult {
   invalidFrontmatter: ScanIssue[];
 }
 
+export interface VerifyIgnoredRow {
+  actualExternalFolder: null | string;
+  expectedExternalFolder: string;
+  notePath: string;
+  uuid: string;
+}
+
 export interface VerifyReport {
   classificationOmitted: boolean;
   errors: string[];
   hasIntegrityErrors: boolean;
+  ignoredRows: VerifyIgnoredRow[];
   markdownReport: string;
   ok: string[];
   okRows: VerifyTableRow[];
@@ -58,21 +78,41 @@ export function buildVerifyReport(
     ...externalScan.malformedMarkers
       .map((issue) => `Malformed marker at ${issue.location}: ${issue.message}`),
     ...externalScan.accessErrors
-      .map((issue) => `External root access error at ${issue.location}: ${issue.message}`)
+      .map((issue) => `External root access error at ${issue.location}: ${issue.message}`),
+    ...externalScan.ignoreErrors
+      .map((issue) => `Invalid external root ignore pattern ${issue.pattern}: ${issue.message}`)
   ].sort();
 
-  const classificationOmitted = externalScan.accessErrors.length > 0;
+  const classificationOmitted = externalScan.accessErrors.length > 0 || externalScan.ignoreErrors.length > 0;
+  const ignoreMatcher = buildExternalRootIgnoreMatcher(externalScan.rootPath, externalScan.ignorePatterns);
+  const ignoredRows: VerifyIgnoredRow[] = [];
   const ok: string[] = [];
   const okRows: VerifyTableRow[] = [];
   const unavailable: string[] = [];
   const unavailableRows: VerifyTableRow[] = [];
-  const warnings = externalScan.skippedDirectories
-    .map((issue) => `Skipped external directory at ${issue.location}: ${issue.message}`);
+  const warnings = [
+    ...formatIgnoredDirectoryWarnings(externalScan.ignoredDirectories),
+    ...externalScan.skippedDirectories
+      .map((issue) => `Skipped external directory at ${issue.location}: ${issue.message}`)
+  ];
   const warningRows: VerifyTableRow[] = [];
 
   if (!classificationOmitted) {
     for (const [uuid, notePath] of sortEntries(vaultScan.bindings)) {
       const boundFolderPath = externalScan.bindings.get(uuid);
+      const expectedFolderPath = deriveExternalFolderPath(notePath, externalScan.rootPath);
+      if (ignoreMatcher.ignoresAbsoluteDirectoryPath(expectedFolderPath)) {
+        ignoredRows.push({
+          actualExternalFolder: boundFolderPath
+            ? toExternalRelativeDisplayPath(externalScan.rootPath, boundFolderPath)
+            : null,
+          expectedExternalFolder: toExternalRelativeDisplayPath(externalScan.rootPath, expectedFolderPath),
+          notePath,
+          uuid
+        });
+        continue;
+      }
+
       if (boundFolderPath) {
         ok.push(`${notePath} -> ${boundFolderPath}`);
         okRows.push({
@@ -104,6 +144,7 @@ export function buildVerifyReport(
   const summaryText = [
     `${String(errors.length)} error(s)`,
     `${String(warnings.length + warningRows.length)} warning(s)`,
+    `${String(ignoredRows.length)} ignored`,
     `${String(unavailable.length)} unavailable`,
     `${String(ok.length)} ok`
   ].join(', ');
@@ -112,8 +153,10 @@ export function buildVerifyReport(
     classificationOmitted,
     errors,
     hasIntegrityErrors: errors.length > 0,
+    ignoredRows: sortIgnoredRows(ignoredRows),
     markdownReport: buildMarkdownReport({
       errors,
+      ignoredRows: sortIgnoredRows(ignoredRows),
       okRows: sortRows(okRows),
       summaryText,
       unavailableRows: sortRows(unavailableRows),
@@ -132,6 +175,7 @@ export function buildVerifyReport(
 
 function buildMarkdownReport(input: {
   errors: string[];
+  ignoredRows: VerifyIgnoredRow[];
   okRows: VerifyTableRow[];
   summaryText: string;
   unavailableRows: VerifyTableRow[];
@@ -146,6 +190,7 @@ function buildMarkdownReport(input: {
     formatMarkdownList('Errors', input.errors),
     formatMarkdownList('Warnings', input.warnings),
     formatVerifyRows('Orphan Bound Folders', input.warningRows),
+    formatIgnoredRows('Ignored / Unchecked', input.ignoredRows),
     formatVerifyRows('Unavailable', input.unavailableRows),
     formatVerifyRows('OK', input.okRows)
   ].join('\n');
@@ -191,6 +236,20 @@ function formatDuplicateErrors(scopeLabel: string, duplicatePaths: Map<string, s
   });
 }
 
+function formatIgnoredRows(title: string, rows: VerifyIgnoredRow[]): string {
+  if (rows.length === 0) {
+    return `## ${title}\n\nNone.`;
+  }
+
+  return [
+    `## ${title}`,
+    '',
+    '| Vault file | Expected external folder | Actual external folder | UUID |',
+    '| --- | --- | --- | --- |',
+    ...rows.map((row) => `| ${row.notePath} | ${row.expectedExternalFolder} | ${row.actualExternalFolder ?? '-'} | ${row.uuid} |`)
+  ].join('\n');
+}
+
 function formatMarkdownList(title: string, items: string[]): string {
   if (items.length === 0) {
     return `## ${title}\n\nNone.`;
@@ -219,6 +278,14 @@ function formatVerifyRows(title: string, rows: VerifyTableRow[]): string {
 
 function sortEntries<T>(map: Map<string, T>): [string, T][] {
   return [...map.entries()].sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey));
+}
+
+function sortIgnoredRows(rows: VerifyIgnoredRow[]): VerifyIgnoredRow[] {
+  return rows.sort((left, right) => {
+    const leftKey = `${left.notePath}\0${left.expectedExternalFolder}\0${left.actualExternalFolder ?? ''}\0${left.uuid}`;
+    const rightKey = `${right.notePath}\0${right.expectedExternalFolder}\0${right.actualExternalFolder ?? ''}\0${right.uuid}`;
+    return leftKey.localeCompare(rightKey);
+  });
 }
 
 function sortRows(rows: VerifyTableRow[]): VerifyTableRow[] {
