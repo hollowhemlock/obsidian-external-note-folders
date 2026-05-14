@@ -373,6 +373,34 @@ describe('adoption plan', () => {
     expect(plan.rows.filter((row) => row.kind === 'unmatched-external-folder')).toEqual([]);
   });
 
+  it('does not report descendants of marked folders as unmatched', () => {
+    const markedFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
+    const childFolderPath = path.join(markedFolderPath, 'Research');
+    const unrelatedFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Beta');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        bindings: new Map([[EXISTING_UUID, markedFolderPath]]),
+        directories: [
+          markedFolderPath,
+          childFolderPath,
+          path.join(childFolderPath, 'Images'),
+          unrelatedFolderPath
+        ]
+      }),
+      mutationSequence: 0,
+      notePaths: [],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(plan.rows.filter((row) => row.kind === 'unmatched-external-folder')).toEqual([
+      {
+        externalFolder: 'Projects/Beta',
+        folderPath: unrelatedFolderPath,
+        kind: 'unmatched-external-folder'
+      }
+    ]);
+  });
+
   it('reports notes that cannot derive an external path as blocked rows', () => {
     const plan = buildAdoptionPlan({
       externalScan: buildExternalScan(),

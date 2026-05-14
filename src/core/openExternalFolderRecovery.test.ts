@@ -71,6 +71,35 @@ describe('open external folder recovery plan', () => {
     expect(plan.canCreateExpected).toBe(false);
   });
 
+  it('blocks auto-open when fallback scan has global errors', () => {
+    const externalRootPath = path.resolve('external-root');
+    const actualFolderPath = path.join(externalRootPath, 'Projects', 'Old Alpha');
+    const plan = buildOpenExternalFolderRecoveryPlan({
+      expectedState: {
+        folderPath: path.join(externalRootPath, 'Projects', 'Alpha'),
+        kind: 'missing'
+      },
+      externalScan: buildExternalScan({
+        bindings: new Map([[UUID, actualFolderPath]]),
+        directories: [actualFolderPath],
+        ignoreErrors: [{
+          message: 'Negation patterns are not supported.',
+          pattern: '!Archive/'
+        }],
+        rootPath: externalRootPath
+      }),
+      notePath: 'Projects/Alpha.md',
+      uuid: UUID,
+      vaultScan: buildVaultScan()
+    });
+
+    expect(plan.autoOpenFolderPath).toBeNull();
+    expect(plan.activeMatches).toHaveLength(1);
+    expect(plan.errors).toEqual([
+      'Invalid external root ignore pattern !Archive/: Negation patterns are not supported.'
+    ]);
+  });
+
   it('classifies exact-name candidates by marker status and owner note', () => {
     const externalRootPath = path.resolve('external-root');
     const unmarkedFolderPath = path.join(externalRootPath, 'Archive', 'Alpha');

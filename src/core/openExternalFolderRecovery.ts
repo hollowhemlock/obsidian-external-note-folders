@@ -120,7 +120,9 @@ export function buildOpenExternalFolderRecoveryPlan(input: {
 
   return {
     activeMatches: sortedActiveMatches,
-    autoOpenFolderPath: sortedActiveMatches.length === 1 ? sortedActiveMatches[0]?.folderPath ?? null : null,
+    autoOpenFolderPath: errors.length === 0 && sortedActiveMatches.length === 1
+      ? sortedActiveMatches[0]?.folderPath ?? null
+      : null,
     canAdoptExpected: canOfferExpectedActions && input.expectedState.kind === 'unmarked',
     canCreateExpected: canOfferExpectedActions && input.expectedState.kind === 'missing',
     candidateRows: sortedCandidateRows,

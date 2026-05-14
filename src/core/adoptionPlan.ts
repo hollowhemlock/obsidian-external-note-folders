@@ -175,7 +175,6 @@ function buildAdoptionRows(
     markerIdentities: buildMarkerIdentities(externalScan),
     skippedDirectoryIdentities: externalScan.skippedDirectories.map((issue) => normalizePathForIdentity(issue.location))
   };
-  const markerParentIdentities = new Set(context.markerIdentities.map((markerIdentity) => markerIdentity.identity));
   const rows: AdoptionPlanRow[] = [...blockedRows];
 
   for (const noteCandidate of noteCandidates) {
@@ -285,7 +284,10 @@ function buildAdoptionRows(
   }
 
   for (const directoryCandidate of directoryCandidates) {
-    if (noteCandidateIdentities.has(directoryCandidate.identity) || markerParentIdentities.has(directoryCandidate.identity)) {
+    if (
+      noteCandidateIdentities.has(directoryCandidate.identity)
+      || isInsideMarkedFolder(context.markerIdentities, directoryCandidate.identity)
+    ) {
       continue;
     }
 
@@ -525,6 +527,10 @@ function isPathInsideOrEqualIdentity(childIdentity: string, parentIdentity: stri
 
   const parentPrefix = normalizedParentIdentity.endsWith('/') ? normalizedParentIdentity : `${normalizedParentIdentity}/`;
   return normalizedChildIdentity.startsWith(parentPrefix);
+}
+
+function isInsideMarkedFolder(markerIdentities: readonly MarkerIdentity[], directoryIdentity: string): boolean {
+  return markerIdentities.some((markerIdentity) => isPathInsideOrEqualIdentity(directoryIdentity, markerIdentity.identity));
 }
 
 function sortEntries<T>(map: Map<string, T>): [string, T][] {
