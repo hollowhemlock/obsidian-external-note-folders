@@ -192,6 +192,102 @@ describe('adoption plan', () => {
     });
   });
 
+  it('blocks only the note whose target is inside an ancestor marker', () => {
+    const alphaFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
+    const betaFolderPath = path.join(EXTERNAL_ROOT, 'Other', 'Beta');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        bindings: new Map([[EXISTING_UUID, path.join(EXTERNAL_ROOT, 'Projects')]]),
+        directories: [alphaFolderPath, betaFolderPath]
+      }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md', 'Other/Beta.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(getAdoptionRows(plan)).toEqual([
+      {
+        externalFolder: 'Other/Beta',
+        folderPath: betaFolderPath,
+        kind: 'adopt',
+        notePath: 'Other/Beta.md'
+      }
+    ]);
+    expect(plan.rows).toContainEqual({
+      externalFolder: 'Projects/Alpha',
+      kind: 'blocked-note',
+      message: `Ancestor bound folder overlaps the derived external folder path: ${EXISTING_UUID}`,
+      notePath: 'Projects/Alpha.md',
+      reason: 'ancestor-bound-folder'
+    });
+  });
+
+  it('blocks only the note whose target contains a descendant marker', () => {
+    const alphaFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
+    const betaFolderPath = path.join(EXTERNAL_ROOT, 'Other', 'Beta');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        bindings: new Map([[EXISTING_UUID, path.join(EXTERNAL_ROOT, 'Projects', 'Alpha', 'Child')]]),
+        directories: [alphaFolderPath, betaFolderPath]
+      }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md', 'Other/Beta.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(getAdoptionRows(plan)).toEqual([
+      {
+        externalFolder: 'Other/Beta',
+        folderPath: betaFolderPath,
+        kind: 'adopt',
+        notePath: 'Other/Beta.md'
+      }
+    ]);
+    expect(plan.rows).toContainEqual({
+      externalFolder: 'Projects/Alpha',
+      kind: 'blocked-note',
+      message: `Descendant bound folder overlaps the derived external folder path: ${EXISTING_UUID}`,
+      notePath: 'Projects/Alpha.md',
+      reason: 'descendant-bound-folder'
+    });
+  });
+
+  it('blocks overlapping malformed marker topology conflicts', () => {
+    const alphaFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
+    const betaFolderPath = path.join(EXTERNAL_ROOT, 'Other', 'Beta');
+    const malformedMarkerPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha', 'Child', '.exnf');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        directories: [alphaFolderPath, betaFolderPath],
+        malformedMarkers: [
+          {
+            location: malformedMarkerPath,
+            message: 'Invalid marker'
+          }
+        ]
+      }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md', 'Other/Beta.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(getAdoptionRows(plan)).toEqual([
+      {
+        externalFolder: 'Other/Beta',
+        folderPath: betaFolderPath,
+        kind: 'adopt',
+        notePath: 'Other/Beta.md'
+      }
+    ]);
+    expect(plan.rows).toContainEqual({
+      externalFolder: 'Projects/Alpha',
+      kind: 'blocked-note',
+      message: `Descendant bound folder overlaps the derived external folder path: ${malformedMarkerPath}: Invalid marker`,
+      notePath: 'Projects/Alpha.md',
+      reason: 'descendant-bound-folder'
+    });
+  });
+
   it('blocks notes whose derived target is ignored', () => {
     const folderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
     const plan = buildAdoptionPlan({
@@ -223,6 +319,33 @@ describe('adoption plan', () => {
     expect(plan.warnings).toEqual([
       'Ignored 1 external directory: Projects/Alpha'
     ]);
+  });
+
+  it('excludes all notes that already have duplicate vault identities', () => {
+    const alphaFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
+    const betaFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Beta');
+    const gammaFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Gamma');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        directories: [alphaFolderPath, betaFolderPath, gammaFolderPath]
+      }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md', 'Projects/Beta.md', 'Projects/Gamma.md'],
+      vaultScan: buildVaultScan({
+        bindings: new Map([[EXISTING_UUID, 'Projects/Alpha.md']]),
+        duplicatePaths: new Map([[EXISTING_UUID, ['Projects/Alpha.md', 'Projects/Beta.md']]])
+      })
+    });
+
+    expect(getAdoptionRows(plan)).toEqual([
+      {
+        externalFolder: 'Projects/Gamma',
+        folderPath: gammaFolderPath,
+        kind: 'adopt',
+        notePath: 'Projects/Gamma.md'
+      }
+    ]);
+    expect(plan.warnings).toContain(`Vault UUID ${EXISTING_UUID} is duplicated at: Projects/Alpha.md, Projects/Beta.md`);
   });
 
   it('reports duplicate note targets without adopting either note', () => {

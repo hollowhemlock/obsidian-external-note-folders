@@ -42,8 +42,9 @@ unrelated root state to silently affect identity writes.
 
 Bulk adoption no longer requires the entire external root to be pristine.
 Instead, adoption is permitted when each adopted row is locally coherent at
-preflight time: the note has no valid or invalid `exnf`, the derived target is
-exact and unique, the target is discovered, unignored, unskipped, unmarked, not
+preflight time: the note does not appear in the vault identity scan, including
+duplicate UUID paths, and has no invalid `exnf`; the derived target is exact and
+unique; and the target is discovered, unignored, unskipped, unmarked, not
 malformed, and not already bound. Unrelated root state is reported as warnings
 or blocked rows but does not suppress safe rows.
 
@@ -87,11 +88,14 @@ does not expose that information directly.
 
 ### Adoption Row Policy
 
-- Existing note identities are warnings and excluded from adoption.
-- Existing external markers are warnings unless they are on a candidate target;
-  candidate targets with existing markers block only that note.
-- Malformed markers are warnings unless they are on a candidate target;
-  candidate targets with malformed markers block only that note.
+- Existing note identities, including duplicate UUID note paths, are warnings
+  and excluded from adoption.
+- Existing external markers are warnings unless they overlap a candidate target;
+  candidate targets with exact, ancestor, or descendant markers block only that
+  note.
+- Malformed markers are warnings unless they overlap a candidate target;
+  candidate targets with exact, ancestor, or descendant malformed markers block
+  only that note.
 - Skipped directories are warnings unless the note's target is inside a skipped
   subtree; that note is blocked.
 - Ignored target paths block the affected note with an ignored-target message.

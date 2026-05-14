@@ -24,7 +24,7 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 
 - `Assign external folder identifier`: Adds an `exnf` UUID to the active markdown note if one is missing. It never creates or changes external folders.
 - `Open external folder`: Requires an existing valid `exnf` UUID and never assigns note identity. It opens the expected folder immediately when its `.exnf` marker matches; otherwise it runs an active-note recovery scan for fallback cases where the expected folder is missing, unmarked, malformed, or bound to another UUID.
-- `Adopt existing external folders`: Builds a dry-run plan for exact one-to-one derived-path matches and, after confirmation, writes `.exnf` markers first and note frontmatter second. Unrelated existing identities and markers are warnings; only unsafe rows or root-level scan problems block execution.
+- `Adopt existing external folders`: Builds a dry-run plan for exact one-to-one derived-path matches from notes that do not already have `exnf` identity and, after confirmation, writes `.exnf` markers first and note frontmatter second. Unrelated existing identities and markers are warnings; only unsafe rows or root-level scan problems block execution.
 - `Report external folder drift`: Read-only report that compares current note-derived external folder paths against existing external folders, highlights integrity errors, missing/orphaned/unexpected/occupied paths, and suggests likely matches.
 - `Reconcile external folders`: Builds a dry-run move plan and, only after explicit confirmation, moves existing bound external folders to their current note-derived paths. It never deletes folders or marker files and stops on first failure.
 

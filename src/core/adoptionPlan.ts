@@ -24,6 +24,8 @@ export interface AdoptionAdoptRow {
 }
 
 export type AdoptionBlockedNoteReason =
+  | 'ancestor-bound-folder'
+  | 'descendant-bound-folder'
   | 'derived-path-error'
   | 'duplicate-note-target'
   | 'duplicate-target-directory'
@@ -90,9 +92,14 @@ interface PlannerContext {
   directoryCandidatesByIdentity: Map<string, DirectoryCandidate[]>;
   externalScan: ExternalScanResult;
   ignoredTargetMatcher: ReturnType<typeof buildExternalRootIgnoreMatcher>;
-  malformedMarkerParentIdentities: Set<string>;
-  markerUuidsByFolderIdentity: Map<string, string[]>;
+  markerIdentities: MarkerIdentity[];
   skippedDirectoryIdentities: string[];
+}
+
+interface MarkerIdentity {
+  identity: string;
+  kind: 'malformed' | 'valid';
+  message: string;
 }
 
 export function buildAdoptionPlan(input: {
@@ -165,14 +172,10 @@ function buildAdoptionRows(
     directoryCandidatesByIdentity: groupByIdentity(directoryCandidates),
     externalScan,
     ignoredTargetMatcher: buildExternalRootIgnoreMatcher(externalScan.rootPath, externalScan.ignorePatterns),
-    malformedMarkerParentIdentities: new Set(externalScan.malformedMarkers.map((issue) => normalizePathForIdentity(getParentPath(issue.location)))),
-    markerUuidsByFolderIdentity: buildMarkerUuidsByFolderIdentity(externalScan),
+    markerIdentities: buildMarkerIdentities(externalScan),
     skippedDirectoryIdentities: externalScan.skippedDirectories.map((issue) => normalizePathForIdentity(issue.location))
   };
-  const markerParentIdentities = new Set([
-    ...context.markerUuidsByFolderIdentity.keys(),
-    ...context.malformedMarkerParentIdentities
-  ]);
+  const markerParentIdentities = new Set(context.markerIdentities.map((markerIdentity) => markerIdentity.identity));
   const rows: AdoptionPlanRow[] = [...blockedRows];
 
   for (const noteCandidate of noteCandidates) {
@@ -214,25 +217,40 @@ function buildAdoptionRows(
       continue;
     }
 
-    const markerUuids = context.markerUuidsByFolderIdentity.get(noteCandidate.identity);
-    if (markerUuids) {
+    const exactMarkerConflict = findExactMarkerConflict(context.markerIdentities, noteCandidate.identity);
+    if (exactMarkerConflict) {
       rows.push({
         externalFolder: noteCandidate.externalFolder,
         kind: 'blocked-note',
-        message: `Derived external folder path already has marker UUID(s): ${markerUuids.sort().join(', ')}`,
+        message: exactMarkerConflict.kind === 'valid'
+          ? `Derived external folder path already has marker UUID(s): ${exactMarkerConflict.message}`
+          : 'Derived external folder path contains a malformed marker.',
         notePath: noteCandidate.notePath,
-        reason: 'target-already-bound'
+        reason: exactMarkerConflict.kind === 'valid' ? 'target-already-bound' : 'target-has-malformed-marker'
       });
       continue;
     }
 
-    if (context.malformedMarkerParentIdentities.has(noteCandidate.identity)) {
+    const ancestorMarkerConflict = findAncestorMarkerConflict(context.markerIdentities, noteCandidate.identity);
+    if (ancestorMarkerConflict) {
       rows.push({
         externalFolder: noteCandidate.externalFolder,
         kind: 'blocked-note',
-        message: 'Derived external folder path contains a malformed marker.',
+        message: `Ancestor bound folder overlaps the derived external folder path: ${ancestorMarkerConflict.message}`,
         notePath: noteCandidate.notePath,
-        reason: 'target-has-malformed-marker'
+        reason: 'ancestor-bound-folder'
+      });
+      continue;
+    }
+
+    const descendantMarkerConflict = findDescendantMarkerConflict(context.markerIdentities, noteCandidate.identity);
+    if (descendantMarkerConflict) {
+      rows.push({
+        externalFolder: noteCandidate.externalFolder,
+        kind: 'blocked-note',
+        message: `Descendant bound folder overlaps the derived external folder path: ${descendantMarkerConflict.message}`,
+        notePath: noteCandidate.notePath,
+        reason: 'descendant-bound-folder'
       });
       continue;
     }
@@ -310,7 +328,7 @@ function buildMarkdownReport(input: {
   ].join('\n');
 }
 
-function buildMarkerUuidsByFolderIdentity(externalScan: ExternalScanResult): Map<string, string[]> {
+function buildMarkerIdentities(externalScan: ExternalScanResult): MarkerIdentity[] {
   const markerUuidsByFolderIdentity = new Map<string, string[]>();
   for (const [uuid, folderPath] of externalScan.bindings) {
     addMarkerUuid(markerUuidsByFolderIdentity, folderPath, uuid);
@@ -322,7 +340,18 @@ function buildMarkerUuidsByFolderIdentity(externalScan: ExternalScanResult): Map
     }
   }
 
-  return markerUuidsByFolderIdentity;
+  return [
+    ...sortEntries(markerUuidsByFolderIdentity).map(([identity, uuids]): MarkerIdentity => ({
+      identity,
+      kind: 'valid',
+      message: uuids.join(', ')
+    })),
+    ...externalScan.malformedMarkers.map((issue): MarkerIdentity => ({
+      identity: normalizePathForIdentity(getParentPath(issue.location)),
+      kind: 'malformed',
+      message: `${issue.location}: ${issue.message}`
+    }))
+  ];
 }
 
 function buildNoteCandidates(
@@ -332,7 +361,7 @@ function buildNoteCandidates(
 ): NoteCandidateBuildResult {
   const blockedRows: AdoptionBlockedNoteRow[] = [];
   const noteCandidates: NoteCandidate[] = [];
-  const existingIdentityNotePaths = new Set(vaultScan.bindings.values());
+  const existingIdentityNotePaths = buildExistingIdentityNotePaths(vaultScan);
   const invalidFrontmatterNotePaths = new Set(vaultScan.invalidFrontmatter.map((issue) => issue.location));
   for (const notePath of notePaths) {
     if (existingIdentityNotePaths.has(notePath) || invalidFrontmatterNotePaths.has(notePath)) {
@@ -362,6 +391,17 @@ function buildNoteCandidates(
     blockedRows,
     noteCandidates
   };
+}
+
+function buildExistingIdentityNotePaths(vaultScan: VaultScanResult): Set<string> {
+  const notePaths = new Set(vaultScan.bindings.values());
+  for (const duplicateNotePaths of vaultScan.duplicatePaths.values()) {
+    for (const notePath of duplicateNotePaths) {
+      notePaths.add(notePath);
+    }
+  }
+
+  return notePaths;
 }
 
 function buildSummaryText(errors: readonly string[], warnings: readonly string[], rows: readonly AdoptionPlanRow[]): string {
@@ -433,6 +473,24 @@ function formatRows(title: string, rows: readonly AdoptionPlanRow[]): string {
       return `| ${formatMarkdownCell(row.kind)} | ${formatMarkdownCell(notePath)} | ${formatMarkdownCell(externalFolder)} | ${formatMarkdownCell(message)} |`;
     })
   ].join('\n');
+}
+
+function findAncestorMarkerConflict(markerIdentities: readonly MarkerIdentity[], targetIdentity: string): MarkerIdentity | null {
+  return markerIdentities.find((markerIdentity) =>
+    markerIdentity.identity !== targetIdentity
+    && isPathInsideOrEqualIdentity(targetIdentity, markerIdentity.identity)
+  ) ?? null;
+}
+
+function findDescendantMarkerConflict(markerIdentities: readonly MarkerIdentity[], targetIdentity: string): MarkerIdentity | null {
+  return markerIdentities.find((markerIdentity) =>
+    markerIdentity.identity !== targetIdentity
+    && isPathInsideOrEqualIdentity(markerIdentity.identity, targetIdentity)
+  ) ?? null;
+}
+
+function findExactMarkerConflict(markerIdentities: readonly MarkerIdentity[], targetIdentity: string): MarkerIdentity | null {
+  return markerIdentities.find((markerIdentity) => markerIdentity.identity === targetIdentity) ?? null;
 }
 
 function getParentPath(inputPath: string): string {

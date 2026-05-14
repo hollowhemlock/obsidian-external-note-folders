@@ -32,6 +32,8 @@ for mixed external roots.
   ignore settings are global blockers; unrelated existing identities, markers,
   malformed markers, skipped directories, and ignored directories are reported
   as warnings.
+- Notes that already appear in the vault identity scan, including duplicate UUID
+  note paths, are not adoption candidates.
 - Blocked rows still show cleanup details; safe unrelated rows can execute.
 - Adoptable rows are exact one-to-one matches between note-derived external
   paths and existing external directories. Folder-note collapse applies, so
@@ -40,8 +42,8 @@ for mixed external roots.
 - Collisions, duplicate normalized folder identities, unmatched notes, and
   unmatched folders are reported but not adopted.
 - Candidate targets are blocked when they are ignored, inside skipped
-  directories, marked, malformed, already bound, or duplicated by normalized path
-  identity.
+  directories, marked, malformed, already bound, overlapped by ancestor or
+  descendant marker evidence, or duplicated by normalized path identity.
 - Apply re-runs preflight, generates one UUID per adopted row, journals each row,
   writes `.exnf` first, writes note frontmatter second, and stops on first
   failure.
