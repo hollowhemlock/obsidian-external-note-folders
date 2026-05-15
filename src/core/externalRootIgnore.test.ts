@@ -58,7 +58,7 @@ describe('external root ignore patterns', () => {
     ]);
   });
 
-  it('matches directory-only patterns only when callers pass directory paths', () => {
+  it('matches paths under directory-only patterns', () => {
     const matcher = buildExternalRootIgnoreMatcher(path.resolve('external-root'), ['Projects/Ignored/']);
 
     expect(matcher.ignoresRelativeDirectoryPath('Projects/Ignored')).toBe(true);

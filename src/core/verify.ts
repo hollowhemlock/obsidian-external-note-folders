@@ -148,15 +148,16 @@ export function buildVerifyReport(
     `${String(unavailable.length)} unavailable`,
     `${String(ok.length)} ok`
   ].join(', ');
+  const sortedIgnoredRows = sortIgnoredRows(ignoredRows);
 
   return {
     classificationOmitted,
     errors,
     hasIntegrityErrors: errors.length > 0,
-    ignoredRows: sortIgnoredRows(ignoredRows),
+    ignoredRows: sortedIgnoredRows,
     markdownReport: buildMarkdownReport({
       errors,
-      ignoredRows: sortIgnoredRows(ignoredRows),
+      ignoredRows: sortedIgnoredRows,
       okRows: sortRows(okRows),
       summaryText,
       unavailableRows: sortRows(unavailableRows),
