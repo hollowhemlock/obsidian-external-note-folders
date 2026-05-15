@@ -25,8 +25,8 @@ export interface AdoptionAdoptRow {
 
 export type AdoptionBlockedNoteReason =
   | 'ancestor-bound-folder'
-  | 'descendant-bound-folder'
   | 'derived-path-error'
+  | 'descendant-bound-folder'
   | 'duplicate-note-target'
   | 'duplicate-target-directory'
   | 'ignored-target'
@@ -76,6 +76,12 @@ interface DirectoryCandidate {
   identity: string;
 }
 
+interface MarkerIdentity {
+  identity: string;
+  kind: 'malformed' | 'valid';
+  message: string;
+}
+
 interface NoteCandidate {
   externalFolder: string;
   folderPath: string;
@@ -94,12 +100,6 @@ interface PlannerContext {
   ignoredTargetMatcher: ReturnType<typeof buildExternalRootIgnoreMatcher>;
   markerIdentities: MarkerIdentity[];
   skippedDirectoryIdentities: string[];
-}
-
-interface MarkerIdentity {
-  identity: string;
-  kind: 'malformed' | 'valid';
-  message: string;
 }
 
 export function buildAdoptionPlan(input: {
@@ -301,6 +301,17 @@ function buildAdoptionRows(
   return rows;
 }
 
+function buildExistingIdentityNotePaths(vaultScan: VaultScanResult): Set<string> {
+  const notePaths = new Set(vaultScan.bindings.values());
+  for (const duplicateNotePaths of vaultScan.duplicatePaths.values()) {
+    for (const notePath of duplicateNotePaths) {
+      notePaths.add(notePath);
+    }
+  }
+
+  return notePaths;
+}
+
 function buildGlobalErrors(externalScan: ExternalScanResult): string[] {
   return [
     ...externalScan.accessErrors
@@ -395,17 +406,6 @@ function buildNoteCandidates(
   };
 }
 
-function buildExistingIdentityNotePaths(vaultScan: VaultScanResult): Set<string> {
-  const notePaths = new Set(vaultScan.bindings.values());
-  for (const duplicateNotePaths of vaultScan.duplicatePaths.values()) {
-    for (const notePath of duplicateNotePaths) {
-      notePaths.add(notePath);
-    }
-  }
-
-  return notePaths;
-}
-
 function buildSummaryText(errors: readonly string[], warnings: readonly string[], rows: readonly AdoptionPlanRow[]): string {
   return [
     `${String(errors.length)} error(s)`,
@@ -433,6 +433,24 @@ function buildWarnings(vaultScan: VaultScanResult, externalScan: ExternalScanRes
     ...externalScan.malformedMarkers
       .map((issue) => `Malformed marker at ${issue.location}: ${issue.message}`)
   ].sort();
+}
+
+function findAncestorMarkerConflict(markerIdentities: readonly MarkerIdentity[], targetIdentity: string): MarkerIdentity | null {
+  return markerIdentities.find((markerIdentity) =>
+    markerIdentity.identity !== targetIdentity
+    && isPathInsideOrEqualIdentity(targetIdentity, markerIdentity.identity)
+  ) ?? null;
+}
+
+function findDescendantMarkerConflict(markerIdentities: readonly MarkerIdentity[], targetIdentity: string): MarkerIdentity | null {
+  return markerIdentities.find((markerIdentity) =>
+    markerIdentity.identity !== targetIdentity
+    && isPathInsideOrEqualIdentity(markerIdentity.identity, targetIdentity)
+  ) ?? null;
+}
+
+function findExactMarkerConflict(markerIdentities: readonly MarkerIdentity[], targetIdentity: string): MarkerIdentity | null {
+  return markerIdentities.find((markerIdentity) => markerIdentity.identity === targetIdentity) ?? null;
 }
 
 function formatDuplicateWarnings(scopeLabel: string, duplicatePaths: Map<string, string[]>): string[] {
@@ -477,24 +495,6 @@ function formatRows(title: string, rows: readonly AdoptionPlanRow[]): string {
   ].join('\n');
 }
 
-function findAncestorMarkerConflict(markerIdentities: readonly MarkerIdentity[], targetIdentity: string): MarkerIdentity | null {
-  return markerIdentities.find((markerIdentity) =>
-    markerIdentity.identity !== targetIdentity
-    && isPathInsideOrEqualIdentity(targetIdentity, markerIdentity.identity)
-  ) ?? null;
-}
-
-function findDescendantMarkerConflict(markerIdentities: readonly MarkerIdentity[], targetIdentity: string): MarkerIdentity | null {
-  return markerIdentities.find((markerIdentity) =>
-    markerIdentity.identity !== targetIdentity
-    && isPathInsideOrEqualIdentity(markerIdentity.identity, targetIdentity)
-  ) ?? null;
-}
-
-function findExactMarkerConflict(markerIdentities: readonly MarkerIdentity[], targetIdentity: string): MarkerIdentity | null {
-  return markerIdentities.find((markerIdentity) => markerIdentity.identity === targetIdentity) ?? null;
-}
-
 function getParentPath(inputPath: string): string {
   const normalizedPath = normalizeDisplayPath(inputPath);
   const lastSeparatorIndex = normalizedPath.lastIndexOf('/');
@@ -518,6 +518,10 @@ function groupByIdentity<T extends { identity: string }>(items: readonly T[]): M
   return groups;
 }
 
+function isInsideMarkedFolder(markerIdentities: readonly MarkerIdentity[], directoryIdentity: string): boolean {
+  return markerIdentities.some((markerIdentity) => isPathInsideOrEqualIdentity(directoryIdentity, markerIdentity.identity));
+}
+
 function isPathInsideOrEqualIdentity(childIdentity: string, parentIdentity: string): boolean {
   const normalizedChildIdentity = normalizeDisplayPath(childIdentity);
   const normalizedParentIdentity = normalizeDisplayPath(parentIdentity);
@@ -527,10 +531,6 @@ function isPathInsideOrEqualIdentity(childIdentity: string, parentIdentity: stri
 
   const parentPrefix = normalizedParentIdentity.endsWith('/') ? normalizedParentIdentity : `${normalizedParentIdentity}/`;
   return normalizedChildIdentity.startsWith(parentPrefix);
-}
-
-function isInsideMarkedFolder(markerIdentities: readonly MarkerIdentity[], directoryIdentity: string): boolean {
-  return markerIdentities.some((markerIdentity) => isPathInsideOrEqualIdentity(directoryIdentity, markerIdentity.identity));
 }
 
 function sortEntries<T>(map: Map<string, T>): [string, T][] {

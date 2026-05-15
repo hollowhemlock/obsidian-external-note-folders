@@ -76,6 +76,11 @@ export class OpenRecoveryModal extends Modal {
     rowEl.createEl('td', { text: row.uuid });
     const actionEl = rowEl.createEl('td');
 
+    if (this.input.plan.errors.length > 0) {
+      actionEl.createSpan({ text: 'Resolve recovery errors before opening.' });
+      return;
+    }
+
     if (this.input.plan.activeMatches.length !== 1) {
       actionEl.createSpan({ text: 'Resolve duplicates before opening.' });
       return;
