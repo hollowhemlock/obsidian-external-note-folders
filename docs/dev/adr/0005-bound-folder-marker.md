@@ -1,10 +1,15 @@
 ---
-status: "Accepted"
+status: "Superseded"
 date: "2026-02-14"
 decision-makers: "Maintainers"
+superseded_by: "ADR-0027"
 ---
 
 # Bound Folders Are Defined by a Root Marker File (`.exnf`)
+
+Superseded by [ADR-0027](0027-uuid-named-marker-files.md) for the 2.0.0 marker
+filename contract. The per-folder marker principle remains, but the fixed
+`.exnf` filename is replaced by UUID-named marker files after migration.
 
 ## Context and Problem Statement
 

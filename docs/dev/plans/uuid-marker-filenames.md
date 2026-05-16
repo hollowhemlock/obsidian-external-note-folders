@@ -5,25 +5,26 @@ Status: Working notes (pre-ADR)
 Scope: Marker filename scheme, concurrent UUID assignment, and related drift
 model implications.
 
-> This document is working design material, not an accepted ADR. Current
-> accepted behavior remains fixed `.exnf` marker files as described by
-> [ADR-0005](../adr/0005-bound-folder-marker-files.md) and
-> [ADR-0014](../adr/0014-exnf-marker-format.md). Implementing this proposal
-> would require superseding or amending those ADRs.
+> This document is historical working design material. The accepted follow-up is
+> [ADR-0027](../adr/0027-uuid-named-marker-files.md). Current implementation
+> still reads and writes fixed `.exnf` marker files until ADR-0027 is
+> implemented.
 >
-> If accepted, the marker filename change is a breaking marker-contract change
-> and should target a `2.0.0` release. Fixed `.exnf` markers would be deprecated
-> in favor of `<uuid>.exnf`; this document does not bump package or manifest
-> versions.
+> ADR-0027 treats the marker filename change as a breaking marker-contract
+> change targeting a future `2.0.0` release. Fixed `.exnf` markers are
+> deprecated in favor of `<uuid>.exnf`; this document does not bump package or
+> manifest versions.
 
 ## Related Decisions
 
-- [ADR-0005](../adr/0005-bound-folder-marker-files.md) defines the current
+- [ADR-0005](../adr/0005-bound-folder-marker.md) defines the current
   fixed `.exnf` marker-file discovery model.
-- [ADR-0014](../adr/0014-exnf-marker-format.md) defines the current `.exnf`
-  marker-file format and validation rules.
-- [ADR-0013](../adr/0013-path-identity-and-filesystem-boundaries.md) defines
+- [ADR-0014](../adr/0014-exnf-marker-format-and-validation.md) defines the
+  current `.exnf` marker-file format and validation rules.
+- [ADR-0013](../adr/0013-filesystem-boundary-and-path-identity.md) defines
   path identity and filesystem boundary handling.
+- [ADR-0027](../adr/0027-uuid-named-marker-files.md) accepts the UUID-named
+  marker filename contract for the future 2.0.0 implementation.
 - [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) defines
   active-note recovery scan behavior.
 - [ADR-0026](../adr/0026-safe-partial-exact-adoption-with-ignore-patterns.md)
@@ -105,15 +106,16 @@ be destructive at the marker-discovery layer. A sync-conflict rename can move
 the useful marker content into a filename that the plugin does not consider
 canonical.
 
-## Proposed Decision Under Review: `<uuid>.exnf` Marker Filenames
+## Proposal Captured by ADR-0027: `<uuid>.exnf` Marker Filenames
 
 Rename the marker file from a fixed `.exnf` to `<uuid>.exnf`, for example
 `550e8400-e29b-41d4-a716-446655440000.exnf`, where the UUID in the filename
 matches the UUID written inside the file and in the note's `exnf` frontmatter.
 
-This is a proposal only. Current implementation still reads and writes fixed
-`.exnf` marker files. If adopted, fixed `.exnf` markers should be treated as a
-deprecated legacy format during migration, not as the long-term marker contract.
+Current implementation still reads and writes fixed `.exnf` marker files.
+ADR-0027 accepts `<uuid>.exnf` as the future marker contract. Fixed `.exnf`
+markers are treated as deprecated legacy markers during migration, not as the
+long-term marker contract.
 
 ### Properties
 

@@ -1,10 +1,15 @@
 ---
-status: "Accepted"
+status: "Superseded"
 date: "2026-02-19"
 decision-makers: "Maintainers"
+superseded_by: "ADR-0027"
 ---
 
 # `.exnf` Marker Format and Validation Contract
+
+Superseded by [ADR-0027](0027-uuid-named-marker-files.md) for the 2.0.0 marker
+filename contract. The strict single-line UUID payload validation remains, but
+the canonical marker filename changes from `.exnf` to `<uuid>.exnf`.
 
 ## Context and Problem Statement
 
