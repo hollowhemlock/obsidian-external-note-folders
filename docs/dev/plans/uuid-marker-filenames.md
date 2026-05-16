@@ -1,7 +1,7 @@
 # UUID Marker Filename Design Notes
 
 Date: 2026-05-15
-Status: Working notes (pre-ADR)
+Status: Historical working notes; accepted follow-up is ADR-0027
 Scope: Marker filename scheme, concurrent UUID assignment, and related drift
 model implications.
 
@@ -27,7 +27,7 @@ model implications.
   marker filename contract for the future 2.0.0 implementation.
 - [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) defines
   active-note recovery scan behavior.
-- [ADR-0026](../adr/0026-safe-partial-exact-adoption-with-ignore-patterns.md)
+- [ADR-0026](../adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md)
   defines partial exact adoption and external-root ignore behavior.
 
 ## Context

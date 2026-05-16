@@ -56,6 +56,9 @@ implemented. This ADR does not itself bump package or manifest versions.
   UTF-8, exact canonical lowercase UUID, writer emits trailing `\n`, parser
   accepts one optional trailing `\n`, and rejects BOM, `\r\n`, `\r`, extra
   content, extra lines, or non-canonical UUIDs.
+- The marker payload schema remains implicit `v1`. Future payload schema
+  changes require explicit migration handling and an ADR or accepted update to
+  this ADR.
 - The filename UUID and payload UUID must match. A mismatch is a malformed
   marker and blocks mutation involving that folder.
 - The note's `exnf` frontmatter UUID remains authoritative for selecting the
@@ -194,4 +197,3 @@ Implementation is in line with this ADR when tests prove:
 - [ADR-0014](0014-exnf-marker-format-and-validation.md)
 - [ADR-0025](0025-active-note-open-recovery-scan.md)
 - [ADR-0026](0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md)
-
