@@ -7,6 +7,7 @@ import {
   normalizeDisplayPath,
   toExternalRelativeDisplayPath
 } from './displayPath.ts';
+import { buildExternalRootIgnoreMatcher } from './externalRootIgnore.ts';
 import {
   deriveExternalFolderPath,
   normalizePathForIdentity
@@ -37,6 +38,7 @@ export type ReconcileConflictReason =
   | 'source-outside-root'
   | 'target-bound-to-different-uuid'
   | 'target-has-malformed-marker'
+  | 'target-ignored'
   | 'target-outside-root'
   | 'target-unmarked-occupied';
 
@@ -100,6 +102,7 @@ interface PlannerContext {
   bindingUuidsByIdentity: Map<string, string>;
   directoryIdentities: Set<string>;
   externalScan: ExternalScanResult;
+  ignoreMatcher: ReturnType<typeof buildExternalRootIgnoreMatcher>;
   malformedMarkerParentIdentities: Set<string>;
   rootIdentity: string;
 }
@@ -193,6 +196,7 @@ function buildPlannerContext(externalScan: ExternalScanResult): PlannerContext {
     bindingUuidsByIdentity: buildBindingUuidsByIdentity(externalScan.bindings),
     directoryIdentities: new Set(externalScan.directories.map((directoryPath) => normalizePathForIdentity(directoryPath))),
     externalScan,
+    ignoreMatcher: buildExternalRootIgnoreMatcher(externalScan.rootPath, externalScan.ignorePatterns),
     malformedMarkerParentIdentities: new Set(externalScan.malformedMarkers.map((issue) => normalizePathForIdentity(getParentPath(issue.location)))),
     rootIdentity: normalizePathForIdentity(externalScan.rootPath)
   };
@@ -218,8 +222,22 @@ function buildVaultRow(input: {
   const targetPath = deriveExternalFolderPath(input.notePath, input.context.externalScan.rootPath);
   const targetExternalFolder = toExternalRelativeDisplayPath(input.context.externalScan.rootPath, targetPath);
   const sourcePath = input.context.externalScan.bindings.get(input.uuid);
+  const currentExternalFolder = sourcePath
+    ? toExternalRelativeDisplayPath(input.context.externalScan.rootPath, sourcePath)
+    : null;
 
-  if (!sourcePath) {
+  if (input.context.ignoreMatcher.ignoresAbsoluteDirectoryPath(targetPath)) {
+    return buildConflict({
+      currentExternalFolder,
+      message: 'Target folder is ignored by external root ignore patterns.',
+      notePath: input.notePath,
+      reason: 'target-ignored',
+      targetExternalFolder,
+      uuid: input.uuid
+    });
+  }
+
+  if (!sourcePath || currentExternalFolder === null) {
     return {
       kind: 'unavailable',
       notePath: input.notePath,
@@ -228,7 +246,6 @@ function buildVaultRow(input: {
     };
   }
 
-  const currentExternalFolder = toExternalRelativeDisplayPath(input.context.externalScan.rootPath, sourcePath);
   if (!isWithinRoot(input.context.externalScan.rootPath, sourcePath)) {
     return buildConflict({
       currentExternalFolder,

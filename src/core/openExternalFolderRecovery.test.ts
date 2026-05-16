@@ -71,6 +71,35 @@ describe('open external folder recovery plan', () => {
     expect(plan.canCreateExpected).toBe(false);
   });
 
+  it('blocks auto-open when fallback scan has global errors', () => {
+    const externalRootPath = path.resolve('external-root');
+    const actualFolderPath = path.join(externalRootPath, 'Projects', 'Old Alpha');
+    const plan = buildOpenExternalFolderRecoveryPlan({
+      expectedState: {
+        folderPath: path.join(externalRootPath, 'Projects', 'Alpha'),
+        kind: 'missing'
+      },
+      externalScan: buildExternalScan({
+        bindings: new Map([[UUID, actualFolderPath]]),
+        directories: [actualFolderPath],
+        ignoreErrors: [{
+          message: 'Negation patterns are not supported.',
+          pattern: '!Archive/'
+        }],
+        rootPath: externalRootPath
+      }),
+      notePath: 'Projects/Alpha.md',
+      uuid: UUID,
+      vaultScan: buildVaultScan()
+    });
+
+    expect(plan.autoOpenFolderPath).toBeNull();
+    expect(plan.activeMatches).toHaveLength(1);
+    expect(plan.errors).toEqual([
+      'Invalid external root ignore pattern !Archive/: Negation patterns are not supported.'
+    ]);
+  });
+
   it('classifies exact-name candidates by marker status and owner note', () => {
     const externalRootPath = path.resolve('external-root');
     const unmarkedFolderPath = path.join(externalRootPath, 'Archive', 'Alpha');
@@ -194,6 +223,36 @@ describe('open external folder recovery plan', () => {
       `Skipped external directory at ${path.join(externalRootPath, '.tmp')}: EPERM`
     ]);
   });
+
+  it('does not use ignored folders as marker evidence for fallback recovery', () => {
+    const externalRootPath = path.resolve('external-root');
+    const ignoredFolderPath = path.join(externalRootPath, 'Archive', 'Alpha');
+    const plan = buildOpenExternalFolderRecoveryPlan({
+      expectedState: {
+        folderPath: path.join(externalRootPath, 'Projects', 'Alpha'),
+        kind: 'missing'
+      },
+      externalScan: buildExternalScan({
+        ignoredDirectories: [
+          {
+            folderPath: ignoredFolderPath,
+            relativePath: 'Archive/Alpha'
+          }
+        ],
+        ignorePatterns: ['Archive/'],
+        rootPath: externalRootPath
+      }),
+      notePath: 'Projects/Alpha.md',
+      uuid: UUID,
+      vaultScan: buildVaultScan()
+    });
+
+    expect(plan.activeMatches).toEqual([]);
+    expect(plan.candidateRows).toEqual([]);
+    expect(plan.warnings).toEqual([
+      'Ignored 1 external directory: Archive/Alpha'
+    ]);
+  });
 });
 
 function buildExternalScan(input: Partial<ExternalScanResult> = {}): ExternalScanResult {
@@ -202,6 +261,9 @@ function buildExternalScan(input: Partial<ExternalScanResult> = {}): ExternalSca
     bindings: new Map(),
     directories: [],
     duplicatePaths: new Map(),
+    ignoredDirectories: [],
+    ignoreErrors: [],
+    ignorePatterns: [],
     malformedMarkers: [],
     rootPath: path.resolve('external-root'),
     skippedDirectories: [],

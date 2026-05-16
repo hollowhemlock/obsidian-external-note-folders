@@ -175,7 +175,9 @@ export class Plugin extends ObsidianPlugin {
 
   private async collectScanContext(): Promise<ScanContext> {
     const vaultScan = scanVault(this.app);
-    const externalScan = await scanExternalRoot(this.settings.externalRootPath);
+    const externalScan = await scanExternalRoot(this.settings.externalRootPath, {
+      ignorePatterns: this.settings.externalRootIgnorePatterns
+    });
     const verifyReport = buildVerifyReport(vaultScan, externalScan);
     this.logScanWarnings(verifyReport.warnings);
 
@@ -244,9 +246,14 @@ export class Plugin extends ObsidianPlugin {
 
   private async loadSettings(): Promise<void> {
     const loadedData = (await this.loadData()) as null | Partial<PluginSettings>;
+    const externalRootIgnorePatterns = Array.isArray(loadedData?.externalRootIgnorePatterns)
+      ? loadedData.externalRootIgnorePatterns
+        .filter((pattern): pattern is string => typeof pattern === 'string')
+      : DEFAULT_SETTINGS.externalRootIgnorePatterns;
     this.settings = {
       ...DEFAULT_SETTINGS,
-      ...loadedData
+      ...loadedData,
+      externalRootIgnorePatterns
     };
   }
 
@@ -615,7 +622,9 @@ export class Plugin extends ObsidianPlugin {
 
       if (initialAction.kind === 'run-recovery') {
         const vaultScan = scanVault(this.app);
-        const externalScan = await scanExternalRoot(externalRootPath);
+        const externalScan = await scanExternalRoot(externalRootPath, {
+          ignorePatterns: this.settings.externalRootIgnorePatterns
+        });
         const plan = buildOpenExternalFolderRecoveryPlan({
           expectedState: initialAction.expectedState,
           externalScan,

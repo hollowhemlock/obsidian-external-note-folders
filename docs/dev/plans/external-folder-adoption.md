@@ -5,7 +5,7 @@
 Implement external-root adoption in two PRs. PR 1 makes `Open external folder`
 safer by requiring explicit note identity and explicit marker adoption for
 already-populated expected folders. PR 2 adds strict, exact-match bulk adoption
-for pristine external roots.
+for mixed external roots.
 
 ## PR 1: Safer Open External Folder
 
@@ -28,28 +28,50 @@ for pristine external roots.
 
 - Add an `Adopt existing external folders` command with dry-run, copyable
   report, and explicit confirm.
-- Normal execution requires pristine identity state: no note `exnf`, no external
-  `.exnf`, no malformed markers, no duplicate UUIDs, no root access errors, and
-  no skipped directories.
-- Blocked plans still show cleanup details; execution is disabled.
+- Whole-root pristine state is not required. Root-level scan failures and invalid
+  ignore settings are global blockers; unrelated existing identities, markers,
+  malformed markers, skipped directories, and ignored directories are reported
+  as warnings.
+- Notes that already appear in the vault identity scan, including duplicate UUID
+  note paths, are not adoption candidates.
+- Blocked rows still show cleanup details; safe unrelated rows can execute.
 - Adoptable rows are exact one-to-one matches between note-derived external
   paths and existing external directories. Folder-note collapse applies, so
   `A/B/B.md` matches external folder `A/B`.
 - No suffix, basename, or fuzzy tree-tail inference is used.
 - Collisions, duplicate normalized folder identities, unmatched notes, and
   unmatched folders are reported but not adopted.
+- Candidate targets are blocked when they are ignored, inside skipped
+  directories, marked, malformed, already bound, overlapped by ancestor or
+  descendant marker evidence, or duplicated by normalized path identity.
 - Apply re-runs preflight, generates one UUID per adopted row, journals each row,
   writes `.exnf` first, writes note frontmatter second, and stops on first
   failure.
 - Resume is allowed only from adoption-owned incomplete journals whose recorded
   state still matches the current vault and external root.
 
+## External Root Ignore Contract
+
+- Ignore patterns are user-configured and default to empty.
+- Patterns are slash-normalized and matched relative to the canonical external
+  root.
+- A single leading `/` is root-anchored relative to the external root, not a
+  filesystem-absolute path.
+- Windows drive paths and UNC paths are rejected.
+- `!` negation is rejected in v1.
+- Directory pruning happens before descendant `readdir`, so ignored temp folders
+  do not produce EPERM warnings and markers inside ignored subtrees are
+  invisible to adoption, verify, drift, reconcile, and open recovery fallback
+  scans.
+- Existing note identities whose expected folder is ignored are reported as
+  ignored/unchecked, not missing or healthy.
+
 ## Adoption Journal Contract
 
 - Adoption journals live under the existing plugin journal root in an
   `adoption/` subdirectory.
 - Journals are append-only audit history, not source of truth. Completed
-  journals never block a new pristine adoption run, even if their corresponding
+  journals never block a new adoption run, even if their corresponding
   markers/frontmatter are later manually removed.
 - Multiple incomplete journals block resume and require manual inspection.
 - Failure stages are `preflight`, `marker-write`, and `frontmatter-write`.
@@ -61,8 +83,8 @@ for pristine external roots.
 - Marker atomicity is best effort on remote or synced volumes. Temp-file plus
   same-directory rename is reliable on a local filesystem, but sync providers may
   expose intermediate states.
-- Strict pristine adoption is conservative. Partially assigned roots require
-  manual cleanup or reconcile before bulk adoption.
+- Adoption proves row-local coherence, not whole-root coherence. Mixed roots may
+  still contain unrelated warnings after a successful adoption run.
 - Active-note open recovery may traverse the external root after expected-path
-  failure. Ignore rules, scan caps, progress UI, cancellation, and cached indexes
-  are out of scope until performance requires them.
+  failure. Scan caps, progress UI, cancellation, and cached indexes are out of
+  scope until performance requires them.

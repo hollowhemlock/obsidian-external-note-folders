@@ -3,7 +3,14 @@ import type {
   VaultScanResult
 } from './verify.ts';
 
-import { toExternalRelativeDisplayPath } from './displayPath.ts';
+import {
+  normalizeDisplayPath,
+  toExternalRelativeDisplayPath
+} from './displayPath.ts';
+import {
+  buildExternalRootIgnoreMatcher,
+  formatIgnoredDirectoryWarnings
+} from './externalRootIgnore.ts';
 import {
   deriveExternalFolderPath,
   normalizePathForIdentity
@@ -17,9 +24,15 @@ export interface AdoptionAdoptRow {
 }
 
 export type AdoptionBlockedNoteReason =
+  | 'ancestor-bound-folder'
   | 'derived-path-error'
+  | 'descendant-bound-folder'
   | 'duplicate-note-target'
-  | 'duplicate-target-directory';
+  | 'duplicate-target-directory'
+  | 'ignored-target'
+  | 'target-already-bound'
+  | 'target-has-malformed-marker'
+  | 'target-skipped';
 
 export interface AdoptionBlockedNoteRow {
   externalFolder: null | string;
@@ -63,8 +76,15 @@ interface DirectoryCandidate {
   identity: string;
 }
 
+interface MarkerIdentity {
+  identity: string;
+  kind: 'malformed' | 'valid';
+  message: string;
+}
+
 interface NoteCandidate {
   externalFolder: string;
+  folderPath: string;
   identity: string;
   notePath: string;
 }
@@ -74,18 +94,26 @@ interface NoteCandidateBuildResult {
   noteCandidates: NoteCandidate[];
 }
 
+interface PlannerContext {
+  directoryCandidatesByIdentity: Map<string, DirectoryCandidate[]>;
+  externalScan: ExternalScanResult;
+  ignoredTargetMatcher: ReturnType<typeof buildExternalRootIgnoreMatcher>;
+  markerIdentities: MarkerIdentity[];
+  skippedDirectoryIdentities: string[];
+}
+
 export function buildAdoptionPlan(input: {
   externalScan: ExternalScanResult;
   mutationSequence: number;
   notePaths: readonly string[];
   vaultScan: VaultScanResult;
 }): AdoptionPlan {
-  const errors = buildGlobalErrors(input.vaultScan, input.externalScan);
-  const warnings: string[] = [];
+  const errors = buildGlobalErrors(input.externalScan);
+  const warnings = buildWarnings(input.vaultScan, input.externalScan);
   const rows: AdoptionPlanRow[] = [];
 
   if (errors.length === 0) {
-    rows.push(...buildAdoptionRows(input.notePaths, input.externalScan));
+    rows.push(...buildAdoptionRows(input.notePaths, input.vaultScan, input.externalScan));
   }
 
   const sortedRows = sortRows(rows);
@@ -118,26 +146,40 @@ export function haveSameAdoptionRows(left: AdoptionPlan, right: AdoptionPlan): b
     && leftRows.every((leftRow, index) => leftRow === rightRows[index]);
 }
 
+function addMarkerUuid(markerUuidsByFolderIdentity: Map<string, string[]>, folderPath: string, uuid: string): void {
+  const folderIdentity = normalizePathForIdentity(folderPath);
+  const markerUuids = markerUuidsByFolderIdentity.get(folderIdentity) ?? [];
+  markerUuids.push(uuid);
+  markerUuidsByFolderIdentity.set(folderIdentity, [...new Set(markerUuids)].sort());
+}
+
 function buildAdoptionRows(
   notePaths: readonly string[],
+  vaultScan: VaultScanResult,
   externalScan: ExternalScanResult
 ): AdoptionPlanRow[] {
   const {
     blockedRows,
     noteCandidates
-  } = buildNoteCandidates(notePaths, externalScan.rootPath);
+  } = buildNoteCandidates(notePaths, vaultScan, externalScan.rootPath);
   const noteCandidatesByIdentity = groupByIdentity(noteCandidates);
   const directoryCandidates = externalScan.directories.map((folderPath): DirectoryCandidate => ({
     folderPath,
     identity: normalizePathForIdentity(folderPath)
   }));
-  const directoryCandidatesByIdentity = groupByIdentity(directoryCandidates);
   const noteCandidateIdentities = new Set(noteCandidates.map((candidate) => candidate.identity));
+  const context: PlannerContext = {
+    directoryCandidatesByIdentity: groupByIdentity(directoryCandidates),
+    externalScan,
+    ignoredTargetMatcher: buildExternalRootIgnoreMatcher(externalScan.rootPath, externalScan.ignorePatterns),
+    markerIdentities: buildMarkerIdentities(externalScan),
+    skippedDirectoryIdentities: externalScan.skippedDirectories.map((issue) => normalizePathForIdentity(issue.location))
+  };
   const rows: AdoptionPlanRow[] = [...blockedRows];
 
   for (const noteCandidate of noteCandidates) {
     const noteCandidateSiblings = noteCandidatesByIdentity.get(noteCandidate.identity) ?? [];
-    const directoryCandidateSiblings = directoryCandidatesByIdentity.get(noteCandidate.identity) ?? [];
+    const directoryCandidateSiblings = context.directoryCandidatesByIdentity.get(noteCandidate.identity) ?? [];
 
     if (noteCandidateSiblings.length > 1) {
       rows.push({
@@ -146,6 +188,68 @@ function buildAdoptionRows(
         message: `Multiple notes derive the same external folder: ${noteCandidateSiblings.map((candidate) => candidate.notePath).sort().join(', ')}`,
         notePath: noteCandidate.notePath,
         reason: 'duplicate-note-target'
+      });
+      continue;
+    }
+
+    if (context.ignoredTargetMatcher.ignoresAbsoluteDirectoryPath(noteCandidate.folderPath)) {
+      rows.push({
+        externalFolder: noteCandidate.externalFolder,
+        kind: 'blocked-note',
+        message: 'Derived external folder path is ignored by external root ignore patterns.',
+        notePath: noteCandidate.notePath,
+        reason: 'ignored-target'
+      });
+      continue;
+    }
+
+    const skippedDirectory = context.skippedDirectoryIdentities
+      .find((skippedIdentity) => isPathInsideOrEqualIdentity(noteCandidate.identity, skippedIdentity));
+    if (skippedDirectory) {
+      rows.push({
+        externalFolder: noteCandidate.externalFolder,
+        kind: 'blocked-note',
+        message: 'Derived external folder path is inside a skipped external directory.',
+        notePath: noteCandidate.notePath,
+        reason: 'target-skipped'
+      });
+      continue;
+    }
+
+    const exactMarkerConflict = findExactMarkerConflict(context.markerIdentities, noteCandidate.identity);
+    if (exactMarkerConflict) {
+      rows.push({
+        externalFolder: noteCandidate.externalFolder,
+        kind: 'blocked-note',
+        message: exactMarkerConflict.kind === 'valid'
+          ? `Derived external folder path already has marker UUID(s): ${exactMarkerConflict.message}`
+          : 'Derived external folder path contains a malformed marker.',
+        notePath: noteCandidate.notePath,
+        reason: exactMarkerConflict.kind === 'valid' ? 'target-already-bound' : 'target-has-malformed-marker'
+      });
+      continue;
+    }
+
+    const ancestorMarkerConflict = findAncestorMarkerConflict(context.markerIdentities, noteCandidate.identity);
+    if (ancestorMarkerConflict) {
+      rows.push({
+        externalFolder: noteCandidate.externalFolder,
+        kind: 'blocked-note',
+        message: `Ancestor bound folder overlaps the derived external folder path: ${ancestorMarkerConflict.message}`,
+        notePath: noteCandidate.notePath,
+        reason: 'ancestor-bound-folder'
+      });
+      continue;
+    }
+
+    const descendantMarkerConflict = findDescendantMarkerConflict(context.markerIdentities, noteCandidate.identity);
+    if (descendantMarkerConflict) {
+      rows.push({
+        externalFolder: noteCandidate.externalFolder,
+        kind: 'blocked-note',
+        message: `Descendant bound folder overlaps the derived external folder path: ${descendantMarkerConflict.message}`,
+        notePath: noteCandidate.notePath,
+        reason: 'descendant-bound-folder'
       });
       continue;
     }
@@ -180,7 +284,10 @@ function buildAdoptionRows(
   }
 
   for (const directoryCandidate of directoryCandidates) {
-    if (noteCandidateIdentities.has(directoryCandidate.identity)) {
+    if (
+      noteCandidateIdentities.has(directoryCandidate.identity)
+      || isInsideMarkedFolder(context.markerIdentities, directoryCandidate.identity)
+    ) {
       continue;
     }
 
@@ -194,20 +301,23 @@ function buildAdoptionRows(
   return rows;
 }
 
-function buildGlobalErrors(vaultScan: VaultScanResult, externalScan: ExternalScanResult): string[] {
+function buildExistingIdentityNotePaths(vaultScan: VaultScanResult): Set<string> {
+  const notePaths = new Set(vaultScan.bindings.values());
+  for (const duplicateNotePaths of vaultScan.duplicatePaths.values()) {
+    for (const notePath of duplicateNotePaths) {
+      notePaths.add(notePath);
+    }
+  }
+
+  return notePaths;
+}
+
+function buildGlobalErrors(externalScan: ExternalScanResult): string[] {
   return [
-    ...sortEntries(vaultScan.bindings)
-      .map(([uuid, notePath]) => `Existing vault identity at ${notePath}: ${uuid}`),
-    ...sortEntries(externalScan.bindings)
-      .map(([uuid, folderPath]) => `Existing external marker at ${toExternalRelativeDisplayPath(externalScan.rootPath, folderPath)}: ${uuid}`),
-    ...vaultScan.invalidFrontmatter
-      .map((issue) => `Invalid frontmatter at ${issue.location}: ${issue.message}`),
-    ...externalScan.malformedMarkers
-      .map((issue) => `Malformed marker at ${issue.location}: ${issue.message}`),
     ...externalScan.accessErrors
       .map((issue) => `External root access error at ${issue.location}: ${issue.message}`),
-    ...externalScan.skippedDirectories
-      .map((issue) => `Skipped external directory at ${issue.location}: ${issue.message}`)
+    ...externalScan.ignoreErrors
+      .map((issue) => `Invalid external root ignore pattern ${issue.pattern}: ${issue.message}`)
   ];
 }
 
@@ -231,14 +341,51 @@ function buildMarkdownReport(input: {
   ].join('\n');
 }
 
-function buildNoteCandidates(notePaths: readonly string[], externalRootPath: string): NoteCandidateBuildResult {
+function buildMarkerIdentities(externalScan: ExternalScanResult): MarkerIdentity[] {
+  const markerUuidsByFolderIdentity = new Map<string, string[]>();
+  for (const [uuid, folderPath] of externalScan.bindings) {
+    addMarkerUuid(markerUuidsByFolderIdentity, folderPath, uuid);
+  }
+
+  for (const [uuid, folderPaths] of externalScan.duplicatePaths) {
+    for (const folderPath of folderPaths) {
+      addMarkerUuid(markerUuidsByFolderIdentity, folderPath, uuid);
+    }
+  }
+
+  return [
+    ...sortEntries(markerUuidsByFolderIdentity).map(([identity, uuids]): MarkerIdentity => ({
+      identity,
+      kind: 'valid',
+      message: uuids.join(', ')
+    })),
+    ...externalScan.malformedMarkers.map((issue): MarkerIdentity => ({
+      identity: normalizePathForIdentity(getParentPath(issue.location)),
+      kind: 'malformed',
+      message: `${issue.location}: ${issue.message}`
+    }))
+  ];
+}
+
+function buildNoteCandidates(
+  notePaths: readonly string[],
+  vaultScan: VaultScanResult,
+  externalRootPath: string
+): NoteCandidateBuildResult {
   const blockedRows: AdoptionBlockedNoteRow[] = [];
   const noteCandidates: NoteCandidate[] = [];
+  const existingIdentityNotePaths = buildExistingIdentityNotePaths(vaultScan);
+  const invalidFrontmatterNotePaths = new Set(vaultScan.invalidFrontmatter.map((issue) => issue.location));
   for (const notePath of notePaths) {
+    if (existingIdentityNotePaths.has(notePath) || invalidFrontmatterNotePaths.has(notePath)) {
+      continue;
+    }
+
     try {
       const folderPath = deriveExternalFolderPath(notePath, externalRootPath);
       noteCandidates.push({
         externalFolder: toExternalRelativeDisplayPath(externalRootPath, folderPath),
+        folderPath,
         identity: normalizePathForIdentity(folderPath),
         notePath
       });
@@ -268,6 +415,49 @@ function buildSummaryText(errors: readonly string[], warnings: readonly string[]
     `${String(rows.filter((row) => row.kind === 'unmatched-note').length)} unmatched note(s)`,
     `${String(rows.filter((row) => row.kind === 'unmatched-external-folder').length)} unmatched external folder(s)`
   ].join(', ');
+}
+
+function buildWarnings(vaultScan: VaultScanResult, externalScan: ExternalScanResult): string[] {
+  return [
+    ...formatIgnoredDirectoryWarnings(externalScan.ignoredDirectories),
+    ...externalScan.skippedDirectories
+      .map((issue) => `Skipped external directory at ${issue.location}: ${issue.message}`),
+    ...sortEntries(vaultScan.bindings)
+      .map(([uuid, notePath]) => `Existing vault identity at ${notePath}: ${uuid}`),
+    ...formatDuplicateWarnings('Vault', vaultScan.duplicatePaths),
+    ...vaultScan.invalidFrontmatter
+      .map((issue) => `Invalid frontmatter at ${issue.location}: ${issue.message}`),
+    ...sortEntries(externalScan.bindings)
+      .map(([uuid, folderPath]) => `Existing external marker at ${toExternalRelativeDisplayPath(externalScan.rootPath, folderPath)}: ${uuid}`),
+    ...formatDuplicateWarnings('External root', externalScan.duplicatePaths),
+    ...externalScan.malformedMarkers
+      .map((issue) => `Malformed marker at ${issue.location}: ${issue.message}`)
+  ].sort();
+}
+
+function findAncestorMarkerConflict(markerIdentities: readonly MarkerIdentity[], targetIdentity: string): MarkerIdentity | null {
+  return markerIdentities.find((markerIdentity) =>
+    markerIdentity.identity !== targetIdentity
+    && isPathInsideOrEqualIdentity(targetIdentity, markerIdentity.identity)
+  ) ?? null;
+}
+
+function findDescendantMarkerConflict(markerIdentities: readonly MarkerIdentity[], targetIdentity: string): MarkerIdentity | null {
+  return markerIdentities.find((markerIdentity) =>
+    markerIdentity.identity !== targetIdentity
+    && isPathInsideOrEqualIdentity(markerIdentity.identity, targetIdentity)
+  ) ?? null;
+}
+
+function findExactMarkerConflict(markerIdentities: readonly MarkerIdentity[], targetIdentity: string): MarkerIdentity | null {
+  return markerIdentities.find((markerIdentity) => markerIdentity.identity === targetIdentity) ?? null;
+}
+
+function formatDuplicateWarnings(scopeLabel: string, duplicatePaths: Map<string, string[]>): string[] {
+  return sortEntries(duplicatePaths).map(([uuid, paths]) => {
+    const sortedPaths = [...paths].sort().join(', ');
+    return `${scopeLabel} UUID ${uuid} is duplicated at: ${sortedPaths}`;
+  });
 }
 
 function formatMarkdownCell(value: string): string {
@@ -305,6 +495,16 @@ function formatRows(title: string, rows: readonly AdoptionPlanRow[]): string {
   ].join('\n');
 }
 
+function getParentPath(inputPath: string): string {
+  const normalizedPath = normalizeDisplayPath(inputPath);
+  const lastSeparatorIndex = normalizedPath.lastIndexOf('/');
+  if (lastSeparatorIndex === -1) {
+    return '';
+  }
+
+  return normalizedPath.slice(0, lastSeparatorIndex);
+}
+
 function groupByIdentity<T extends { identity: string }>(items: readonly T[]): Map<string, T[]> {
   const groups = new Map<string, T[]>();
   for (const item of items) {
@@ -316,6 +516,21 @@ function groupByIdentity<T extends { identity: string }>(items: readonly T[]): M
     }
   }
   return groups;
+}
+
+function isInsideMarkedFolder(markerIdentities: readonly MarkerIdentity[], directoryIdentity: string): boolean {
+  return markerIdentities.some((markerIdentity) => isPathInsideOrEqualIdentity(directoryIdentity, markerIdentity.identity));
+}
+
+function isPathInsideOrEqualIdentity(childIdentity: string, parentIdentity: string): boolean {
+  const normalizedChildIdentity = normalizeDisplayPath(childIdentity);
+  const normalizedParentIdentity = normalizeDisplayPath(parentIdentity);
+  if (normalizedChildIdentity === normalizedParentIdentity) {
+    return true;
+  }
+
+  const parentPrefix = normalizedParentIdentity.endsWith('/') ? normalizedParentIdentity : `${normalizedParentIdentity}/`;
+  return normalizedChildIdentity.startsWith(parentPrefix);
 }
 
 function sortEntries<T>(map: Map<string, T>): [string, T][] {

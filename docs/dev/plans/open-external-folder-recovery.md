@@ -40,6 +40,7 @@ collects only active-note-relevant data:
   UUID, malformed, or inaccessible/skipped
 - owner vault note path when a bound candidate UUID exists in vault metadata
 - skipped descendant directory warnings
+- ignored descendant directory summaries from external-root ignore settings
 - non-candidate malformed marker warnings as summarized diagnostics
 
 Candidate matching uses exact normalized basename equality:
@@ -54,6 +55,12 @@ Candidate matching uses exact normalized basename equality:
 The scan does not build full Drift Report or Reconcile plans. It does not report
 unrelated orphan folders except where a folder is an exact-name candidate or an
 active-note UUID match.
+
+Ignored folders are governed by
+[ADR-0026](../adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md).
+They are not traversed and do not contribute marker evidence to recovery scans.
+If the expected folder itself is ignored, the modal explains the ignored state
+and disables safe create/adopt actions for that target.
 
 ## Recovery Modal
 
@@ -108,6 +115,8 @@ never overwrite an existing marker.
 | Exact-name candidate is bound to another UUID | Display-only. | Show owning vault note when known. | [ADR-0001](../adr/0001-vault-is-source-of-truth.md), [ADR-0009](../adr/0009-status-model.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |
 | Exact-name candidate has malformed marker | Display-only. | Show malformed status; do not offer overwrite/adoption. | [ADR-0009](../adr/0009-status-model.md), [ADR-0014](../adr/0014-exnf-marker-format-and-validation.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |
 | Descendant directory is unreadable | Skip that subtree. | Show warning; do not treat as global open blocker. | [ADR-0009](../adr/0009-status-model.md), [ADR-0013](../adr/0013-filesystem-boundary-and-path-identity.md) |
+| Descendant directory is ignored | Do not traverse that subtree. | Show ignored directory summary; no marker evidence is collected from it. | [ADR-0013](../adr/0013-filesystem-boundary-and-path-identity.md), [ADR-0026](../adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md) |
+| Expected folder is ignored | Run recovery scan but disable create/adopt actions for the ignored expected target. | Show ignored expected-target state. | [ADR-0009](../adr/0009-status-model.md), [ADR-0026](../adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md) |
 | Symlink, junction, or reparse-point descendant | Skip traversal. | No automatic action through the skipped path. | [ADR-0013](../adr/0013-filesystem-boundary-and-path-identity.md) |
 | Non-candidate malformed marker found during traversal | Do not block active-note recovery by itself. | Show warning summary and direct full diagnosis to Drift Report/Reconcile. | [ADR-0009](../adr/0009-status-model.md), [ADR-0014](../adr/0014-exnf-marker-format-and-validation.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |
 | Duplicate active UUID exists elsewhere while expected folder is valid | Not searched. | None; fast path wins. | [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |

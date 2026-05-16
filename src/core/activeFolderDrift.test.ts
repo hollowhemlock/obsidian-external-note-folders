@@ -50,6 +50,9 @@ function buildExternalScan(externalRootPath: string, boundPath: null | string): 
     bindings: boundPath ? new Map([[UUID, boundPath]]) : new Map(),
     directories: [],
     duplicatePaths: new Map(),
+    ignoredDirectories: [],
+    ignoreErrors: [],
+    ignorePatterns: [],
     malformedMarkers: [],
     rootPath: externalRootPath,
     skippedDirectories: []
