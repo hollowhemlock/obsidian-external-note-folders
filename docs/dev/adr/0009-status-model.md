@@ -35,7 +35,7 @@ Define these statuses:
 - **Error (Integrity):**
   - Duplicate UUIDs in vault
   - Duplicate UUIDs in external root
-  - `.exnf` malformed/unreadable
+  - marker malformed/unreadable
   - UUID mismatch collisions (e.g., target path has different UUID)
   - Vault-side `exnf` frontmatter value that is not a valid UUID
   - Configured external root directory absent, inaccessible, or unreadable (blocks all mutations)

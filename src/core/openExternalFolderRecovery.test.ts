@@ -10,6 +10,7 @@ import type {
   VaultScanResult
 } from './verify.ts';
 
+import { buildExnfMarkerFileName } from './marker.ts';
 import { buildOpenExternalFolderRecoveryPlan } from './openExternalFolderRecovery.ts';
 
 const UUID = '123e4567-e89b-42d3-a456-426614174000';
@@ -125,7 +126,7 @@ describe('open external folder recovery plan', () => {
           ignoredFolderPath
         ],
         malformedMarkers: [{
-          location: path.join(malformedFolderPath, '.exnf'),
+          location: path.join(malformedFolderPath, buildExnfMarkerFileName(OTHER_UUID)),
           message: 'Invalid marker'
         }],
         rootPath: externalRootPath
@@ -204,7 +205,7 @@ describe('open external folder recovery plan', () => {
       },
       externalScan: buildExternalScan({
         malformedMarkers: [{
-          location: path.join(externalRootPath, 'Other', '.exnf'),
+          location: path.join(externalRootPath, 'Other', buildExnfMarkerFileName(OTHER_UUID)),
           message: 'Invalid marker'
         }],
         rootPath: externalRootPath,
@@ -219,7 +220,7 @@ describe('open external folder recovery plan', () => {
     });
 
     expect(plan.warnings).toEqual([
-      `Malformed non-candidate marker at ${path.join(externalRootPath, 'Other', '.exnf')}: Invalid marker`,
+      `Malformed non-candidate marker at ${path.join(externalRootPath, 'Other', buildExnfMarkerFileName(OTHER_UUID))}: Invalid marker`,
       `Skipped external directory at ${path.join(externalRootPath, '.tmp')}: EPERM`
     ]);
   });

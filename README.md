@@ -4,7 +4,7 @@ This is a plugin for [Obsidian](https://obsidian.md/) that associates Obsidian v
 
 ## What It Does
 
-External Note Folders links a markdown note to an external folder by storing a canonical UUID in the note's `exnf` frontmatter field and writing the same UUID to a `.exnf` marker file in the external folder.
+External Note Folders links a markdown note to an external folder by storing a canonical UUID in the note's `exnf` frontmatter field and writing the same UUID to a `<uuid>.exnf` marker file in the external folder. Legacy fixed `.exnf` markers are read during the 2.0.0 migration window and should be migrated with the explicit migration command.
 
 External folder paths normally mirror the vault-relative note path without `.md`. Folder-note layouts collapse to the parent folder, so `Projects/Alpha/Alpha.md` uses `Projects/Alpha/` instead of `Projects/Alpha/Alpha/`.
 
@@ -23,15 +23,16 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 ## Commands
 
 - `Assign external folder identifier`: Adds an `exnf` UUID to the active markdown note if one is missing. It never creates or changes external folders.
-- `Open external folder`: Requires an existing valid `exnf` UUID and never assigns note identity. It opens the expected folder immediately when its `.exnf` marker matches; otherwise it runs an active-note recovery scan for fallback cases where the expected folder is missing, unmarked, malformed, or bound to another UUID.
-- `Adopt existing external folders`: Builds a dry-run plan for exact one-to-one derived-path matches from notes that do not already have `exnf` identity and, after confirmation, writes `.exnf` markers first and note frontmatter second. Unrelated existing identities and markers are warnings; only unsafe rows or root-level scan problems block execution.
+- `Open external folder`: Requires an existing valid `exnf` UUID and never assigns note identity. It opens the expected folder immediately when its marker matches; otherwise it runs an active-note recovery scan for fallback cases where the expected folder is missing, unmarked, malformed, or bound to another UUID.
+- `Adopt existing external folders`: Builds a dry-run plan for exact one-to-one derived-path matches from notes that do not already have `exnf` identity and, after confirmation, writes `<uuid>.exnf` markers first and note frontmatter second. Unrelated existing identities and markers are warnings; only unsafe rows or root-level scan problems block execution.
 - `Report external folder drift`: Read-only report that compares current note-derived external folder paths against existing external folders, highlights integrity errors, missing/orphaned/unexpected/occupied paths, and suggests likely matches.
 - `Reconcile external folders`: Builds a dry-run move plan and, only after explicit confirmation, moves existing bound external folders to their current note-derived paths. It never deletes folders or marker files and stops on first failure.
+- `Migrate legacy marker files`: Builds a dry-run plan that renames legacy fixed `.exnf` markers to `<uuid>.exnf` and executes only after explicit confirmation.
 
 ## Open Behavior and Drift
 
 `Open external folder` must not assign note identity. The recovery behavior keeps
-the expected-folder fast path: if the expected folder has a matching `.exnf`, it
+the expected-folder fast path: if the expected folder has a matching marker, it
 opens immediately and does not search elsewhere. If expected-folder inspection
 fails, the command runs an active-note-scoped recovery scan that can find the
 current UUID elsewhere, list exact-name candidates, and show a persistent
@@ -88,8 +89,8 @@ the [Git gitignore documentation](https://git-scm.com/docs/gitignore) and
 
 - The vault is the source of truth for note identity.
 - Missing external folders are normal and are reported as `Unavailable`, not as integrity errors.
-- Duplicate UUIDs, malformed `.exnf` markers, invalid `exnf` frontmatter, configured-root access failures, invalid ignore patterns, and occupied target paths block affected mutating commands.
-- The plugin does not delete vault files, external folders, or `.exnf` markers.
+- Duplicate UUIDs, malformed marker files, invalid `exnf` frontmatter, configured-root access failures, invalid ignore patterns, and occupied target paths block affected mutating commands.
+- The plugin does not delete vault files, external folders, or marker files.
 - The plugin does not auto-rename folders to resolve conflicts.
 - External-root scans skip symlinks, junctions, and reparse points by default.
 - Unreadable descendant directories under the external root are reported as warnings and skipped, not treated as global integrity errors.
@@ -101,12 +102,12 @@ the [Git gitignore documentation](https://git-scm.com/docs/gitignore) and
 | --- | --- | --- | --- |
 | Active note has no `exnf` | Stops and directs the user to explicit assignment or adoption. | Not treated as an external-folder binding. | [ADR-0001](docs/dev/adr/0001-vault-is-source-of-truth.md), [ADR-0023](docs/dev/adr/0023-open-external-folder-does-not-assign-identity.md), [ADR-0026](docs/dev/adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md) |
 | Active note has invalid `exnf` | Stops before touching the external root. | Reported as an integrity error. | [ADR-0007](docs/dev/adr/0007-uuid-regeneration-and-manual-edits.md), [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0014](docs/dev/adr/0014-exnf-marker-format-and-validation.md) |
-| Expected folder has matching `.exnf` | Opens the expected folder without a recovery scan. Fast path wins even if duplicate markers exist elsewhere. | Reported as OK unless whole-root checks find unrelated integrity issues. | [ADR-0005](docs/dev/adr/0005-bound-folder-marker.md), [ADR-0015](docs/dev/adr/0015-external-folder-path-derivation.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md) |
+| Expected folder has matching marker | Opens the expected folder without a recovery scan. Fast path wins even if duplicate markers exist elsewhere. | Reported as OK unless whole-root checks find unrelated integrity issues. | [ADR-0015](docs/dev/adr/0015-external-folder-path-derivation.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md), [ADR-0027](docs/dev/adr/0027-uuid-named-marker-files.md) |
 | Expected folder is missing | Runs the active-note recovery scan before offering create/open actions. | Can report a missing expected folder or an unexpected off-path folder if one exists. | [ADR-0002](docs/dev/adr/0002-missing-external-is-normal.md), [ADR-0015](docs/dev/adr/0015-external-folder-path-derivation.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md) |
-| Expected folder exists without `.exnf` | Runs recovery scan and may offer explicit marker adoption after revalidation. | Reported as an occupied target path when a bound folder is expected there. | [ADR-0005](docs/dev/adr/0005-bound-folder-marker.md), [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md) |
-| Expected folder has malformed or mismatched `.exnf` | Does not open the expected path; runs recovery scan and shows the expected-path problem. | Reported as an integrity error or occupied target. | [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0014](docs/dev/adr/0014-exnf-marker-format-and-validation.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md) |
+| Expected folder exists without marker | Runs recovery scan and may offer explicit marker adoption after revalidation. | Reported as an occupied target path when a bound folder is expected there. | [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md), [ADR-0027](docs/dev/adr/0027-uuid-named-marker-files.md) |
+| Expected folder has malformed or mismatched marker | Does not open the expected path; runs recovery scan and shows the expected-path problem. | Reported as an integrity error or occupied target. | [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md), [ADR-0027](docs/dev/adr/0027-uuid-named-marker-files.md) |
 | Same UUID is bound somewhere else | If expected fast path failed, one off-path match can open with a persistent modal; duplicates block auto-open. | Reported as unexpected drift and can be reconciled explicitly. | [ADR-0006](docs/dev/adr/0006-reconcile-is-explicit.md), [ADR-0022](docs/dev/adr/0022-reconcile-planner-and-execution-contract.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md) |
-| `.exnf` marker has no matching vault note | Only shown by open recovery when it is an exact-name candidate or active-note-relevant warning. | Reported as an orphan bound folder. | [ADR-0008](docs/dev/adr/0008-no-reverse-reconciliation.md), [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md) |
+| Marker has no matching vault note | Only shown by open recovery when it is an exact-name candidate or active-note-relevant warning. | Reported as an orphan bound folder. | [ADR-0008](docs/dev/adr/0008-no-reverse-reconciliation.md), [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md), [ADR-0027](docs/dev/adr/0027-uuid-named-marker-files.md) |
 | External root or expected path is inaccessible, outside root, or crosses a symlink/reparse point | Root/expected-path validation stops fail-closed; skipped descendant directories become recovery warnings. | Root access failures are errors; descendant unreadable directories are warnings and skipped. | [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0013](docs/dev/adr/0013-filesystem-boundary-and-path-identity.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md) |
 | External root ignore pattern matches a folder | Ignored folders are invisible to recovery scans unless the expected folder itself is ignored, in which case expected-folder actions are disabled. | Ignored folders are not traversed; linked ignored folders are ignored/unchecked rather than healthy or missing. | [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0013](docs/dev/adr/0013-filesystem-boundary-and-path-identity.md), [ADR-0026](docs/dev/adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md) |
 | Ignore settings contain `!`, Windows drive paths, or UNC paths | Invalid settings block the scan-dependent command with a clear error. | Invalid settings are global blockers because scan evidence would be ambiguous. | [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0026](docs/dev/adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md) |
@@ -132,6 +133,7 @@ reconciliation.
 - ADR-0025 recovery scans are active-note scoped, not a substitute for full drift reporting. Scan caps, progress UI, cancellation, and cached indexes are intentionally out of scope until performance requires them.
 - Concurrent UUID assignment across unsynced devices can create orphan external folders.
 - Sync tool conflicts in note frontmatter or external marker files are outside the plugin's repair scope; `Report external folder drift` surfaces the resulting state.
+- Fixed `.exnf` markers are deprecated legacy evidence during the 2.0.0 migration window. New writes create `<uuid>.exnf`; run `Migrate legacy marker files` to rename old markers.
 
 ## Contributor Guide
 

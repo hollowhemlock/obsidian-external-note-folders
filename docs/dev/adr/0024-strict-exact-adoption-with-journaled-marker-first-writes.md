@@ -19,7 +19,7 @@ bind obvious matches without guessing, overwriting, deleting, or leaving users
 without an audit trail after partial failure.
 
 Bulk adoption also crosses two identity stores: vault note frontmatter and
-external `.exnf` markers. The write order and resume policy must be explicit
+external markers. The write order and resume policy must be explicit
 before implementation.
 
 ## Decision Drivers
@@ -41,7 +41,7 @@ before implementation.
 Bulk adoption uses strict exact matching and journaled marker-first writes.
 
 The adoption command requires pristine identity state before normal execution:
-no note `exnf`, no external `.exnf`, no malformed markers, no duplicate UUIDs,
+no note `exnf`, no external markers, no malformed markers, no duplicate UUIDs,
 no root access errors, and no skipped directories. It adopts only exact
 one-to-one matches between note-derived expected external paths and existing
 external directories. Folder-note collapse applies, so `A/B/B.md` matches
@@ -55,7 +55,7 @@ Path identity is compared using normalized absolute identities:
 - preserve original casing and spelling for display and writes
 
 Apply re-runs preflight, generates one UUID per adopted row, writes the external
-`.exnf` marker first, then writes note frontmatter second. Each row is journaled.
+marker first, then writes note frontmatter second. Each row is journaled.
 Execution stops on the first failure.
 
 Resume is allowed only from adoption-owned incomplete journals whose recorded

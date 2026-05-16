@@ -15,6 +15,7 @@ import {
   getAdoptionRows,
   haveSameAdoptionRows
 } from './adoptionPlan.ts';
+import { buildExnfMarkerFileName } from './marker.ts';
 
 const EXTERNAL_ROOT = path.resolve('X:/External');
 const EXISTING_UUID = '123e4567-e89b-42d3-a456-426614174000';
@@ -165,7 +166,7 @@ describe('adoption plan', () => {
         directories: [alphaFolderPath, betaFolderPath],
         malformedMarkers: [
           {
-            location: path.join(alphaFolderPath, '.exnf'),
+            location: path.join(alphaFolderPath, buildExnfMarkerFileName(EXISTING_UUID)),
             message: 'Invalid marker'
           }
         ]
@@ -255,7 +256,7 @@ describe('adoption plan', () => {
   it('blocks overlapping malformed marker topology conflicts', () => {
     const alphaFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
     const betaFolderPath = path.join(EXTERNAL_ROOT, 'Other', 'Beta');
-    const malformedMarkerPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha', 'Child', '.exnf');
+    const malformedMarkerPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha', 'Child', buildExnfMarkerFileName(EXISTING_UUID));
     const plan = buildAdoptionPlan({
       externalScan: buildExternalScan({
         directories: [alphaFolderPath, betaFolderPath],

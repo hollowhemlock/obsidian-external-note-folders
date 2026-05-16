@@ -17,7 +17,8 @@ import {
   it
 } from 'vitest';
 
-import { EXNF_MARKER_FILE_NAME } from '../core/contracts.ts';
+import { EXNF_LEGACY_MARKER_FILE_NAME } from '../core/contracts.ts';
+import { buildExnfMarkerFileName } from '../core/marker.ts';
 import { scanExternalRoot } from './scanExternalRoot.ts';
 
 const OTHER_UUID = '123e4567-e89b-42d3-a456-426614174001';
@@ -143,16 +144,48 @@ describe('external root scanning', () => {
   it('reports malformed markers', async () => {
     const externalRootPath = await createTempRoot(tempDirectories);
     const folderPath = path.join(externalRootPath, 'Projects', 'Alpha');
-    await writeMarker(folderPath, OTHER_UUID.toUpperCase());
+    await writeMarker(folderPath, VALID_UUID, OTHER_UUID.toUpperCase());
 
     const result = await scanExternalRoot(externalRootPath);
 
     expect(result.malformedMarkers).toEqual([
       {
-        location: path.join(folderPath, EXNF_MARKER_FILE_NAME),
+        location: path.join(folderPath, buildExnfMarkerFileName(VALID_UUID)),
         message: 'Marker must contain a canonical lowercase UUID.'
       }
     ]);
+  });
+
+  it('reads valid legacy markers as deprecated binding evidence', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const folderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    await writeLegacyMarker(folderPath, VALID_UUID);
+
+    const result = await scanExternalRoot(externalRootPath);
+
+    expect(result.bindings).toEqual(new Map([[VALID_UUID, folderPath]]));
+    expect(result.legacyMarkers).toEqual([{
+      folderPath,
+      format: 'legacy',
+      markerPath: path.join(folderPath, EXNF_LEGACY_MARKER_FILE_NAME),
+      uuid: VALID_UUID
+    }]);
+  });
+
+  it('reports legacy and UUID-named marker conflicts in the same folder', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const folderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    await writeLegacyMarker(folderPath, VALID_UUID);
+    await writeMarker(folderPath, OTHER_UUID);
+
+    const result = await scanExternalRoot(externalRootPath);
+
+    expect(result.markerConflicts).toEqual([{
+      location: folderPath,
+      message: `Legacy marker ${
+        path.join(folderPath, EXNF_LEGACY_MARKER_FILE_NAME)
+      } contains UUID ${VALID_UUID}, but UUID-named marker(s) in the same folder contain ${OTHER_UUID}.`
+    }]);
   });
 
   it('does not traverse symlinked directories', async () => {
@@ -247,7 +280,12 @@ function isUnsupportedSymlinkError(error: unknown): boolean {
   );
 }
 
-async function writeMarker(folderPath: string, uuid: string): Promise<void> {
+async function writeLegacyMarker(folderPath: string, uuid: string): Promise<void> {
   await mkdir(folderPath, { recursive: true });
-  await writeFile(path.join(folderPath, EXNF_MARKER_FILE_NAME), `${uuid}\n`, 'utf8');
+  await writeFile(path.join(folderPath, EXNF_LEGACY_MARKER_FILE_NAME), `${uuid}\n`, 'utf8');
+}
+
+async function writeMarker(folderPath: string, uuid: string, content = uuid): Promise<void> {
+  await mkdir(folderPath, { recursive: true });
+  await writeFile(path.join(folderPath, buildExnfMarkerFileName(uuid)), `${content}\n`, 'utf8');
 }

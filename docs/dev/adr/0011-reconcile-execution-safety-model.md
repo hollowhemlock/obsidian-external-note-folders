@@ -35,10 +35,10 @@ Reconcile execution uses an audit journal and relies on re-scan for recovery.
   1. Re-validate preconditions:
      - source path exists and is within external root boundary
      - destination path is within external root boundary and does not already exist
-     - source `.exnf` UUID matches the plan's expected UUID
+     - source marker UUID matches the plan's expected UUID
      - destination parent directory exists or can be created without conflict
   2. Execute move (`src -> dst`) with no-overwrite semantics
-  3. Verify postconditions (destination exists, `.exnf` UUID matches expected)
+  3. Verify postconditions (destination exists, marker UUID matches expected)
 - On any failed step, stop execution and do not continue best-effort.
 - Journal each move for auditability: source, destination, timestamp, outcome
   (success/failure). Include a run ID for grouping.

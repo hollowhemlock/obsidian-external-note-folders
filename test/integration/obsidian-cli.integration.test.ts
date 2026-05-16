@@ -14,6 +14,8 @@ import {
   it
 } from 'vitest';
 
+import { buildExnfMarkerFileName } from '../../src/core/marker.ts';
+
 type CliResult = {
   command: string;
   errorMessage: string;
@@ -153,11 +155,11 @@ async function createCliNote(notePath: string, uuid: string): Promise<void> {
   expect(createResult.status, formatCliResult(createResult)).toBe(0);
 }
 
-async function writeMarker(externalFolderRelativePath: string, markerContent: string): Promise<void> {
+async function writeMarker(externalFolderRelativePath: string, uuid: string, markerContent = `${uuid}\n`): Promise<void> {
   const externalRootPath = resolvePath('test/fixtures/sandbox/external-root');
   const folderPath = path.join(externalRootPath, externalFolderRelativePath);
   await mkdir(folderPath, { recursive: true });
-  await writeFile(path.join(folderPath, '.exnf'), markerContent, 'utf8');
+  await writeFile(path.join(folderPath, buildExnfMarkerFileName(uuid)), markerContent, 'utf8');
 }
 
 describe('obsidian CLI integration', () => {
@@ -229,6 +231,7 @@ describe('obsidian CLI integration', () => {
     const combinedOutput = `${commandsResult.stdout}\n${commandsResult.stderr}`;
     expect(combinedOutput).toContain(`${pluginId}:assign-external-folder-uuid`);
     expect(combinedOutput).toContain(`${pluginId}:adopt-existing-external-folders`);
+    expect(combinedOutput).toContain(`${pluginId}:migrate-legacy-marker-files`);
     expect(combinedOutput).toContain(`${pluginId}:open-external-folder`);
     expect(combinedOutput).toContain(`${pluginId}:reconcile-external-folders`);
     expect(combinedOutput).toContain(`${pluginId}:report-external-folder-drift`);
@@ -250,11 +253,11 @@ describe('obsidian CLI integration', () => {
     await createCliNote(movedNotePath, DRIFT_UUIDS.moved);
     await createCliNote(occupiedNotePath, DRIFT_UUIDS.occupied);
 
-    await writeMarker(`${matrixFolder}/Renamed/Old Name`, `${DRIFT_UUIDS.renamed}\n`);
-    await writeMarker(`${matrixFolder}/Moved/Old Place/Move Me`, `${DRIFT_UUIDS.moved}\n`);
-    await writeMarker(`${matrixFolder}/Orphan`, `${DRIFT_UUIDS.orphan}\n`);
+    await writeMarker(`${matrixFolder}/Renamed/Old Name`, DRIFT_UUIDS.renamed);
+    await writeMarker(`${matrixFolder}/Moved/Old Place/Move Me`, DRIFT_UUIDS.moved);
+    await writeMarker(`${matrixFolder}/Orphan`, DRIFT_UUIDS.orphan);
     await mkdir(path.join(resolvePath('test/fixtures/sandbox/external-root'), matrixFolder, 'Occupied', 'Target'), { recursive: true });
-    await writeMarker(`${matrixFolder}/Malformed`, `${DRIFT_UUIDS.malformedReference.toUpperCase()}\n`);
+    await writeMarker(`${matrixFolder}/Malformed`, DRIFT_UUIDS.malformedReference, `${DRIFT_UUIDS.malformedReference.toUpperCase()}\n`);
 
     const debugResult = runCli(['dev:debug', 'on'], sandboxVaultPath);
     expect(debugResult.status, formatCliResult(debugResult)).toBe(0);

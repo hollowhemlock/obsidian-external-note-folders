@@ -4,7 +4,7 @@
 
 `Open external folder` has a fast path and a recovery path. The fast path opens
 the expected folder when it is already correctly bound. The recovery path runs
-only when expected-folder inspection fails to find a matching `.exnf`; it scans
+only when expected-folder inspection fails to find a matching marker; it scans
 for active-note-relevant recovery data and presents a persistent modal.
 
 This spec is canonical for the recovery modal UX. README tables summarize this
@@ -17,7 +17,7 @@ behavior but should not add extra modal behavior.
    identity stops before external-root inspection.
 3. Resolve and validate the configured external root.
 4. Inspect the active note's expected external folder.
-5. If the expected folder has matching `.exnf`, open immediately. Do not scan
+5. If the expected folder has a matching marker, open immediately. Do not scan
    for duplicate markers elsewhere.
 6. If expected-folder inspection is anything else, run the active-note recovery
    scan.
@@ -33,7 +33,7 @@ behavior but should not add extra modal behavior.
 The recovery scan traverses the configured external root for this invocation and
 collects only active-note-relevant data:
 
-- all folders whose `.exnf` marker equals the active note UUID
+- all folders whose marker equals the active note UUID
 - exact-name candidate folders whose normalized basename equals the expected
   folder basename
 - candidate marker status: unmarked, bound to active UUID, bound to another
@@ -78,10 +78,10 @@ The modal must be persistent and copyable. It should include:
 Actions:
 
 - Open a selected folder that is already bound to the active UUID.
-- Create expected folder and write `.exnf`, only when the expected path is
+- Create expected folder and write `<uuid>.exnf`, only when the expected path is
   missing.
-- Write `.exnf` to the expected folder, only when it exists and is unmarked.
-- Write `.exnf` to a selected exact-name candidate, only when that candidate is
+- Write `<uuid>.exnf` to the expected folder, only when it exists and is unmarked.
+- Write `<uuid>.exnf` to a selected exact-name candidate, only when that candidate is
   unmarked.
 - Cancel.
 
@@ -103,22 +103,22 @@ never overwrite an existing marker.
 | Active note has no `exnf` | Stop and direct user to explicit assignment/adoption. | None. | [ADR-0001](../adr/0001-vault-is-source-of-truth.md), [ADR-0023](../adr/0023-open-external-folder-does-not-assign-identity.md) |
 | Active note has invalid `exnf` | Stop before touching external root. | None. | [ADR-0009](../adr/0009-status-model.md), [ADR-0014](../adr/0014-exnf-marker-format-and-validation.md) |
 | External root unset, relative, missing, or unreadable | Stop fail-closed. | None. | [ADR-0009](../adr/0009-status-model.md), [ADR-0013](../adr/0013-filesystem-boundary-and-path-identity.md) |
-| Expected folder has matching `.exnf` | Open immediately; do not scan elsewhere. | None. | [ADR-0005](../adr/0005-bound-folder-marker.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |
+| Expected folder has matching marker | Open immediately; do not scan elsewhere. | None. | [ADR-0025](../adr/0025-active-note-open-recovery-scan.md), [ADR-0027](../adr/0027-uuid-named-marker-files.md) |
 | Expected folder missing | Run recovery scan. | Show active UUID matches, exact-name candidates, and create-expected action. | [ADR-0002](../adr/0002-missing-external-is-normal.md), [ADR-0015](../adr/0015-external-folder-path-derivation.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |
-| Expected folder exists without `.exnf` | Run recovery scan. | Show expected-folder adoption action plus recovery rows. | [ADR-0005](../adr/0005-bound-folder-marker.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |
-| Expected folder has malformed `.exnf` | Run recovery scan; do not open expected folder. | Show malformed expected marker as blocking expected-path status. | [ADR-0009](../adr/0009-status-model.md), [ADR-0014](../adr/0014-exnf-marker-format-and-validation.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |
-| Expected folder has `.exnf` for another UUID | Run recovery scan; do not open expected folder. | Show mismatched expected marker as blocking expected-path status. | [ADR-0009](../adr/0009-status-model.md), [ADR-0014](../adr/0014-exnf-marker-format-and-validation.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |
-| One off-path folder has active note UUID | Open that folder by default. | Show persistent drift details and available cleanup actions. | [ADR-0005](../adr/0005-bound-folder-marker.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |
+| Expected folder exists without marker | Run recovery scan. | Show expected-folder adoption action plus recovery rows. | [ADR-0025](../adr/0025-active-note-open-recovery-scan.md), [ADR-0027](../adr/0027-uuid-named-marker-files.md) |
+| Expected folder has malformed marker | Run recovery scan; do not open expected folder. | Show malformed expected marker as blocking expected-path status. | [ADR-0009](../adr/0009-status-model.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md), [ADR-0027](../adr/0027-uuid-named-marker-files.md) |
+| Expected folder has marker for another UUID | Run recovery scan; do not open expected folder. | Show mismatched expected marker as blocking expected-path status. | [ADR-0009](../adr/0009-status-model.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md), [ADR-0027](../adr/0027-uuid-named-marker-files.md) |
+| One off-path folder has active note UUID | Open that folder by default. | Show persistent drift details and available cleanup actions. | [ADR-0025](../adr/0025-active-note-open-recovery-scan.md), [ADR-0027](../adr/0027-uuid-named-marker-files.md) |
 | Multiple folders have active note UUID | Do not auto-open. | Show duplicate active-UUID rows and require manual decision/cleanup. | [ADR-0009](../adr/0009-status-model.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |
-| Exact-name candidate is unmarked | Do not mutate automatically. | Candidate can be selected for `.exnf` adoption after confirmation. | [ADR-0005](../adr/0005-bound-folder-marker.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |
-| Exact-name candidate is bound to active UUID | Openable/selectable. | Show as active UUID match and candidate. | [ADR-0005](../adr/0005-bound-folder-marker.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |
+| Exact-name candidate is unmarked | Do not mutate automatically. | Candidate can be selected for `<uuid>.exnf` adoption after confirmation. | [ADR-0025](../adr/0025-active-note-open-recovery-scan.md), [ADR-0027](../adr/0027-uuid-named-marker-files.md) |
+| Exact-name candidate is bound to active UUID | Openable/selectable. | Show as active UUID match and candidate. | [ADR-0025](../adr/0025-active-note-open-recovery-scan.md), [ADR-0027](../adr/0027-uuid-named-marker-files.md) |
 | Exact-name candidate is bound to another UUID | Display-only. | Show owning vault note when known. | [ADR-0001](../adr/0001-vault-is-source-of-truth.md), [ADR-0009](../adr/0009-status-model.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |
 | Exact-name candidate has malformed marker | Display-only. | Show malformed status; do not offer overwrite/adoption. | [ADR-0009](../adr/0009-status-model.md), [ADR-0014](../adr/0014-exnf-marker-format-and-validation.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |
 | Descendant directory is unreadable | Skip that subtree. | Show warning; do not treat as global open blocker. | [ADR-0009](../adr/0009-status-model.md), [ADR-0013](../adr/0013-filesystem-boundary-and-path-identity.md) |
 | Descendant directory is ignored | Do not traverse that subtree. | Show ignored directory summary; no marker evidence is collected from it. | [ADR-0013](../adr/0013-filesystem-boundary-and-path-identity.md), [ADR-0026](../adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md) |
 | Expected folder is ignored | Run recovery scan but disable create/adopt actions for the ignored expected target. | Show ignored expected-target state. | [ADR-0009](../adr/0009-status-model.md), [ADR-0026](../adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md) |
 | Symlink, junction, or reparse-point descendant | Skip traversal. | No automatic action through the skipped path. | [ADR-0013](../adr/0013-filesystem-boundary-and-path-identity.md) |
-| Non-candidate malformed marker found during traversal | Do not block active-note recovery by itself. | Show warning summary and direct full diagnosis to Drift Report/Reconcile. | [ADR-0009](../adr/0009-status-model.md), [ADR-0014](../adr/0014-exnf-marker-format-and-validation.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |
+| Non-candidate malformed marker found during traversal | Do not block active-note recovery by itself. | Show warning summary and direct full diagnosis to Drift Report/Reconcile. | [ADR-0009](../adr/0009-status-model.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md), [ADR-0027](../adr/0027-uuid-named-marker-files.md) |
 | Duplicate active UUID exists elsewhere while expected folder is valid | Not searched. | None; fast path wins. | [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |
 
 ## Validation Expectations

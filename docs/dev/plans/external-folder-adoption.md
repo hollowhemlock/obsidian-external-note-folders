@@ -14,7 +14,7 @@ for mixed external roots.
   adoption.
 - Existing correctly bound expected folders open immediately without a recovery
   scan.
-- If expected-folder inspection does not find a matching `.exnf`, the
+- If expected-folder inspection does not find a matching marker, the
   active-note recovery scan runs as specified in
   [open-external-folder-recovery.md](open-external-folder-recovery.md) and
   [ADR-0025](../adr/0025-active-note-open-recovery-scan.md).
@@ -45,7 +45,7 @@ for mixed external roots.
   directories, marked, malformed, already bound, overlapped by ancestor or
   descendant marker evidence, or duplicated by normalized path identity.
 - Apply re-runs preflight, generates one UUID per adopted row, journals each row,
-  writes `.exnf` first, writes note frontmatter second, and stops on first
+  writes `<uuid>.exnf` first, writes note frontmatter second, and stops on first
   failure.
 - Resume is allowed only from adoption-owned incomplete journals whose recorded
   state still matches the current vault and external root.

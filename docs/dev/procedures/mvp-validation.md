@@ -9,7 +9,7 @@ Use `docs/dev/procedures/mvp-implementation-workflow.md` before coding to define
 Use this procedure for any change that affects:
 
 - UUID generation, validation, or frontmatter handling
-- `.exnf` parsing or writing
+- marker parsing or writing
 - path derivation, sanitization, or boundary checks
 - external-root scanning or raw filesystem access
 - command behavior (`Assign UUID`, `Open External Folder`, `Adopt existing external folders`, drift report, `Reconcile`)
@@ -48,10 +48,11 @@ Use a fresh sandbox at the start of a validation pass. Use refresh between scena
 | External root inaccessible | Use a detached drive, denied-permission folder, or similar inaccessible root. | Scan surfaces an `Error`; mutation preflight aborts; no partial writes occur. |
 | Child directory inaccessible | Deny read access to a descendant directory while the configured root remains readable. | Scan reports a warning, skips that subtree, and continues classifying readable sibling folders. |
 | Duplicate UUID in vault | Create two notes with the same `exnf` frontmatter value. | `Verify` reports duplicate-vault `Error`; non-adoption mutating commands abort. `Adopt existing external folders` reports the duplicate as a warning, excludes every note path carrying that UUID from adoption, and may still adopt unrelated unassigned rows. |
-| Duplicate UUID in external root | Create two bound folders with `.exnf` files containing the same UUID. | `Verify` reports duplicate-external `Error`; non-adoption mutating commands abort. `Adopt existing external folders` reports the duplicate as a warning, blocks only candidate targets that already contain marker evidence, and may still adopt unrelated unassigned rows. |
-| Malformed `.exnf` | Add BOM, extra content, extra lines, or a non-canonical UUID to a marker. | Marker is classified as malformed `Error`; non-adoption mutation preflights abort. `Adopt existing external folders` reports unrelated malformed markers as warnings, blocks candidate targets with malformed markers, and may still adopt unrelated unassigned rows. |
+| Duplicate UUID in external root | Create two bound folders with marker files containing the same UUID. | `Verify` reports duplicate-external `Error`; non-adoption mutating commands abort. `Adopt existing external folders` reports the duplicate as a warning, blocks only candidate targets that already contain marker evidence, and may still adopt unrelated unassigned rows. |
+| Malformed marker | Add BOM, extra content, extra lines, a non-canonical UUID, or a `<uuid>.exnf` filename/payload mismatch to a marker. | Marker is classified as malformed `Error`; non-adoption mutation preflights abort. `Adopt existing external folders` reports unrelated malformed markers as warnings, blocks candidate targets with malformed markers, and may still adopt unrelated unassigned rows. |
 | Occupied target path | Create an unbound directory at the derived destination path before `Open External Folder`. | Command reports conflict and aborts; no auto-rename occurs. |
-| Existing root adoption | Use unassigned notes and matching note-derived external folder paths. Unrelated existing `exnf`, `.exnf`, skipped directories, or ignored directories may be present. Include one candidate whose target has ancestor or descendant marker evidence. | `Adopt existing external folders` shows exact safe matches in dry-run, reports unrelated state as warnings/blocked rows, blocks the overlapping marker candidate, writes markers before frontmatter after confirmation, and journals the run. |
+| Existing root adoption | Use unassigned notes and matching note-derived external folder paths. Unrelated existing `exnf`, marker files, skipped directories, or ignored directories may be present. Include one candidate whose target has ancestor or descendant marker evidence. | `Adopt existing external folders` shows exact safe matches in dry-run, reports unrelated state as warnings/blocked rows, blocks the overlapping marker candidate, writes markers before frontmatter after confirmation, and journals the run. |
+| Legacy marker migration | Create a folder with fixed `.exnf` and no matching `<uuid>.exnf`. | `Migrate legacy marker files` shows a dry-run rename from `.exnf` to `<uuid>.exnf`, executes only after confirmation, journals the rename, and never overwrites an existing UUID-named marker. |
 | Root escape / reparse point attempt | Create a symlink, junction, or other reparse point under the external root. | Scan and mutation stay within the configured root and do not follow the escape path. |
 
 ## Manual Verification Notes
