@@ -15,6 +15,8 @@ import type {
 import { buildExternalRootIgnoreMatcher } from '../core/externalRootIgnore.ts';
 import {
   classifyExnfMarkerFileName,
+  findLegacyMarkerConflict,
+  formatLegacyMarkerConflictMessage,
   parseExnfMarkerFile
 } from '../core/marker.ts';
 
@@ -125,37 +127,20 @@ function registerBinding(
   duplicatePaths.set(uuid, [...duplicateSet].sort());
 }
 
-function registerLegacyMarkerConflicts(
+function registerLegacyMarkerConflict(
   directoryPath: string,
   directoryMarkers: ExternalMarkerRecord[],
   result: ExternalScanResult
 ): void {
-  const legacyMarkers = directoryMarkers.filter((marker) => marker.format === 'legacy');
-  if (legacyMarkers.length === 0) {
+  const conflict = findLegacyMarkerConflict(directoryMarkers);
+  if (!conflict) {
     return;
   }
 
-  const uuidNamedMarkerUuids = new Set(
-    directoryMarkers
-      .filter((marker) => marker.format === 'uuid-named')
-      .map((marker) => marker.uuid)
-  );
-  if (uuidNamedMarkerUuids.size === 0) {
-    return;
-  }
-
-  for (const legacyMarker of legacyMarkers) {
-    if (uuidNamedMarkerUuids.has(legacyMarker.uuid)) {
-      continue;
-    }
-
-    result.markerConflicts?.push({
-      location: directoryPath,
-      message: `Legacy marker ${legacyMarker.markerPath} contains UUID ${legacyMarker.uuid}, but UUID-named marker(s) in the same folder contain ${
-        [...uuidNamedMarkerUuids].sort().join(', ')
-      }.`
-    });
-  }
+  result.markerConflicts?.push({
+    location: directoryPath,
+    message: formatLegacyMarkerConflictMessage(conflict)
+  });
 }
 
 async function walkDirectory(
@@ -242,5 +227,5 @@ async function walkDirectory(
     }
   }
 
-  registerLegacyMarkerConflicts(directoryPath, directoryMarkers, result);
+  registerLegacyMarkerConflict(directoryPath, directoryMarkers, result);
 }

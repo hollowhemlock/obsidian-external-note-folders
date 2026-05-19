@@ -298,6 +298,10 @@ function formatExpectedState(expectedState: Exclude<ExpectedExternalFolderState,
     return `malformed marker at ${expectedState.markerPath}: ${expectedState.message}`;
   }
 
+  if (expectedState.kind === 'marker-conflict') {
+    return `marker conflict at ${expectedState.markerPath}: ${expectedState.message}`;
+  }
+
   if (expectedState.kind === 'mismatched-marker') {
     return `bound to different UUID: ${expectedState.markerUuid}`;
   }

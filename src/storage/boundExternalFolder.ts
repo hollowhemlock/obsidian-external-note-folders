@@ -13,9 +13,13 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 
+import type { ParsedExnfMarkerFile } from '../core/marker.ts';
+
 import {
   buildExnfMarkerFileName,
   classifyExnfMarkerFileName,
+  findLegacyMarkerConflict,
+  formatLegacyMarkerConflictMessage,
   parseExnfMarker,
   parseExnfMarkerFile,
   serializeExnfMarker
@@ -42,6 +46,7 @@ export interface ExpectedExternalFolderInput {
 export type ExpectedExternalFolderInspection =
   | { folderPath: string; kind: 'bound' }
   | { folderPath: string; kind: 'malformed-marker'; markerPath: string; message: string }
+  | { folderPath: string; kind: 'marker-conflict'; markerPath: string; message: string }
   | { folderPath: string; kind: 'mismatched-marker'; markerUuid: string }
   | { folderPath: string; kind: 'missing' }
   | { folderPath: string; kind: 'unmarked' };
@@ -58,16 +63,10 @@ export interface WriteMarkerToExistingUnmarkedFolderInput {
 }
 
 interface FolderMarkerInspection {
-  conflictingMarker: { markerPath: string; message: string } | null;
   malformedMarker: { markerPath: string; message: string } | null;
+  markerConflict: { markerPath: string; message: string } | null;
   matchingMarkerPath: null | string;
   otherUuids: string[];
-}
-
-interface ParsedFolderMarker {
-  format: 'legacy' | 'uuid-named';
-  markerPath: string;
-  uuid: string;
 }
 
 export async function assertExpectedMarkerMatches(input: ExpectedExternalFolderInput): Promise<void> {
@@ -139,12 +138,12 @@ export async function inspectExpectedExternalFolder(
   }
 
   const markerInspection = await inspectFolderMarkers(targetFolderPath, input.uuid);
-  if (markerInspection.conflictingMarker) {
+  if (markerInspection.markerConflict) {
     return {
       folderPath: targetFolderPath,
-      kind: 'malformed-marker',
-      markerPath: markerInspection.conflictingMarker.markerPath,
-      message: markerInspection.conflictingMarker.message
+      kind: 'marker-conflict',
+      markerPath: markerInspection.markerConflict.markerPath,
+      message: markerInspection.markerConflict.message
     };
   }
 
@@ -332,27 +331,6 @@ function buildMarkerPath(folderPath: string, uuid: string): string {
   return path.join(folderPath, buildExnfMarkerFileName(uuid));
 }
 
-function findLegacyMarkerConflict(markers: readonly ParsedFolderMarker[]): { markerPath: string; message: string } | null {
-  const uuidNamedMarkerUuids = new Set(
-    markers
-      .filter((marker) => marker.format === 'uuid-named')
-      .map((marker) => marker.uuid)
-  );
-  if (uuidNamedMarkerUuids.size === 0) {
-    return null;
-  }
-
-  const conflictingLegacyMarker = markers.find((marker) => marker.format === 'legacy' && !uuidNamedMarkerUuids.has(marker.uuid));
-  if (!conflictingLegacyMarker) {
-    return null;
-  }
-
-  return {
-    markerPath: conflictingLegacyMarker.markerPath,
-    message: `Legacy marker UUID ${conflictingLegacyMarker.uuid} conflicts with UUID-named marker(s): ${[...uuidNamedMarkerUuids].sort().join(', ')}.`
-  };
-}
-
 async function folderHasMarkerFile(folderPath: string): Promise<boolean> {
   const entries = await readdir(folderPath, {
     encoding: 'utf8',
@@ -400,7 +378,7 @@ async function inspectFolderMarkers(folderPath: string, expectedUuid: string): P
     encoding: 'utf8',
     withFileTypes: true
   });
-  const parsedMarkers: ParsedFolderMarker[] = [];
+  const parsedMarkers: ParsedExnfMarkerFile[] = [];
   const otherUuids = new Set<string>();
   let matchingMarkerPath: null | string = null;
 
@@ -429,21 +407,26 @@ async function inspectFolderMarkers(folderPath: string, expectedUuid: string): P
       }
     } catch (error: unknown) {
       return {
-        conflictingMarker: null,
         malformedMarker: {
           markerPath,
           message: toError(error).message
         },
+        markerConflict: null,
         matchingMarkerPath,
         otherUuids: [...otherUuids].sort()
       };
     }
   }
 
-  const conflictingMarker = findLegacyMarkerConflict(parsedMarkers);
+  const legacyMarkerConflict = findLegacyMarkerConflict(parsedMarkers);
   return {
-    conflictingMarker,
     malformedMarker: null,
+    markerConflict: legacyMarkerConflict
+      ? {
+        markerPath: legacyMarkerConflict.legacyMarkerPath,
+        message: formatLegacyMarkerConflictMessage(legacyMarkerConflict)
+      }
+      : null,
     matchingMarkerPath,
     otherUuids: [...otherUuids].sort()
   };
@@ -478,6 +461,10 @@ function throwExpectedInspectionError(inspection: Exclude<ExpectedExternalFolder
 
   if (inspection.kind === 'malformed-marker') {
     throw new Error(`Derived external folder marker is malformed at ${inspection.markerPath}: ${inspection.message}`);
+  }
+
+  if (inspection.kind === 'marker-conflict') {
+    throw new Error(`Derived external folder marker conflict at ${inspection.markerPath}: ${inspection.message}`);
   }
 
   throw new Error(`Derived external folder path is already bound to UUID ${inspection.markerUuid}: ${inspection.folderPath}`);

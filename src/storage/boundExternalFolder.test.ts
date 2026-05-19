@@ -184,9 +184,11 @@ describe('bound external folder mutations', () => {
 
     expect(result).toEqual({
       folderPath: targetFolderPath,
-      kind: 'malformed-marker',
+      kind: 'marker-conflict',
       markerPath: path.join(targetFolderPath, EXNF_LEGACY_MARKER_FILE_NAME),
-      message: `Legacy marker UUID ${VALID_UUID} conflicts with UUID-named marker(s): ${OTHER_UUID}.`
+      message: `Legacy marker ${
+        path.join(targetFolderPath, EXNF_LEGACY_MARKER_FILE_NAME)
+      } contains UUID ${VALID_UUID}, but UUID-named marker(s) in the same folder contain ${OTHER_UUID}.`
     });
   });
 

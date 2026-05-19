@@ -4,6 +4,12 @@ import {
 } from './contracts.ts';
 import { isCanonicalUuid } from './uuid.ts';
 
+export interface ExnfMarkerConflict {
+  legacyMarkerPath: string;
+  legacyUuid: string;
+  uuidNamedUuids: string[];
+}
+
 export type ExnfMarkerFileName =
   | { kind: 'legacy' }
   | { kind: 'not-marker' }
@@ -11,6 +17,12 @@ export type ExnfMarkerFileName =
 
 export interface ExnfMarkerParseResult {
   format: 'legacy' | 'uuid-named';
+  uuid: string;
+}
+
+export interface ParsedExnfMarkerFile {
+  format: ExnfMarkerParseResult['format'];
+  markerPath: string;
   uuid: string;
 }
 
@@ -42,6 +54,34 @@ export function classifyExnfMarkerFileName(fileName: string): ExnfMarkerFileName
     kind: 'uuid-named',
     uuid: candidateUuid
   };
+}
+
+export function findLegacyMarkerConflict(markers: readonly ParsedExnfMarkerFile[]): ExnfMarkerConflict | null {
+  const uuidNamedMarkerUuids = new Set(
+    markers
+      .filter((marker) => marker.format === 'uuid-named')
+      .map((marker) => marker.uuid)
+  );
+  if (uuidNamedMarkerUuids.size === 0) {
+    return null;
+  }
+
+  const conflictingLegacyMarker = markers.find((marker) => marker.format === 'legacy' && !uuidNamedMarkerUuids.has(marker.uuid));
+  if (!conflictingLegacyMarker) {
+    return null;
+  }
+
+  return {
+    legacyMarkerPath: conflictingLegacyMarker.markerPath,
+    legacyUuid: conflictingLegacyMarker.uuid,
+    uuidNamedUuids: [...uuidNamedMarkerUuids].sort()
+  };
+}
+
+export function formatLegacyMarkerConflictMessage(conflict: ExnfMarkerConflict): string {
+  return `Legacy marker ${conflict.legacyMarkerPath} contains UUID ${conflict.legacyUuid}, but UUID-named marker(s) in the same folder contain ${
+    conflict.uuidNamedUuids.join(', ')
+  }.`;
 }
 
 export function parseExnfMarker(content: string): string {

@@ -134,4 +134,28 @@ describe('open external folder flow', () => {
       uuid: VALID_UUID
     });
   });
+
+  it('runs recovery when the expected marker has a legacy conflict', () => {
+    expect(chooseInitialOpenExternalFolderAction({
+      expectedState: {
+        folderPath: 'X:/External/Projects/Alpha',
+        kind: 'marker-conflict',
+        markerPath: 'X:/External/Projects/Alpha/.exnf',
+        message: 'Legacy marker conflicts with UUID-named marker.'
+      },
+      identity: {
+        kind: 'valid',
+        uuid: VALID_UUID
+      }
+    })).toEqual({
+      expectedState: {
+        folderPath: 'X:/External/Projects/Alpha',
+        kind: 'marker-conflict',
+        markerPath: 'X:/External/Projects/Alpha/.exnf',
+        message: 'Legacy marker conflicts with UUID-named marker.'
+      },
+      kind: 'run-recovery',
+      uuid: VALID_UUID
+    });
+  });
 });

@@ -10,6 +10,7 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 
+import type { ParsedExnfMarkerFile } from '../core/marker.ts';
 import type {
   ReconcileMoveRow,
   ReconcilePlan
@@ -17,15 +18,11 @@ import type {
 
 import {
   classifyExnfMarkerFileName,
+  findLegacyMarkerConflict,
+  formatLegacyMarkerConflictMessage,
   parseExnfMarkerFile
 } from '../core/marker.ts';
 import { assertPathIsWithinRoot } from '../core/pathPolicy.ts';
-
-interface ParsedFolderMarker {
-  format: 'legacy' | 'uuid-named';
-  markerPath: string;
-  uuid: string;
-}
 
 const JSON_INDENT = 2;
 
@@ -102,7 +99,7 @@ export async function executeReconcilePlan(input: {
 
 async function assertMarkerMatches(folderPath: string, uuid: string): Promise<void> {
   const entries = await readdir(folderPath, { withFileTypes: true });
-  const parsedMarkers: ParsedFolderMarker[] = [];
+  const parsedMarkers: ParsedExnfMarkerFile[] = [];
   const otherUuids = new Set<string>();
   let foundMatchingMarker = false;
   for (const entry of entries) {
@@ -137,7 +134,7 @@ async function assertMarkerMatches(folderPath: string, uuid: string): Promise<vo
 
   const legacyConflict = findLegacyMarkerConflict(parsedMarkers);
   if (legacyConflict) {
-    throw new Error(`Marker conflict at ${folderPath}: ${legacyConflict}`);
+    throw new Error(`Marker conflict at ${folderPath}: ${formatLegacyMarkerConflictMessage(legacyConflict)}`);
   }
 
   if (foundMatchingMarker) {
@@ -245,26 +242,6 @@ async function executeMove(externalRootPath: string, row: ReconcileMoveRow): Pro
   }
 
   return entry;
-}
-
-function findLegacyMarkerConflict(markers: readonly ParsedFolderMarker[]): null | string {
-  const uuidNamedMarkerUuids = new Set(
-    markers
-      .filter((marker) => marker.format === 'uuid-named')
-      .map((marker) => marker.uuid)
-  );
-  if (uuidNamedMarkerUuids.size === 0) {
-    return null;
-  }
-
-  const conflictingLegacyMarker = markers.find((marker) => marker.format === 'legacy' && !uuidNamedMarkerUuids.has(marker.uuid));
-  if (!conflictingLegacyMarker) {
-    return null;
-  }
-
-  return `legacy marker ${conflictingLegacyMarker.markerPath} contains UUID ${conflictingLegacyMarker.uuid}, but UUID-named marker(s) contain ${
-    [...uuidNamedMarkerUuids].sort().join(', ')
-  }.`;
 }
 
 async function folderHasMarkerFile(folderPath: string): Promise<boolean> {
