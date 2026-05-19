@@ -8,6 +8,32 @@
   - `sandbox/vault`: runtime vault copy.
   - `sandbox/external-root`: runtime external-root copy.
 
+## Scenario Naming
+
+Fixture scenarios should be named by behavior and expected state, not by PR number, issue number,
+or implementation detail.
+
+Use this convention:
+
+- Put scenario data under `fixture/vault/tests/<domain>/<scenario-slug>` and
+  `fixture/external-root/tests/<domain>/<scenario-slug>`.
+- Use lowercase kebab-case for `<domain>` and `<scenario-slug>`.
+- Prefer action-oriented slugs such as `adopt-exnf-from-plain-note` or
+  `adopt-exnf-from-folder-note`.
+- For a plain-note fixture, use `tests/<domain>/<scenario-slug>.md` in the vault and
+  `tests/<domain>/<scenario-slug>/` in the external root.
+- For a folder-note fixture, use `tests/<domain>/<scenario-slug>/<scenario-slug>.md` in the vault
+  and `tests/<domain>/<scenario-slug>/` in the external root.
+- When external folder contents matter, add a named text file such as
+  `file-in-<scenario-slug>.txt` instead of using a placeholder.
+- Use `.gitkeep` only for structural empty directories whose contents do not affect behavior.
+- Keep scenario names stable after tests reference them; add a new scenario instead of repurposing
+  an old one for different behavior.
+
+Integration tests should follow the same domain naming. Put shared Obsidian CLI helpers in
+`test/integration/obsidianCliHarness.ts`, and put workflow tests in
+`test/integration/<domain>.integration.test.ts`.
+
 ## Commands
 
 Create a fresh sandbox from fixture:

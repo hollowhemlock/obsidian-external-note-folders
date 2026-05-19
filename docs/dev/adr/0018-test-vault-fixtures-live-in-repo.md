@@ -44,6 +44,18 @@ with this policy:
   - `npm run vault:open -- <path>`
 
 - Fixtures are version-controlled and named by scenario intent, not by ticket number alone
+- Fixture scenario paths use behavior-first domain naming:
+  - `test/fixtures/fixture/vault/tests/<domain>/<scenario-slug>`
+  - `test/fixtures/fixture/external-root/tests/<domain>/<scenario-slug>`
+- Scenario slugs use lowercase kebab-case and describe the behavior under test, for example
+  `adopt-exnf-from-plain-note`
+- Plain-note fixtures place the note at `tests/<domain>/<scenario-slug>.md` and the external
+  folder at `tests/<domain>/<scenario-slug>/`
+- Folder-note fixtures place the note at
+  `tests/<domain>/<scenario-slug>/<scenario-slug>.md` and the external folder at
+  `tests/<domain>/<scenario-slug>/`
+- External fixture files use semantic names such as `file-in-<scenario-slug>.txt` when the folder
+  content is part of the test; `.gitkeep` is reserved for structural empty directories
 - Each fixture scenario includes:
   - vault tree
   - external-root tree

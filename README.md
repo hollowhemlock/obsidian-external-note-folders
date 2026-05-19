@@ -264,6 +264,8 @@ The plugin does not use `window.DEBUG`.
 - `npm run test:integration` uses `fixtures:refresh-sandbox` so it can run while the sandbox vault
   is open in Obsidian. The GitHub integration workflow is manual-only and requires an online
   self-hosted runner labeled `obsidian-cli`.
+- Fixture scenarios are named by behavior under `test/fixtures/fixture/*/tests/<domain>/<scenario-slug>`;
+  integration tests are split by workflow under `test/integration/<domain>.integration.test.ts`.
 - Run `npm run fixtures:open-fixture` or `npm run fixtures:open-sandbox` to open either test vault
   directly in Obsidian.
 - Run `npm run vault:open -- <vault-path>` to open a specific vault path.

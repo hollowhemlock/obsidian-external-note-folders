@@ -31,12 +31,19 @@ This project needs an integration requirement that validates plugin behavior wit
 Adopt a dedicated **manual Obsidian CLI integration test lane** with these constraints:
 
 - Integration tests live under `test/integration/**/*.integration.test.ts`
+- Integration tests are organized by workflow/domain file, not as one monolithic CLI file:
+  - shared process and sandbox helpers live in `test/integration/obsidianCliHarness.ts`
+  - workflow tests live in `test/integration/<domain>.integration.test.ts`
+- Integration test files run serially because they share one sandbox vault, one external root, and one
+  live Obsidian modal surface
 - Integration tests run via `npm run test:integration`
 - Integration setup must:
   - refresh sandbox from committed fixture
   - build plugin artifacts
   - install plugin artifacts into sandbox `.obsidian/plugins/<plugin-id>`
 - Integration tests must assert CLI command exposure when the CLI runtime responds
+- Integration tests should prefer committed scenario fixtures when directory shape is the behavior
+  being validated; runtime-created files remain appropriate for throwaway drift matrices
 - If the local CLI binary is absent, disabled, or times out, the integration lane reports the
   unavailable environment and does not fail the default local validation path
 - On Windows, CLI execution uses `Obsidian.com` (not `Obsidian.exe`) when available
@@ -85,7 +92,7 @@ Adopt a dedicated **manual Obsidian CLI integration test lane** with these const
 
 ### Future Considerations
 
-Expand integration coverage as domain commands are implemented (Assign UUID, Open External Folder, Verify, Reconcile), keeping fixture scenarios traceable to ADR invariants.
+Expand integration coverage as domain commands are implemented (Assign UUID, Open External Folder, Verify, Reconcile), keeping fixture scenarios traceable to ADR invariants and grouped by workflow.
 
 ### References
 
