@@ -86,5 +86,6 @@ for mixed external roots.
 - Adoption proves row-local coherence, not whole-root coherence. Mixed roots may
   still contain unrelated warnings after a successful adoption run.
 - Active-note open recovery may traverse the external root after expected-path
-  failure. Scan caps, progress UI, cancellation, and cached indexes are out of
-  scope until performance requires them.
+  failure. Long-running commands show a start/progress modal, but scan caps,
+  cancellation, and cached indexes are out of scope until performance requires
+  them.

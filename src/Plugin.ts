@@ -15,6 +15,7 @@ import type { AdoptionExecutionOperations } from './storage/adoptionExecutor.ts'
 
 import { AdoptionPlanModal } from './AdoptionPlanModal.ts';
 import { AdoptionResumeModal } from './AdoptionResumeModal.ts';
+import { CommandProgressModal } from './CommandProgressModal.ts';
 import {
   buildAdoptionPlan,
   haveSameAdoptionRows
@@ -430,7 +431,11 @@ export class Plugin extends ObsidianPlugin {
       vaultRootPath: this.getVaultRootPath()
     });
 
-    const plan = await this.buildAdoptionDryRunPlan();
+    const plan = await this.withProgressModal(
+      'External folder adoption started',
+      'Scanning the vault and external root to build the adoption dry-run plan.',
+      () => this.buildAdoptionDryRunPlan()
+    );
     new Notice(`External folder adoption dry-run complete: ${plan.summaryText}.`);
     this.logInfo('external folder adoption dry-run complete', { plan });
     new AdoptionPlanModal(
@@ -464,7 +469,11 @@ export class Plugin extends ObsidianPlugin {
         return false;
       }
 
-      const currentPlan = await this.buildAdoptionDryRunPlan();
+      const currentPlan = await this.withProgressModal(
+        'External folder adoption preflight started',
+        'Rescanning the vault and external root before writing marker files or note frontmatter.',
+        () => this.buildAdoptionDryRunPlan()
+      );
       if (currentPlan.hasGlobalErrors || !haveSameAdoptionRows(plan, currentPlan)) {
         new Notice('Adoption preflight changed. Review the opened dry-run plan before executing.');
         this.logWarn('adoption execution blocked by changed preflight', {
@@ -486,11 +495,16 @@ export class Plugin extends ObsidianPlugin {
         return false;
       }
 
-      const result = await executeAdoptionPlan({
-        journalRootPath: this.getAdoptionJournalRootPath(),
-        operations: this.buildAdoptionExecutionOperations(currentPlan.externalRootPath),
-        plan: currentPlan
-      });
+      const result = await this.withProgressModal(
+        'External folder adoption execution started',
+        'Writing marker files and note frontmatter. Adoption journals each row and stops on first failure.',
+        () =>
+          executeAdoptionPlan({
+            journalRootPath: this.getAdoptionJournalRootPath(),
+            operations: this.buildAdoptionExecutionOperations(currentPlan.externalRootPath),
+            plan: currentPlan
+          })
+      );
       if (result.succeeded) {
         new Notice(`External folder adoption complete. Journal: ${result.journalPath}`);
         this.logInfo('external folder adoption complete', { result });
@@ -506,10 +520,15 @@ export class Plugin extends ObsidianPlugin {
   private async runAdoptionResumeCommand(journalPath: string): Promise<void> {
     await this.runMutatingCommand('resume external folder adoption', async () => {
       const journal = await readAdoptionJournal(journalPath);
-      const result = await resumeAdoptionJournal({
-        journalPath,
-        operations: this.buildAdoptionExecutionOperations(journal.externalRootPath)
-      });
+      const result = await this.withProgressModal(
+        'External folder adoption resume started',
+        'Resuming marker and frontmatter writes from the incomplete adoption journal.',
+        () =>
+          resumeAdoptionJournal({
+            journalPath,
+            operations: this.buildAdoptionExecutionOperations(journal.externalRootPath)
+          })
+      );
       if (result.succeeded) {
         new Notice(`External folder adoption resume complete. Journal: ${result.journalPath}`);
         this.logInfo('external folder adoption resume complete', { result });
@@ -529,7 +548,11 @@ export class Plugin extends ObsidianPlugin {
     }
 
     await this.runMutatingCommand('assign an external folder UUID', async () => {
-      const { verifyReport } = await this.collectScanContext();
+      const { verifyReport } = await this.withProgressModal(
+        'Assign external folder identifier started',
+        'Scanning the external root for integrity errors before writing note frontmatter.',
+        () => this.collectScanContext()
+      );
       if (verifyReport.hasIntegrityErrors) {
         new Notice('Cannot assign an identifier while integrity errors exist. Review the opened report for details.');
         this.logWarn('assign UUID blocked by integrity errors', { report: verifyReport });
@@ -578,13 +601,19 @@ export class Plugin extends ObsidianPlugin {
         return false;
       }
 
-      const currentExternalScan = await scanExternalRoot(plan.externalRootPath, {
-        ignorePatterns: this.settings.externalRootIgnorePatterns
-      });
-      const currentPlan = buildMarkerMigrationPlan({
-        externalScan: currentExternalScan,
-        mutationSequence: this.mutationSequence
-      });
+      const currentPlan = await this.withProgressModal(
+        'Legacy marker migration preflight started',
+        'Rescanning the external root before renaming legacy marker files.',
+        async () => {
+          const currentExternalScan = await scanExternalRoot(plan.externalRootPath, {
+            ignorePatterns: this.settings.externalRootIgnorePatterns
+          });
+          return buildMarkerMigrationPlan({
+            externalScan: currentExternalScan,
+            mutationSequence: this.mutationSequence
+          });
+        }
+      );
       if (currentPlan.hasGlobalErrors || !haveSameMarkerMigrationRows(plan, currentPlan)) {
         new Notice('Marker migration preflight changed. Review the opened dry-run plan before executing.');
         this.logWarn('marker migration execution blocked by changed preflight', {
@@ -606,10 +635,15 @@ export class Plugin extends ObsidianPlugin {
         return false;
       }
 
-      const result = await executeMarkerMigrationPlan({
-        journalRootPath: this.getMarkerMigrationJournalRootPath(),
-        plan: currentPlan
-      });
+      const result = await this.withProgressModal(
+        'Legacy marker migration execution started',
+        'Renaming legacy .exnf marker files to <uuid>.exnf files and writing a journal.',
+        () =>
+          executeMarkerMigrationPlan({
+            journalRootPath: this.getMarkerMigrationJournalRootPath(),
+            plan: currentPlan
+          })
+      );
       if (result.succeeded) {
         new Notice(`Legacy marker migration complete. Journal: ${result.journalPath}`);
         this.logInfo('legacy marker migration complete', { result });
@@ -628,13 +662,19 @@ export class Plugin extends ObsidianPlugin {
       vaultRootPath: this.getVaultRootPath()
     });
 
-    const externalScan = await scanExternalRoot(this.settings.externalRootPath, {
-      ignorePatterns: this.settings.externalRootIgnorePatterns
-    });
-    const plan = buildMarkerMigrationPlan({
-      externalScan,
-      mutationSequence: this.mutationSequence
-    });
+    const plan = await this.withProgressModal(
+      'Legacy marker migration started',
+      'Scanning the external root to build the legacy marker migration dry-run plan.',
+      async () => {
+        const externalScan = await scanExternalRoot(this.settings.externalRootPath, {
+          ignorePatterns: this.settings.externalRootIgnorePatterns
+        });
+        return buildMarkerMigrationPlan({
+          externalScan,
+          mutationSequence: this.mutationSequence
+        });
+      }
+    );
 
     new Notice(`Legacy marker migration dry-run complete: ${plan.summaryText}.`);
     this.logInfo('legacy marker migration dry-run complete', { plan });
@@ -737,17 +777,23 @@ export class Plugin extends ObsidianPlugin {
       }
 
       if (initialAction.kind === 'run-recovery') {
-        const vaultScan = scanVault(this.app);
-        const externalScan = await scanExternalRoot(externalRootPath, {
-          ignorePatterns: this.settings.externalRootIgnorePatterns
-        });
-        const plan = buildOpenExternalFolderRecoveryPlan({
-          expectedState: initialAction.expectedState,
-          externalScan,
-          notePath: activeFile.path,
-          uuid: initialAction.uuid,
-          vaultScan
-        });
+        const plan = await this.withProgressModal(
+          'External folder recovery scan started',
+          'Searching the external root for this note UUID and exact-name candidate folders.',
+          async () => {
+            const vaultScan = scanVault(this.app);
+            const externalScan = await scanExternalRoot(externalRootPath, {
+              ignorePatterns: this.settings.externalRootIgnorePatterns
+            });
+            return buildOpenExternalFolderRecoveryPlan({
+              expectedState: initialAction.expectedState,
+              externalScan,
+              notePath: activeFile.path,
+              uuid: initialAction.uuid,
+              vaultScan
+            });
+          }
+        );
 
         if (plan.autoOpenFolderPath) {
           await openExternalFolderInFileManager(plan.autoOpenFolderPath);
@@ -775,12 +821,18 @@ export class Plugin extends ObsidianPlugin {
       vaultRootPath: this.getVaultRootPath()
     });
 
-    const { externalScan, vaultScan } = await this.collectScanContext();
-    const plan = buildReconcilePlan({
-      externalScan,
-      mutationSequence: this.mutationSequence,
-      vaultScan
-    });
+    const plan = await this.withProgressModal(
+      'Reconcile dry-run started',
+      'Scanning the vault and external root to build the reconcile dry-run plan.',
+      async () => {
+        const { externalScan, vaultScan } = await this.collectScanContext();
+        return buildReconcilePlan({
+          externalScan,
+          mutationSequence: this.mutationSequence,
+          vaultScan
+        });
+      }
+    );
 
     new Notice(`Reconcile dry-run complete: ${plan.summaryText}.`);
     this.logInfo('reconcile dry-run complete', { plan });
@@ -815,10 +867,15 @@ export class Plugin extends ObsidianPlugin {
         return false;
       }
 
-      const result = await executeReconcilePlan({
-        journalRootPath: this.getJournalRootPath(),
-        plan
-      });
+      const result = await this.withProgressModal(
+        'Reconcile execution started',
+        'Moving external folders according to the reconcile plan and writing a journal.',
+        () =>
+          executeReconcilePlan({
+            journalRootPath: this.getJournalRootPath(),
+            plan
+          })
+      );
       if (result.succeeded) {
         new Notice(`Reconcile execution complete. Journal: ${result.journalPath}`);
         this.logInfo('reconcile execution complete', { result });
@@ -837,8 +894,14 @@ export class Plugin extends ObsidianPlugin {
       vaultRootPath: this.getVaultRootPath()
     });
 
-    const { externalScan, vaultScan } = await this.collectScanContext();
-    const driftReport = buildDriftReport(vaultScan, externalScan);
+    const driftReport = await this.withProgressModal(
+      'External folder drift report started',
+      'Scanning the vault and external root to build the drift report.',
+      async () => {
+        const { externalScan, vaultScan } = await this.collectScanContext();
+        return buildDriftReport(vaultScan, externalScan);
+      }
+    );
     new Notice(`External folder drift report complete: ${driftReport.summaryText}.`);
     this.logInfo('drift report complete', { report: driftReport });
     new DriftReportModal(this.app, driftReport).open();
@@ -848,5 +911,23 @@ export class Plugin extends ObsidianPlugin {
     const message = error instanceof Error ? error.message : 'Command failed.';
     new Notice(message);
     this.logError('command failed unexpectedly', error);
+  }
+
+  private async withProgressModal<T>(
+    title: string,
+    description: string,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    const progressModal = new CommandProgressModal(this.app, title, description);
+    progressModal.open();
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 0);
+    });
+
+    try {
+      return await operation();
+    } finally {
+      progressModal.close();
+    }
   }
 }

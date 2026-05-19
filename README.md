@@ -130,7 +130,7 @@ reconciliation.
 - Bulk adoption is strict but partial: it only adopts exact derived-path matches whose individual target row is safe. Unrelated identities, markers, skipped directories, and ignored directories are reported without suppressing unrelated safe rows.
 - `Report external folder drift` is read-only and can be used before reconcile to inspect missing, orphaned, unexpected, occupied, and likely moved folders without changing the vault or external root.
 - `Open external folder` does not assign note identity. Run `Assign external folder identifier` first for notes without `exnf`.
-- ADR-0025 recovery scans are active-note scoped, not a substitute for full drift reporting. Scan caps, progress UI, cancellation, and cached indexes are intentionally out of scope until performance requires them.
+- ADR-0025 recovery scans are active-note scoped, not a substitute for full drift reporting. Long-running commands show a start/progress modal, but scan caps, cancellation, and cached indexes are intentionally out of scope until performance requires them.
 - Concurrent UUID assignment across unsynced devices can create orphan external folders.
 - Sync tool conflicts in note frontmatter or external marker files are outside the plugin's repair scope; `Report external folder drift` surfaces the resulting state.
 - Fixed `.exnf` markers are deprecated legacy evidence during the 2.0.0 migration window. New writes create `<uuid>.exnf`; run `Migrate legacy marker files` to rename old markers.
