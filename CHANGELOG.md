@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/hollowhemlock/obsidian-external-note-folders/compare/external-note-folders-1.3.0...external-note-folders-2.0.0) (2026-05-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* External folder markers are now written as <uuid>.exnf. Legacy fixed .exnf markers are read during the migration window and can be renamed with the explicit migration command.
+
+### Features
+
+* use uuid-named external folder markers ([28c2d5b](https://github.com/hollowhemlock/obsidian-external-note-folders/commit/28c2d5b245d00dd18fc11c6ccf43b1ba932f7a2b))
+
 ## [1.3.0](https://github.com/hollowhemlock/obsidian-external-note-folders/compare/external-note-folders-1.2.1...external-note-folders-1.3.0) (2026-05-11)
 
 
