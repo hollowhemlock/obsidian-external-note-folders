@@ -13,6 +13,13 @@ import {
   normalizePathForIdentity
 } from './pathPolicy.ts';
 
+export interface ExternalMarkerRecord {
+  folderPath: string;
+  format: 'legacy' | 'uuid-named';
+  markerPath: string;
+  uuid: string;
+}
+
 export interface ExternalScanResult {
   accessErrors: ScanIssue[];
   bindings: Map<string, string>;
@@ -21,7 +28,10 @@ export interface ExternalScanResult {
   ignoredDirectories: IgnoredDirectory[];
   ignoreErrors: ExternalRootIgnoreError[];
   ignorePatterns: string[];
+  legacyMarkers?: ExternalMarkerRecord[];
   malformedMarkers: ScanIssue[];
+  markerConflicts?: ScanIssue[];
+  markers?: ExternalMarkerRecord[];
   rootPath: string;
   skippedDirectories: ScanIssue[];
 }
@@ -77,6 +87,8 @@ export function buildVerifyReport(
       .map((issue) => `Invalid frontmatter at ${issue.location}: ${issue.message}`),
     ...externalScan.malformedMarkers
       .map((issue) => `Malformed marker at ${issue.location}: ${issue.message}`),
+    ...(externalScan.markerConflicts ?? [])
+      .map((issue) => `Marker conflict at ${issue.location}: ${issue.message}`),
     ...externalScan.accessErrors
       .map((issue) => `External root access error at ${issue.location}: ${issue.message}`),
     ...externalScan.ignoreErrors
@@ -91,6 +103,8 @@ export function buildVerifyReport(
   const unavailable: string[] = [];
   const unavailableRows: VerifyTableRow[] = [];
   const warnings = [
+    ...(externalScan.legacyMarkers ?? [])
+      .map((marker) => `Legacy marker at ${marker.markerPath} should be migrated to ${marker.uuid}.exnf.`),
     ...formatIgnoredDirectoryWarnings(externalScan.ignoredDirectories),
     ...externalScan.skippedDirectories
       .map((issue) => `Skipped external directory at ${issue.location}: ${issue.message}`)

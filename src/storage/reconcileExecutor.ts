@@ -10,13 +10,18 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 
+import type { ParsedExnfMarkerFile } from '../core/marker.ts';
 import type {
   ReconcileMoveRow,
   ReconcilePlan
 } from '../core/reconcilePlan.ts';
 
-import { EXNF_MARKER_FILE_NAME } from '../core/contracts.ts';
-import { parseExnfMarker } from '../core/marker.ts';
+import {
+  classifyExnfMarkerFileName,
+  findLegacyMarkerConflict,
+  formatLegacyMarkerConflictMessage,
+  parseExnfMarkerFile
+} from '../core/marker.ts';
 import { assertPathIsWithinRoot } from '../core/pathPolicy.ts';
 
 const JSON_INDENT = 2;
@@ -93,11 +98,53 @@ export async function executeReconcilePlan(input: {
 }
 
 async function assertMarkerMatches(folderPath: string, uuid: string): Promise<void> {
-  const markerContent = await readFile(path.join(folderPath, EXNF_MARKER_FILE_NAME), 'utf8');
-  const markerUuid = parseExnfMarker(markerContent);
-  if (markerUuid !== uuid) {
-    throw new Error(`Marker UUID ${markerUuid} does not match expected UUID ${uuid}.`);
+  const entries = await readdir(folderPath, { withFileTypes: true });
+  const parsedMarkers: ParsedExnfMarkerFile[] = [];
+  const otherUuids = new Set<string>();
+  let foundMatchingMarker = false;
+  for (const entry of entries) {
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    const markerPath = path.join(folderPath, entry.name);
+    try {
+      const fileNameResult = classifyExnfMarkerFileName(entry.name);
+      if (fileNameResult.kind === 'not-marker') {
+        continue;
+      }
+
+      const marker = parseExnfMarkerFile(entry.name, await readFile(markerPath, 'utf8'));
+      parsedMarkers.push({
+        format: marker.format,
+        markerPath,
+        uuid: marker.uuid
+      });
+      if (marker.uuid === uuid) {
+        foundMatchingMarker = true;
+        continue;
+      }
+      otherUuids.add(marker.uuid);
+    } catch (error: unknown) {
+      throw new Error(`Marker at ${markerPath} is malformed: ${error instanceof Error ? error.message : 'Unknown marker parse error.'}`, {
+        cause: error
+      });
+    }
   }
+
+  const legacyConflict = findLegacyMarkerConflict(parsedMarkers);
+  if (legacyConflict) {
+    throw new Error(`Marker conflict at ${folderPath}: ${formatLegacyMarkerConflictMessage(legacyConflict)}`);
+  }
+
+  if (foundMatchingMarker) {
+    return;
+  }
+
+  const detail = otherUuids.size > 0
+    ? ` Found marker UUID(s): ${[...otherUuids].sort().join(', ')}.`
+    : '';
+  throw new Error(`Expected marker UUID ${uuid} was not found in ${folderPath}.${detail}`);
 }
 
 async function assertNoAncestorMarker(externalRootPath: string, targetPath: string): Promise<void> {
@@ -107,7 +154,7 @@ async function assertNoAncestorMarker(externalRootPath: string, targetPath: stri
 
   for (const segment of segments.slice(0, -1)) {
     currentPath = path.join(currentPath, segment);
-    if (await pathExists(path.join(currentPath, EXNF_MARKER_FILE_NAME))) {
+    if (await folderHasMarkerFile(currentPath)) {
       throw new Error(`Target parent is inside an existing bound folder: ${currentPath}`);
     }
   }
@@ -125,7 +172,7 @@ async function assertNoDescendantMarker(targetPath: string): Promise<void> {
   }
 
   await visitDescendantFolders(targetPath, async (folderPath) => {
-    if (await pathExists(path.join(folderPath, EXNF_MARKER_FILE_NAME))) {
+    if (await folderHasMarkerFile(folderPath)) {
       throw new Error(`Target folder contains a descendant bound folder: ${folderPath}`);
     }
   });
@@ -197,19 +244,10 @@ async function executeMove(externalRootPath: string, row: ReconcileMoveRow): Pro
   return entry;
 }
 
-function isMissingFileError(error: unknown): boolean {
-  return (
-    typeof error === 'object'
-    && error !== null
-    && 'code' in error
-    && error.code === 'ENOENT'
-  );
-}
-
-async function pathExists(targetPath: string): Promise<boolean> {
+async function folderHasMarkerFile(folderPath: string): Promise<boolean> {
+  let entries;
   try {
-    await access(targetPath);
-    return true;
+    entries = await readdir(folderPath, { withFileTypes: true });
   } catch (error: unknown) {
     if (isMissingFileError(error)) {
       return false;
@@ -217,6 +255,31 @@ async function pathExists(targetPath: string): Promise<boolean> {
 
     throw error;
   }
+
+  for (const entry of entries) {
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    try {
+      if (classifyExnfMarkerFileName(entry.name).kind !== 'not-marker') {
+        return true;
+      }
+    } catch {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isMissingFileError(error: unknown): boolean {
+  return (
+    typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && error.code === 'ENOENT'
+  );
 }
 
 async function tryLstat(targetPath: string): Promise<Awaited<ReturnType<typeof lstat>> | null> {

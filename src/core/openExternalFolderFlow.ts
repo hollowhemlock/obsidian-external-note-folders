@@ -3,6 +3,7 @@ import type { ExnfFrontmatterValue } from './frontmatter.ts';
 export type ExpectedExternalFolderState =
   | { folderPath: string; kind: 'bound' }
   | { folderPath: string; kind: 'malformed-marker'; markerPath: string; message: string }
+  | { folderPath: string; kind: 'marker-conflict'; markerPath: string; message: string }
   | { folderPath: string; kind: 'mismatched-marker'; markerUuid: string }
   | { folderPath: string; kind: 'missing' }
   | { folderPath: string; kind: 'unmarked' };

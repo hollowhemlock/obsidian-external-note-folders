@@ -7,11 +7,18 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { ExternalScanResult } from '../core/verify.ts';
+import type {
+  ExternalMarkerRecord,
+  ExternalScanResult
+} from '../core/verify.ts';
 
-import { EXNF_MARKER_FILE_NAME } from '../core/contracts.ts';
 import { buildExternalRootIgnoreMatcher } from '../core/externalRootIgnore.ts';
-import { parseExnfMarker } from '../core/marker.ts';
+import {
+  classifyExnfMarkerFileName,
+  findLegacyMarkerConflict,
+  formatLegacyMarkerConflictMessage,
+  parseExnfMarkerFile
+} from '../core/marker.ts';
 
 export interface ScanExternalRootFileSystem {
   readDirectoryEntries: (directoryPath: string) => Promise<Dirent[]>;
@@ -48,7 +55,10 @@ export async function scanExternalRoot(
     ignoredDirectories: [],
     ignoreErrors: [],
     ignorePatterns: [],
+    legacyMarkers: [],
     malformedMarkers: [],
+    markerConflicts: [],
+    markers: [],
     rootPath: trimmedRootPath,
     skippedDirectories: []
   };
@@ -108,9 +118,29 @@ function registerBinding(
     return;
   }
 
+  if (existingPath === folderPath) {
+    return;
+  }
+
   const duplicateSet = new Set<string>(duplicatePaths.get(uuid) ?? [existingPath]);
   duplicateSet.add(folderPath);
   duplicatePaths.set(uuid, [...duplicateSet].sort());
+}
+
+function registerLegacyMarkerConflict(
+  directoryPath: string,
+  directoryMarkers: ExternalMarkerRecord[],
+  result: ExternalScanResult
+): void {
+  const conflict = findLegacyMarkerConflict(directoryMarkers);
+  if (!conflict) {
+    return;
+  }
+
+  result.markerConflicts?.push({
+    location: directoryPath,
+    message: formatLegacyMarkerConflictMessage(conflict)
+  });
 }
 
 async function walkDirectory(
@@ -136,6 +166,7 @@ async function walkDirectory(
     return;
   }
 
+  const directoryMarkers: ExternalMarkerRecord[] = [];
   for (const entry of entries) {
     const entryPath = path.join(directoryPath, entry.name);
     if (entry.isSymbolicLink()) {
@@ -156,14 +187,38 @@ async function walkDirectory(
       continue;
     }
 
-    if (!entry.isFile() || entry.name !== EXNF_MARKER_FILE_NAME) {
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    try {
+      const markerFileName = classifyExnfMarkerFileName(entry.name);
+      if (markerFileName.kind === 'not-marker') {
+        continue;
+      }
+    } catch (error: unknown) {
+      result.malformedMarkers.push({
+        location: entryPath,
+        message: getErrorMessage(error)
+      });
       continue;
     }
 
     try {
       const markerContent = await fileSystem.readMarkerFile(entryPath);
-      const uuid = parseExnfMarker(markerContent);
-      registerBinding(result.bindings, result.duplicatePaths, uuid, path.dirname(entryPath));
+      const marker = parseExnfMarkerFile(entry.name, markerContent);
+      const record: ExternalMarkerRecord = {
+        folderPath: directoryPath,
+        format: marker.format,
+        markerPath: entryPath,
+        uuid: marker.uuid
+      };
+      result.markers?.push(record);
+      directoryMarkers.push(record);
+      if (record.format === 'legacy') {
+        result.legacyMarkers?.push(record);
+      }
+      registerBinding(result.bindings, result.duplicatePaths, record.uuid, directoryPath);
     } catch (error: unknown) {
       result.malformedMarkers.push({
         location: entryPath,
@@ -171,4 +226,6 @@ async function walkDirectory(
       });
     }
   }
+
+  registerLegacyMarkerConflict(directoryPath, directoryMarkers, result);
 }

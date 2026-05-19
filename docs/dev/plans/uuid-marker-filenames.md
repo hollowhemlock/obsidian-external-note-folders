@@ -6,9 +6,9 @@ Scope: Marker filename scheme, concurrent UUID assignment, and related drift
 model implications.
 
 > This document is historical working design material. The accepted follow-up is
-> [ADR-0027](../adr/0027-uuid-named-marker-files.md). Current implementation
-> still reads and writes fixed `.exnf` marker files until ADR-0027 is
-> implemented.
+> [ADR-0027](../adr/0027-uuid-named-marker-files.md). Implementation now targets
+> that ADR: new writes use `<uuid>.exnf`, while fixed `.exnf` markers are legacy
+> migration evidence.
 >
 > ADR-0027 treats the marker filename change as a breaking marker-contract
 > change targeting a future `2.0.0` release. Fixed `.exnf` markers are
@@ -17,14 +17,14 @@ model implications.
 
 ## Related Decisions
 
-- [ADR-0005](../adr/0005-bound-folder-marker.md) defines the current
-  fixed `.exnf` marker-file discovery model.
-- [ADR-0014](../adr/0014-exnf-marker-format-and-validation.md) defines the
-  current `.exnf` marker-file format and validation rules.
+- [ADR-0005](../adr/0005-bound-folder-marker.md) defined the original fixed
+  `.exnf` marker-file discovery model and is superseded by ADR-0027.
+- [ADR-0014](../adr/0014-exnf-marker-format-and-validation.md) defined the
+  original `.exnf` marker-file format and is superseded by ADR-0027.
 - [ADR-0013](../adr/0013-filesystem-boundary-and-path-identity.md) defines
   path identity and filesystem boundary handling.
 - [ADR-0027](../adr/0027-uuid-named-marker-files.md) accepts the UUID-named
-  marker filename contract for the future 2.0.0 implementation.
+  marker filename contract for the 2.0.0 implementation.
 - [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) defines
   active-note recovery scan behavior.
 - [ADR-0026](../adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md)
@@ -36,8 +36,8 @@ model implications.
 
 External Note Folders provides a cross-platform binding between Obsidian vault
 notes and external folders that survives renames and reorganizations on either
-side. Identity is currently anchored to a UUID stored in both the note's `exnf`
-frontmatter and a `.exnf` marker file in the bound external folder.
+side. Identity is anchored to a UUID stored in both the note's `exnf`
+frontmatter and a marker file in the bound external folder.
 
 ### Why Path-Based Linking Does Not Suffice
 
@@ -112,10 +112,9 @@ Rename the marker file from a fixed `.exnf` to `<uuid>.exnf`, for example
 `550e8400-e29b-41d4-a716-446655440000.exnf`, where the UUID in the filename
 matches the UUID written inside the file and in the note's `exnf` frontmatter.
 
-Current implementation still reads and writes fixed `.exnf` marker files.
-ADR-0027 accepts `<uuid>.exnf` as the future marker contract. Fixed `.exnf`
-markers are treated as deprecated legacy markers during migration, not as the
-long-term marker contract.
+ADR-0027 accepts `<uuid>.exnf` as the marker contract. Fixed `.exnf` markers are
+treated as deprecated legacy markers during migration, not as the long-term
+marker contract.
 
 ### Properties
 

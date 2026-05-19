@@ -24,7 +24,7 @@ Status legend:
 ### 0. Scope and Invariants
 
 - [x] Vault is source of truth (`exnf` UUID in note frontmatter)
-- [x] No deletions of vault files, external folders, or `.exnf` markers
+- [x] No deletions of vault files, external folders, or marker files
 - [x] No conflict-based surprise renames — plugin never renames folders to
       dodge collisions (deterministic path derivation including sanitization
       and hash shortening is normal creation behavior, not renaming)
@@ -61,10 +61,10 @@ References:
 - [x] UUID helper: generate canonical lowercase RFC 4122 UUID
 - [x] UUID helper: strict UUID validation (no permissive coercion)
 - [x] Frontmatter helper for `exnf` read/write
-- [x] `.exnf` writer uses UTF-8 without BOM and trailing `\n`
-- [x] `.exnf` parser accepts only one UUID line plus optional trailing newline
-- [x] `.exnf` parser rejects BOM, extra lines, extra content, non-canonical UUID
-- [x] Any malformed `.exnf` is `Error` and blocks mutation
+- [x] Marker writer uses UTF-8 without BOM and trailing `\n`
+- [x] Marker parser accepts only one UUID line plus optional trailing newline
+- [x] Marker parser rejects BOM, extra lines, extra content, non-canonical UUID
+- [x] Any malformed marker is `Error` and blocks mutation
 
 References:
 - [x] `docs/dev/adr/0005-bound-folder-marker.md`
@@ -111,7 +111,7 @@ scanVaultUUIDs(): {
 
 ### 6. External Root Scan
 
-- [x] Recursively discover `.exnf` files under external root boundary
+- [x] Recursively discover marker files under external root boundary
 - [x] Parse and validate markers with strict contract
 - [x] Build `Map<uuid, boundFolderPath>`
 - [x] Detect duplicate UUIDs in external root and classify as `Error`
@@ -184,11 +184,11 @@ Reference:
 - [x] If UUID already bound at the expected folder: open existing folder
 - [x] If UUID unbound:
   - [x] Derive target path using path policy
-  - [x] If target path occupied without marker: prompt before writing `.exnf`
+  - [x] If target path occupied without marker: prompt before writing a marker
   - [x] If target path occupied with mismatched or malformed marker: report
         conflict and abort with notice
   - [x] Create directory
-  - [x] Write `.exnf`
+  - [x] Write marker
   - [x] Open folder
 
 #### 9.3 Integrity Preflight Report
@@ -249,7 +249,7 @@ Reference:
 - [x] Unit tests:
   - [x] path sanitization/canonicalization/boundary checks
   - [x] UUID validation and normalization policy
-  - [x] strict `.exnf` parse/write contract
+  - [x] strict marker parse/write contract
   - [x] duplicate detection with path-rich diagnostics (`uuid -> paths[]`)
 - [x] Integration/manual matrix:
   - [x] external root missing
@@ -261,7 +261,7 @@ Reference:
         and does not block classification of readable siblings
   - [x] duplicate UUID in vault
   - [x] duplicate UUID in external
-  - [x] malformed `.exnf`
+  - [x] malformed marker
   - [x] occupied target path on Open External Folder
   - [x] symlink/junction/root-escape attempts
 
@@ -299,7 +299,7 @@ Reference:
 - [x] Any integrity `Error` blocks mutation
 - [x] Mutating commands are serialized by lock
 - [x] Boundary checks prevent scan/mutation outside configured external root
-- [x] Strict malformed `.exnf` handling is enforced and user-visible
+- [x] Strict malformed marker handling is enforced and user-visible
 - [x] Occupied target path on Open External Folder reports conflict, does not
       auto-rename
 

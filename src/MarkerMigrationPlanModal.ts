@@ -4,20 +4,19 @@ import {
 } from 'obsidian';
 
 import type {
-  AdoptionBlockedNoteRow,
-  AdoptionPlan,
-  AdoptionPlanRow
-} from './core/adoptionPlan.ts';
+  MarkerMigrationPlan,
+  MarkerMigrationPlanRow,
+  MarkerMigrationRenameRow
+} from './core/markerMigrationPlan.ts';
 
-import { getAdoptionRows } from './core/adoptionPlan.ts';
 import { renderCopyableReport } from './modalReport.ts';
 
-export class AdoptionPlanModal extends Modal {
+export class MarkerMigrationPlanModal extends Modal {
   private executeArmed: boolean;
 
   public constructor(
     app: Modal['app'],
-    private readonly plan: AdoptionPlan,
+    private readonly plan: MarkerMigrationPlan,
     private readonly onExecute: () => Promise<void>,
     private readonly dryRunByDefault: boolean
   ) {
@@ -30,16 +29,15 @@ export class AdoptionPlanModal extends Modal {
     contentEl.empty();
     contentEl.addClass('external-note-folders-wide-modal');
 
-    const adoptRows = getAdoptionRows(this.plan);
-    const blockedRows = this.plan.rows.filter((row): row is AdoptionBlockedNoteRow => row.kind === 'blocked-note');
+    const renameRows = this.plan.rows.filter((row): row is MarkerMigrationRenameRow => row.kind === 'rename');
 
-    contentEl.createEl('h2', { text: 'Adopt existing external folders' });
+    contentEl.createEl('h2', { text: 'Migrate legacy marker files' });
     contentEl.createEl('p', { text: this.plan.summaryText });
     contentEl.createEl('p', {
       cls: 'setting-item-description',
       text: this.dryRunByDefault
-        ? 'Dry-run plan. No vault files, external folders, or marker files have been changed.'
-        : 'Execution-ready plan. No files have changed yet; clicking confirm writes markers and note frontmatter.'
+        ? 'Dry-run plan. No marker files have been renamed.'
+        : 'Execution-ready plan. No files have changed yet; clicking confirm renames legacy markers.'
     });
     contentEl.createEl('p', {
       cls: 'setting-item-description',
@@ -47,14 +45,12 @@ export class AdoptionPlanModal extends Modal {
     });
     contentEl.createEl('p', {
       cls: 'setting-item-description',
-      text: 'Adoption writes <uuid>.exnf first, then note frontmatter, journals each row, and stops on first failure.'
+      text: 'Migration renames .exnf to <uuid>.exnf, never overwrites existing UUID-named markers, and writes a journal.'
     });
 
-    this.renderTextSection(contentEl, 'Errors', this.plan.errors, 'No global adoption blockers detected.');
-    this.renderTextSection(contentEl, 'Warnings', this.plan.warnings, 'No adoption warnings detected.');
-    this.renderTableSection(contentEl, 'Adoptable Matches', adoptRows, 'No exact note/folder matches found.');
-    this.renderTableSection(contentEl, 'Blocked Notes', blockedRows, 'No note collisions detected.');
-    this.renderTableSection(contentEl, 'Other Rows', this.plan.rows.filter((row) => row.kind !== 'adopt' && row.kind !== 'blocked-note'), 'No unmatched rows.');
+    this.renderTextSection(contentEl, 'Errors', this.plan.errors, 'No migration blockers detected.');
+    this.renderTextSection(contentEl, 'Warnings', this.plan.warnings, 'No scan warnings detected.');
+    this.renderTableSection(contentEl, 'Marker Rows', this.plan.rows, 'No legacy markers found.');
 
     renderCopyableReport(contentEl, 'Copyable plan', this.plan.markdownReport);
 
@@ -68,12 +64,12 @@ export class AdoptionPlanModal extends Modal {
       });
 
     const executeButton = new ButtonComponent(actionsEl)
-      .setButtonText(this.getExecuteButtonText(adoptRows.length))
+      .setButtonText(this.getExecuteButtonText(renameRows.length))
       .setCta()
       .onClick(() => {
         if (!this.executeArmed) {
           this.executeArmed = true;
-          executeButton.setButtonText(this.getExecuteButtonText(adoptRows.length));
+          executeButton.setButtonText(this.getExecuteButtonText(renameRows.length));
           return;
         }
 
@@ -85,21 +81,21 @@ export class AdoptionPlanModal extends Modal {
         });
       });
 
-    executeButton.setDisabled(this.plan.hasGlobalErrors || adoptRows.length === 0);
+    executeButton.setDisabled(this.plan.hasGlobalErrors || renameRows.length === 0);
   }
 
-  private getExecuteButtonText(adoptCount: number): string {
+  private getExecuteButtonText(renameCount: number): string {
     if (this.executeArmed) {
-      return `Confirm adopt ${String(adoptCount)} folder(s)`;
+      return `Confirm migrate ${String(renameCount)} marker(s)`;
     }
 
-    return `Adopt ${String(adoptCount)} folder(s)`;
+    return `Migrate ${String(renameCount)} marker(s)`;
   }
 
   private renderTableSection(
     containerEl: HTMLElement,
     title: string,
-    rows: readonly AdoptionPlanRow[],
+    rows: readonly MarkerMigrationPlanRow[],
     emptyMessage: string
   ): void {
     containerEl.createEl('h3', { text: title });
@@ -113,20 +109,17 @@ export class AdoptionPlanModal extends Modal {
     });
     const headerRowEl = tableEl.createEl('thead').createEl('tr');
     headerRowEl.createEl('th', { text: 'Kind' });
-    headerRowEl.createEl('th', { text: 'Vault file' });
     headerRowEl.createEl('th', { text: 'External folder' });
+    headerRowEl.createEl('th', { text: 'UUID' });
     headerRowEl.createEl('th', { text: 'Message' });
 
     const bodyEl = tableEl.createEl('tbody');
     for (const row of rows) {
-      const notePath = 'notePath' in row ? row.notePath : null;
-      const externalFolder = 'externalFolder' in row ? row.externalFolder : null;
-      const message = 'message' in row ? row.message : '';
       const rowEl = bodyEl.createEl('tr');
       rowEl.createEl('td', { text: row.kind });
-      rowEl.createEl('td', { text: notePath ?? '-' });
-      rowEl.createEl('td', { text: externalFolder ?? '-' });
-      rowEl.createEl('td', { text: message });
+      rowEl.createEl('td', { text: row.externalFolder });
+      rowEl.createEl('td', { text: row.uuid });
+      rowEl.createEl('td', { text: 'message' in row ? row.message : '' });
     }
   }
 

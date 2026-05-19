@@ -21,11 +21,16 @@ import {
 } from './core/adoptionPlan.ts';
 import { buildDriftReport } from './core/driftReport.ts';
 import { getExnfFrontmatterValue } from './core/frontmatter.ts';
+import {
+  buildMarkerMigrationPlan,
+  haveSameMarkerMigrationRows
+} from './core/markerMigrationPlan.ts';
 import { chooseInitialOpenExternalFolderAction } from './core/openExternalFolderFlow.ts';
 import { buildOpenExternalFolderRecoveryPlan } from './core/openExternalFolderRecovery.ts';
 import { buildReconcilePlan } from './core/reconcilePlan.ts';
 import { buildVerifyReport } from './core/verify.ts';
 import { DriftReportModal } from './DriftReportModal.ts';
+import { MarkerMigrationPlanModal } from './MarkerMigrationPlanModal.ts';
 import { assignUuidToNote } from './obsidian/assignUuidToNote.ts';
 import { scanVault } from './obsidian/scanVault.ts';
 import {
@@ -54,8 +59,10 @@ import {
 } from './storage/boundExternalFolder.ts';
 import {
   buildAdoptionJournalRootPath,
-  buildJournalRootPath
+  buildJournalRootPath,
+  buildMarkerMigrationJournalRootPath
 } from './storage/journalPath.ts';
+import { executeMarkerMigrationPlan } from './storage/markerMigrationExecutor.ts';
 import { executeReconcilePlan } from './storage/reconcileExecutor.ts';
 import { scanExternalRoot } from './storage/scanExternalRoot.ts';
 import { VerifyReportModal } from './VerifyReportModal.ts';
@@ -121,6 +128,16 @@ export class Plugin extends ObsidianPlugin {
       },
       id: 'open-external-folder',
       name: 'Open external folder'
+    });
+
+    this.addCommand({
+      callback: () => {
+        this.runMigrateLegacyMarkersCommand().catch((error: unknown) => {
+          this.showUnexpectedError(error);
+        });
+      },
+      id: 'migrate-legacy-marker-files',
+      name: 'Migrate legacy marker files'
     });
 
     this.addCommand({
@@ -233,6 +250,14 @@ export class Plugin extends ObsidianPlugin {
     return this.app.vault.getMarkdownFiles()
       .map((file) => file.path)
       .sort();
+  }
+
+  private getMarkerMigrationJournalRootPath(): string {
+    return buildMarkerMigrationJournalRootPath({
+      configDir: this.app.vault.configDir,
+      pluginId: this.manifest.id,
+      vaultRootPath: this.getVaultRootPath()
+    });
   }
 
   private getVaultRootPath(): string {
@@ -534,6 +559,97 @@ export class Plugin extends ObsidianPlugin {
         this.logError('assign UUID failed', error, { notePath: activeFile.path });
       }
     });
+  }
+
+  private async runMarkerMigrationExecuteCommand(plan: ReturnType<typeof buildMarkerMigrationPlan>): Promise<void> {
+    await this.runMutatingCommand('execute legacy marker migration', async () => {
+      if (plan.hasGlobalErrors) {
+        new Notice('Cannot execute marker migration while blockers exist. Review the dry-run plan for details.');
+        this.logWarn('marker migration execution blocked by global errors', { plan });
+        return false;
+      }
+
+      if (plan.mutationSequence !== this.mutationSequence) {
+        new Notice('Cannot execute marker migration from a stale dry-run plan. Run migration again.');
+        this.logWarn('marker migration execution blocked by stale plan', {
+          currentMutationSequence: this.mutationSequence,
+          planMutationSequence: plan.mutationSequence
+        });
+        return false;
+      }
+
+      const currentExternalScan = await scanExternalRoot(plan.externalRootPath, {
+        ignorePatterns: this.settings.externalRootIgnorePatterns
+      });
+      const currentPlan = buildMarkerMigrationPlan({
+        externalScan: currentExternalScan,
+        mutationSequence: this.mutationSequence
+      });
+      if (currentPlan.hasGlobalErrors || !haveSameMarkerMigrationRows(plan, currentPlan)) {
+        new Notice('Marker migration preflight changed. Review the opened dry-run plan before executing.');
+        this.logWarn('marker migration execution blocked by changed preflight', {
+          currentPlan,
+          plan
+        });
+        new MarkerMigrationPlanModal(
+          this.app,
+          currentPlan,
+          async () => {
+            try {
+              await this.runMarkerMigrationExecuteCommand(currentPlan);
+            } catch (error: unknown) {
+              this.showUnexpectedError(error);
+            }
+          },
+          true
+        ).open();
+        return false;
+      }
+
+      const result = await executeMarkerMigrationPlan({
+        journalRootPath: this.getMarkerMigrationJournalRootPath(),
+        plan: currentPlan
+      });
+      if (result.succeeded) {
+        new Notice(`Legacy marker migration complete. Journal: ${result.journalPath}`);
+        this.logInfo('legacy marker migration complete', { result });
+        return true;
+      }
+
+      new Notice(`Legacy marker migration stopped after a failure. Journal: ${result.journalPath}`);
+      this.logWarn('legacy marker migration stopped after failure', { result });
+      return true;
+    });
+  }
+
+  private async runMigrateLegacyMarkersCommand(): Promise<void> {
+    this.logInfo('legacy marker migration dry-run started', {
+      externalRootPath: this.settings.externalRootPath,
+      vaultRootPath: this.getVaultRootPath()
+    });
+
+    const externalScan = await scanExternalRoot(this.settings.externalRootPath, {
+      ignorePatterns: this.settings.externalRootIgnorePatterns
+    });
+    const plan = buildMarkerMigrationPlan({
+      externalScan,
+      mutationSequence: this.mutationSequence
+    });
+
+    new Notice(`Legacy marker migration dry-run complete: ${plan.summaryText}.`);
+    this.logInfo('legacy marker migration dry-run complete', { plan });
+    new MarkerMigrationPlanModal(
+      this.app,
+      plan,
+      async () => {
+        try {
+          await this.runMarkerMigrationExecuteCommand(plan);
+        } catch (error: unknown) {
+          this.showUnexpectedError(error);
+        }
+      },
+      this.settings.dryRunByDefault
+    ).open();
   }
 
   private async runMutatingCommand(

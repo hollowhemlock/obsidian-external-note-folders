@@ -12,8 +12,13 @@ when_to_read: "Before changing active-note open fallback or recovery behavior."
 
 `Open external folder` must stay fast when the active note's expected folder is
 already correctly bound, but the failure path needs enough context to avoid
-creating duplicate folders when the note's existing `.exnf` marker was moved or
+creating duplicate folders when the note's existing marker was moved or
 renamed outside the expected path.
+
+Marker filename details in the original version of this ADR were superseded by
+[ADR-0027](0027-uuid-named-marker-files.md). The recovery flow still applies:
+the fast path opens a matching expected marker, and the fallback scan enumerates
+the marker contract currently accepted by ADR-0027.
 
 The previous accepted behavior kept `Open external folder` local to the expected
 path only. That avoided expensive scans, but it also made a common recovery case
@@ -26,31 +31,29 @@ whether exact-name candidate folders were available for adoption.
 - Preserve the zero-scan fast path for correctly bound expected folders
 - Keep identity creation explicit; opening must never create note `exnf`
 - Recover active-note drift without showing unrelated orphan folders
-- Detect duplicate current-UUID markers caused by copied `.exnf` files
-- Keep marker format stable and avoid migration work before the feature is
-  proven
+- Detect duplicate current-UUID markers caused by copied marker files
 
 ## Considered Options
 
 * Expected-folder-only open behavior
 * Full drift report inside `Open external folder`
 * Active-note recovery scan after expected-folder failure
-* Rename markers to `{uuid}.exnf`
+* Rename markers to `{uuid}.exnf` (superseded by ADR-0027)
 
 ## Decision Outcome
 
 `Open external folder` uses this model:
 
 1. Inspect the active note's derived expected folder.
-2. If the expected folder has a matching `.exnf`, open immediately and do not
+2. If the expected folder has a matching marker, open immediately and do not
    scan the external root.
 3. If expected-folder inspection is anything other than matching bound, run an
    active-note recovery scan across the external root.
 4. The recovery scan is complete for that invocation. It does not stop at the
-   first current-UUID marker because copied `.exnf` files can create duplicate
+   first current-UUID marker because copied marker files can create duplicate
    bindings.
 5. The recovery scan collects only active-note-relevant data:
-   - folders whose `.exnf` marker equals the active note UUID
+   - folders whose marker equals the active note UUID
    - exact normalized-basename candidate folders for the expected folder name
    - marker status for those candidates
    - owner vault note when a candidate is bound to a UUID known in vault
@@ -78,10 +81,11 @@ Candidate matching is exact normalized basename equality only:
 
 ### Marker Format
 
-The marker remains `.exnf` with a strict UUID payload. Renaming markers to
-`{uuid}.exnf` is rejected for this feature because it still requires directory
-tree traversal when markers can exist anywhere, exposes UUIDs in filenames, and
-adds migration cost without solving the dominant performance cost.
+This ADR no longer owns marker filename selection. [ADR-0027](0027-uuid-named-marker-files.md)
+changes the marker filename contract to `<uuid>.exnf` and defines the legacy
+`.exnf` migration window. The active-note recovery rule remains unchanged:
+open immediately when the expected folder has the active note's marker, and
+scan only after expected-folder inspection fails.
 
 ### Relationship to Ignore Patterns
 
@@ -96,7 +100,7 @@ are disabled.
 
 - Scan caps, progress UI, cancellation, cache/indexing, or background indexing
 - Full drift classification from within `Open external folder`
-- Changing `.exnf` marker format or adding marker filename variants
+- Changing marker payload schema
 
 ## Consequences
 
@@ -104,7 +108,7 @@ are disabled.
 
 - Correctly bound notes still open without external-root traversal
 - Failure paths can find moved/renamed active-note folders
-- Duplicate copied `.exnf` markers are visible before auto-opening
+- Duplicate copied markers are visible before auto-opening
 - Users get persistent recovery context instead of transient notices
 - Full drift/orphan noise remains in explicit report/reconcile commands
 
@@ -143,10 +147,9 @@ are disabled.
 
 ### Rename markers to `{uuid}.exnf`
 
-- Pros: Could identify UUID from filename once the file is encountered
-- Cons: Still requires traversal; exposes UUID in names; requires migration and
-  coexistence policy
-- Why rejected: Not enough performance benefit for the migration cost
+- Original outcome: Rejected for this ADR's recovery-scan feature.
+- Superseded by: ADR-0027 later accepted `<uuid>.exnf` for concurrent assignment
+  safety, not as a recovery-scan performance optimization.
 
 ## More Information
 
@@ -159,4 +162,5 @@ are disabled.
 - [ADR-0015](0015-external-folder-path-derivation.md)
 - [ADR-0023](0023-open-external-folder-does-not-assign-identity.md)
 - [ADR-0026](0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md)
+- [ADR-0027](0027-uuid-named-marker-files.md)
 - [docs/dev/plans/open-external-folder-recovery.md](../plans/open-external-folder-recovery.md)

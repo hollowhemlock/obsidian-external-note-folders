@@ -17,7 +17,8 @@ import {
 
 import type { ReconcilePlan } from '../core/reconcilePlan.ts';
 
-import { EXNF_MARKER_FILE_NAME } from '../core/contracts.ts';
+import { EXNF_LEGACY_MARKER_FILE_NAME } from '../core/contracts.ts';
+import { buildExnfMarkerFileName } from '../core/marker.ts';
 import { executeReconcilePlan } from './reconcileExecutor.ts';
 
 const FIRST_UUID = '123e4567-e89b-42d3-a456-426614174000';
@@ -55,7 +56,7 @@ describe('reconcile executor', () => {
     });
 
     expect(result.succeeded).toBe(true);
-    expect(await readFile(path.join(targetPath, EXNF_MARKER_FILE_NAME), 'utf8')).toBe(`${FIRST_UUID}\n`);
+    expect(await readFile(markerPath(targetPath, FIRST_UUID), 'utf8')).toBe(`${FIRST_UUID}\n`);
     expect(result.journal.entries).toEqual([expect.objectContaining({
       outcome: 'success',
       sourcePath,
@@ -104,7 +105,7 @@ describe('reconcile executor', () => {
       outcome: 'failure',
       uuid: FIRST_UUID
     }));
-    await expect(readFile(path.join(secondSourcePath, EXNF_MARKER_FILE_NAME), 'utf8')).resolves.toBe(`${SECOND_UUID}\n`);
+    await expect(readFile(markerPath(secondSourcePath, SECOND_UUID), 'utf8')).resolves.toBe(`${SECOND_UUID}\n`);
   });
 
   it('fails closed when a planned move path escapes the external root', async () => {
@@ -191,7 +192,39 @@ describe('reconcile executor', () => {
 
     expect(result.succeeded).toBe(false);
     const entry = result.journal.entries[0];
-    expect(entry?.message).toContain('does not match expected UUID');
+    expect(entry?.message).toContain('Expected marker UUID');
+    expect(entry).toEqual(expect.objectContaining({
+      outcome: 'failure',
+      uuid: FIRST_UUID
+    }));
+  });
+
+  it('fails closed when source legacy and UUID-named markers conflict', async () => {
+    const rootPath = await createTempRoot(tempDirectories);
+    const sourcePath = path.join(rootPath, 'Old Alpha');
+    const targetPath = path.join(rootPath, 'Projects', 'Alpha');
+    await mkdir(sourcePath, { recursive: true });
+    await writeFile(path.join(sourcePath, EXNF_LEGACY_MARKER_FILE_NAME), `${FIRST_UUID}\n`, 'utf8');
+    await writeMarker(sourcePath, SECOND_UUID);
+
+    const result = await executeReconcilePlan({
+      journalRootPath: path.join(rootPath, 'journal'),
+      plan: buildPlan(rootPath, [
+        {
+          currentExternalFolder: 'Old Alpha',
+          kind: 'move',
+          notePath: 'Projects/Alpha.md',
+          sourcePath,
+          targetExternalFolder: 'Projects/Alpha',
+          targetPath,
+          uuid: FIRST_UUID
+        }
+      ])
+    });
+
+    expect(result.succeeded).toBe(false);
+    const entry = result.journal.entries[0];
+    expect(entry?.message).toContain('Marker conflict');
     expect(entry).toEqual(expect.objectContaining({
       outcome: 'failure',
       uuid: FIRST_UUID
@@ -282,7 +315,11 @@ async function createTempRoot(tempDirectories: string[]): Promise<string> {
   return directoryPath;
 }
 
+function markerPath(folderPath: string, uuid: string): string {
+  return path.join(folderPath, buildExnfMarkerFileName(uuid));
+}
+
 async function writeMarker(folderPath: string, uuid: string): Promise<void> {
   await mkdir(folderPath, { recursive: true });
-  await writeFile(path.join(folderPath, EXNF_MARKER_FILE_NAME), `${uuid}\n`, 'utf8');
+  await writeFile(markerPath(folderPath, uuid), `${uuid}\n`, 'utf8');
 }

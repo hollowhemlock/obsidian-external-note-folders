@@ -4,6 +4,7 @@ import {
   it
 } from 'vitest';
 
+import { buildExnfMarkerFileName } from './marker.ts';
 import { chooseInitialOpenExternalFolderAction } from './openExternalFolderFlow.ts';
 
 const VALID_UUID = '123e4567-e89b-42d3-a456-426614174000';
@@ -115,7 +116,7 @@ describe('open external folder flow', () => {
       expectedState: {
         folderPath: 'X:/External/Projects/Alpha',
         kind: 'malformed-marker',
-        markerPath: 'X:/External/Projects/Alpha/.exnf',
+        markerPath: `X:/External/Projects/Alpha/${buildExnfMarkerFileName(VALID_UUID)}`,
         message: 'Invalid marker'
       },
       identity: {
@@ -126,8 +127,32 @@ describe('open external folder flow', () => {
       expectedState: {
         folderPath: 'X:/External/Projects/Alpha',
         kind: 'malformed-marker',
-        markerPath: 'X:/External/Projects/Alpha/.exnf',
+        markerPath: `X:/External/Projects/Alpha/${buildExnfMarkerFileName(VALID_UUID)}`,
         message: 'Invalid marker'
+      },
+      kind: 'run-recovery',
+      uuid: VALID_UUID
+    });
+  });
+
+  it('runs recovery when the expected marker has a legacy conflict', () => {
+    expect(chooseInitialOpenExternalFolderAction({
+      expectedState: {
+        folderPath: 'X:/External/Projects/Alpha',
+        kind: 'marker-conflict',
+        markerPath: 'X:/External/Projects/Alpha/.exnf',
+        message: 'Legacy marker conflicts with UUID-named marker.'
+      },
+      identity: {
+        kind: 'valid',
+        uuid: VALID_UUID
+      }
+    })).toEqual({
+      expectedState: {
+        folderPath: 'X:/External/Projects/Alpha',
+        kind: 'marker-conflict',
+        markerPath: 'X:/External/Projects/Alpha/.exnf',
+        message: 'Legacy marker conflicts with UUID-named marker.'
       },
       kind: 'run-recovery',
       uuid: VALID_UUID

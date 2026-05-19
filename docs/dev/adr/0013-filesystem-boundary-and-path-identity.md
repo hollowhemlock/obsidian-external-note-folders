@@ -39,9 +39,9 @@ All external paths must be canonicalized and validated against external-root bou
   - normalize Unicode to NFC before path-derived naming and comparison
 - Conflict policy must include both ancestor and descendant bound-folder marker conflicts:
   - Ancestor conflict: the intended target path falls inside an existing bound folder
-    (e.g., target is `root/A/B/` but `root/A/` already has a `.exnf` marker)
+    (e.g., target is `root/A/B/` but `root/A/` already has a marker)
   - Descendant conflict: an existing bound folder falls inside the intended target path
-    (e.g., target is `root/A/` but `root/A/sub/` already has a `.exnf` marker)
+    (e.g., target is `root/A/` but `root/A/sub/` already has a marker)
   Both cases are classified as `Error` and block the affected move.
 - If canonicalization or boundary checks fail, classify as `Error` and block mutation.
 

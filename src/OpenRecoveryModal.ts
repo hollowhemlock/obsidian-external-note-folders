@@ -120,7 +120,7 @@ export class OpenRecoveryModal extends Modal {
       return;
     }
 
-    this.renderAsyncButton(actionEl, 'Write .exnf and open', async () => {
+    this.renderAsyncButton(actionEl, 'Write <uuid>.exnf and open', async () => {
       await this.input.onAdoptCandidate(row);
       this.close();
     });
@@ -170,7 +170,7 @@ export class OpenRecoveryModal extends Modal {
     }
 
     if (this.input.plan.canAdoptExpected) {
-      this.renderAsyncButton(actionsEl, 'Write expected .exnf and open', async () => {
+      this.renderAsyncButton(actionsEl, 'Write expected <uuid>.exnf and open', async () => {
         await this.input.onAdoptExpected();
         this.close();
       });

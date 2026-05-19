@@ -5,14 +5,91 @@ import {
 } from 'vitest';
 
 import {
+  buildExnfMarkerFileName,
+  classifyExnfMarkerFileName,
   ExnfMarkerParseError,
+  findLegacyMarkerConflict,
+  formatLegacyMarkerConflictMessage,
   parseExnfMarker,
+  parseExnfMarkerFile,
   serializeExnfMarker
 } from './marker.ts';
 
 const VALID_UUID = '123e4567-e89b-42d3-a456-426614174000';
+const OTHER_UUID = '123e4567-e89b-42d3-a456-426614174001';
 
-describe('.exnf marker contract', () => {
+describe('EXNF marker contract', () => {
+  it('builds UUID-named marker filenames', () => {
+    expect(buildExnfMarkerFileName(VALID_UUID)).toBe(`${VALID_UUID}.exnf`);
+  });
+
+  it('classifies legacy, UUID-named, and non-marker filenames', () => {
+    expect(classifyExnfMarkerFileName('.exnf')).toEqual({ kind: 'legacy' });
+    expect(classifyExnfMarkerFileName(`${VALID_UUID}.exnf`)).toEqual({
+      kind: 'uuid-named',
+      uuid: VALID_UUID
+    });
+    expect(classifyExnfMarkerFileName('notes.txt')).toEqual({ kind: 'not-marker' });
+  });
+
+  it('rejects malformed marker filenames', () => {
+    expect(() => classifyExnfMarkerFileName('not-a-uuid.exnf')).toThrow(ExnfMarkerParseError);
+  });
+
+  it('requires UUID-named marker filenames to match their payload', () => {
+    expect(parseExnfMarkerFile(`${VALID_UUID}.exnf`, `${VALID_UUID}\n`)).toEqual({
+      format: 'uuid-named',
+      uuid: VALID_UUID
+    });
+    expect(() => parseExnfMarkerFile(`${VALID_UUID}.exnf`, '123e4567-e89b-42d3-a456-426614174001\n')).toThrow(ExnfMarkerParseError);
+  });
+
+  it('parses legacy marker filenames as deprecated marker evidence', () => {
+    expect(parseExnfMarkerFile('.exnf', `${VALID_UUID}\n`)).toEqual({
+      format: 'legacy',
+      uuid: VALID_UUID
+    });
+  });
+
+  it('detects conflicting legacy and UUID-named markers in the same folder', () => {
+    const conflict = findLegacyMarkerConflict([
+      {
+        format: 'legacy',
+        markerPath: 'Projects/Alpha/.exnf',
+        uuid: VALID_UUID
+      },
+      {
+        format: 'uuid-named',
+        markerPath: `Projects/Alpha/${OTHER_UUID}.exnf`,
+        uuid: OTHER_UUID
+      }
+    ]);
+
+    expect(conflict).toEqual({
+      legacyMarkerPath: 'Projects/Alpha/.exnf',
+      legacyUuid: VALID_UUID,
+      uuidNamedUuids: [OTHER_UUID]
+    });
+    expect(conflict ? formatLegacyMarkerConflictMessage(conflict) : null).toBe(
+      `Legacy marker Projects/Alpha/.exnf contains UUID ${VALID_UUID}, but UUID-named marker(s) in the same folder contain ${OTHER_UUID}.`
+    );
+  });
+
+  it('does not report a conflict when legacy and UUID-named markers agree', () => {
+    expect(findLegacyMarkerConflict([
+      {
+        format: 'legacy',
+        markerPath: 'Projects/Alpha/.exnf',
+        uuid: VALID_UUID
+      },
+      {
+        format: 'uuid-named',
+        markerPath: `Projects/Alpha/${VALID_UUID}.exnf`,
+        uuid: VALID_UUID
+      }
+    ])).toBeNull();
+  });
+
   it('serializes with a trailing newline', () => {
     expect(serializeExnfMarker(VALID_UUID)).toBe(`${VALID_UUID}\n`);
   });

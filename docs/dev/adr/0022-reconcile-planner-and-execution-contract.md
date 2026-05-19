@@ -63,9 +63,9 @@ folders.
 
 Planner `conflict` rows use these categories:
 
-- `target-bound-to-different-uuid`: derived target has a `.exnf` marker for another UUID
+- `target-bound-to-different-uuid`: derived target has a marker for another UUID
 - `target-unmarked-occupied`: derived target exists without a marker
-- `target-has-malformed-marker`: derived target contains an unreadable or invalid `.exnf`
+- `target-has-malformed-marker`: derived target contains an unreadable or invalid marker
 - `ancestor-bound-folder`: an ancestor of the target path is already a bound folder
 - `descendant-bound-folder`: a descendant of the target path is already a bound folder
 - `source-missing`: the current bound source folder is missing from the snapshot

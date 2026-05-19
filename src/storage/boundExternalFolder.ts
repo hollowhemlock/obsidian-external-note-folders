@@ -6,15 +6,22 @@ import {
   access,
   lstat,
   mkdir,
+  readdir,
   readFile,
   realpath,
   writeFile
 } from 'node:fs/promises';
 import path from 'node:path';
 
-import { EXNF_MARKER_FILE_NAME } from '../core/contracts.ts';
+import type { ParsedExnfMarkerFile } from '../core/marker.ts';
+
 import {
+  buildExnfMarkerFileName,
+  classifyExnfMarkerFileName,
+  findLegacyMarkerConflict,
+  formatLegacyMarkerConflictMessage,
   parseExnfMarker,
+  parseExnfMarkerFile,
   serializeExnfMarker
 } from '../core/marker.ts';
 import { deriveExternalFolderPath } from '../core/pathPolicy.ts';
@@ -39,6 +46,7 @@ export interface ExpectedExternalFolderInput {
 export type ExpectedExternalFolderInspection =
   | { folderPath: string; kind: 'bound' }
   | { folderPath: string; kind: 'malformed-marker'; markerPath: string; message: string }
+  | { folderPath: string; kind: 'marker-conflict'; markerPath: string; message: string }
   | { folderPath: string; kind: 'mismatched-marker'; markerUuid: string }
   | { folderPath: string; kind: 'missing' }
   | { folderPath: string; kind: 'unmarked' };
@@ -52,6 +60,13 @@ export interface WriteMarkerToExistingUnmarkedFolderInput {
   externalRootPath: string;
   folderPath: string;
   uuid: string;
+}
+
+interface FolderMarkerInspection {
+  malformedMarker: { markerPath: string; message: string } | null;
+  markerConflict: { markerPath: string; message: string } | null;
+  matchingMarkerPath: null | string;
+  otherUuids: string[];
 }
 
 export async function assertExpectedMarkerMatches(input: ExpectedExternalFolderInput): Promise<void> {
@@ -122,37 +137,43 @@ export async function inspectExpectedExternalFolder(
     throw new Error(`Derived external folder path is already occupied: ${targetFolderPath}`);
   }
 
-  const markerPath = path.join(targetFolderPath, EXNF_MARKER_FILE_NAME);
-  let markerUuid: string;
-  try {
-    markerUuid = parseExnfMarker(await readFile(markerPath, 'utf8'));
-  } catch (error: unknown) {
-    if (isMissingFileError(error)) {
-      return {
-        folderPath: targetFolderPath,
-        kind: 'unmarked'
-      };
-    }
-
+  const markerInspection = await inspectFolderMarkers(targetFolderPath, input.uuid);
+  if (markerInspection.markerConflict) {
     return {
       folderPath: targetFolderPath,
-      kind: 'malformed-marker',
-      markerPath,
-      message: toError(error).message
+      kind: 'marker-conflict',
+      markerPath: markerInspection.markerConflict.markerPath,
+      message: markerInspection.markerConflict.message
     };
   }
 
-  if (markerUuid !== input.uuid) {
+  if (markerInspection.malformedMarker) {
+    return {
+      folderPath: targetFolderPath,
+      kind: 'malformed-marker',
+      markerPath: markerInspection.malformedMarker.markerPath,
+      message: markerInspection.malformedMarker.message
+    };
+  }
+
+  if (markerInspection.matchingMarkerPath) {
+    return {
+      folderPath: targetFolderPath,
+      kind: 'bound'
+    };
+  }
+
+  if (markerInspection.otherUuids.length > 0) {
     return {
       folderPath: targetFolderPath,
       kind: 'mismatched-marker',
-      markerUuid
+      markerUuid: markerInspection.otherUuids.join(', ')
     };
   }
 
   return {
     folderPath: targetFolderPath,
-    kind: 'bound'
+    kind: 'unmarked'
   };
 }
 
@@ -209,7 +230,7 @@ export async function writeExpectedMarkerIfMissingOrMatching(
     throwExpectedInspectionError(inspection);
   }
 
-  await writeNewMarkerFile(path.join(inspection.folderPath, EXNF_MARKER_FILE_NAME), input.uuid);
+  await writeNewMarkerFile(buildMarkerPath(inspection.folderPath, input.uuid), input.uuid);
   return {
     folderPath: inspection.folderPath,
     markerWritten: true
@@ -228,7 +249,7 @@ export async function writeExpectedMarkerIfUnmarked(
     throwExpectedInspectionError(inspection);
   }
 
-  await writeNewMarkerFile(path.join(inspection.folderPath, EXNF_MARKER_FILE_NAME), input.uuid);
+  await writeNewMarkerFile(buildMarkerPath(inspection.folderPath, input.uuid), input.uuid);
   return {
     folderPath: inspection.folderPath,
     markerWritten: true
@@ -251,12 +272,11 @@ export async function writeMarkerToExistingUnmarkedFolder(
     throw new Error(`External folder path is not a directory: ${folderPath}`);
   }
 
-  const markerPath = path.join(folderPath, EXNF_MARKER_FILE_NAME);
-  if (await tryLstat(markerPath)) {
+  if (await folderHasMarkerFile(folderPath)) {
     throw new Error(`External folder is already marked: ${folderPath}`);
   }
 
-  await writeNewMarkerFile(markerPath, input.uuid);
+  await writeNewMarkerFile(buildMarkerPath(folderPath, input.uuid), input.uuid);
   return {
     folderPath,
     markerWritten: true
@@ -307,6 +327,28 @@ async function assertSafeCreationPath(externalRootPath: string, targetFolderPath
   throw new Error(`Derived external folder path is already occupied: ${targetFolderPath}`);
 }
 
+function buildMarkerPath(folderPath: string, uuid: string): string {
+  return path.join(folderPath, buildExnfMarkerFileName(uuid));
+}
+
+async function folderHasMarkerFile(folderPath: string): Promise<boolean> {
+  const entries = await readdir(folderPath, {
+    encoding: 'utf8',
+    withFileTypes: true
+  });
+  return entries.some((entry) => {
+    if (!entry.isFile()) {
+      return false;
+    }
+
+    try {
+      return classifyExnfMarkerFileName(entry.name).kind !== 'not-marker';
+    } catch {
+      return true;
+    }
+  });
+}
+
 function getOpenCommand(): { arguments: string[]; detached: boolean; file: string } {
   if (process.platform === 'win32') {
     return {
@@ -328,6 +370,65 @@ function getOpenCommand(): { arguments: string[]; detached: boolean; file: strin
     arguments: [],
     detached: false,
     file: 'xdg-open'
+  };
+}
+
+async function inspectFolderMarkers(folderPath: string, expectedUuid: string): Promise<FolderMarkerInspection> {
+  const entries = await readdir(folderPath, {
+    encoding: 'utf8',
+    withFileTypes: true
+  });
+  const parsedMarkers: ParsedExnfMarkerFile[] = [];
+  const otherUuids = new Set<string>();
+  let matchingMarkerPath: null | string = null;
+
+  for (const entry of entries) {
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    const markerPath = path.join(folderPath, entry.name);
+    try {
+      const fileNameResult = classifyExnfMarkerFileName(entry.name);
+      if (fileNameResult.kind === 'not-marker') {
+        continue;
+      }
+
+      const marker = parseExnfMarkerFile(entry.name, await readFile(markerPath, 'utf8'));
+      parsedMarkers.push({
+        format: marker.format,
+        markerPath,
+        uuid: marker.uuid
+      });
+      if (marker.uuid === expectedUuid) {
+        matchingMarkerPath = markerPath;
+      } else {
+        otherUuids.add(marker.uuid);
+      }
+    } catch (error: unknown) {
+      return {
+        malformedMarker: {
+          markerPath,
+          message: toError(error).message
+        },
+        markerConflict: null,
+        matchingMarkerPath,
+        otherUuids: [...otherUuids].sort()
+      };
+    }
+  }
+
+  const legacyMarkerConflict = findLegacyMarkerConflict(parsedMarkers);
+  return {
+    malformedMarker: null,
+    markerConflict: legacyMarkerConflict
+      ? {
+        markerPath: legacyMarkerConflict.legacyMarkerPath,
+        message: formatLegacyMarkerConflictMessage(legacyMarkerConflict)
+      }
+      : null,
+    matchingMarkerPath,
+    otherUuids: [...otherUuids].sort()
   };
 }
 
@@ -362,6 +463,10 @@ function throwExpectedInspectionError(inspection: Exclude<ExpectedExternalFolder
     throw new Error(`Derived external folder marker is malformed at ${inspection.markerPath}: ${inspection.message}`);
   }
 
+  if (inspection.kind === 'marker-conflict') {
+    throw new Error(`Derived external folder marker conflict at ${inspection.markerPath}: ${inspection.message}`);
+  }
+
   throw new Error(`Derived external folder path is already bound to UUID ${inspection.markerUuid}: ${inspection.folderPath}`);
 }
 
@@ -390,7 +495,7 @@ async function tryLstat(targetPath: string): Promise<Awaited<ReturnType<typeof l
 }
 
 async function writeMarker(boundFolderPath: string, uuid: string): Promise<void> {
-  const markerPath = path.join(boundFolderPath, EXNF_MARKER_FILE_NAME);
+  const markerPath = buildMarkerPath(boundFolderPath, uuid);
   try {
     const existingContent = await readFile(markerPath, 'utf8');
     const existingUuid = parseExnfMarker(existingContent);
