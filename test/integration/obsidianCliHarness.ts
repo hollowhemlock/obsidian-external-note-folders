@@ -46,11 +46,6 @@ export async function assertSandboxPluginInstalled(pluginId: string): Promise<vo
 }
 
 export function assertCliAvailable(result: CliResult): boolean {
-  if (isEnvironmentUnavailable(result)) {
-    console.warn(`Skipping Obsidian CLI assertions because the CLI environment is unavailable.\n${formatCliResult(result)}`);
-    return false;
-  }
-
   expect(result.status, formatCliResult(result)).toBe(0);
   return true;
 }
@@ -77,12 +72,6 @@ export function formatCliResult(result: CliResult): string {
 
 export function getSandboxVaultPath(): string {
   return resolveRepoPath('test/fixtures/sandbox/vault');
-}
-
-export function isEnvironmentUnavailable(result: CliResult): boolean {
-  return result.status === null
-    || result.stdout.includes('Command line interface is not enabled.')
-    || result.stderr.includes('The CLI is unable to find Obsidian.');
 }
 
 export async function readSandboxPluginId(): Promise<string> {

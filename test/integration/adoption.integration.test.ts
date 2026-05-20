@@ -25,9 +25,7 @@ describe('adoption integration', () => {
 
   it('opens an adoption dry-run for exact fixture matches', async () => {
     const commandsResult = await waitForPluginCommands(pluginId);
-    if (!assertCliAvailable(commandsResult)) {
-      return;
-    }
+    assertCliAvailable(commandsResult);
 
     const debugResult = runSandboxCli(['dev:debug', 'on']);
     expect(debugResult.status, formatCliResult(debugResult)).toBe(0);

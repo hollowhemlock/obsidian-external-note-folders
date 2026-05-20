@@ -39,9 +39,7 @@ describe('drift report integration', () => {
 
   it('executes the read-only drift report command against CLI-created drift scenarios', async () => {
     const commandsResult = await waitForPluginCommands(pluginId, sandboxVaultPath);
-    if (!assertCliAvailable(commandsResult)) {
-      return;
-    }
+    assertCliAvailable(commandsResult);
 
     const matrixFolder = DRIFT_MATRIX_PREFIX;
     const renamedNotePath = `${matrixFolder}/Renamed/New Name.md`;

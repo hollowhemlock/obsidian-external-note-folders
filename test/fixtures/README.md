@@ -89,5 +89,6 @@ npm run test:integration:watch
 - `fixtures:refresh-sandbox` is useful during hot-reload sessions because it keeps the sandbox
   `.obsidian` state while restoring vault content and external-root content from fixture.
 - Tests/scripts should mutate sandbox paths, not fixture paths.
-- On Windows, CLI tests should use `Obsidian.com` (not `Obsidian.exe`) and require Command line interface
-  to be enabled in Obsidian Settings -> General.
+- On Windows, CLI tests use `Obsidian.com` (not `Obsidian.exe`). The integration lane fails unless
+  an Obsidian CLI binary is installed, Obsidian is running, and the command line interface is enabled
+  in Obsidian Settings -> General.

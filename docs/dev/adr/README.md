@@ -43,7 +43,7 @@ Last generated: 2026-05-16
 | [ADR-0018](0018-test-vault-fixtures-live-in-repo.md) | Accepted | 2026-02-20 | Test Vault and External-Root Fixtures Live In-Repo | `external-root`, `testing`, `vault-model` | Before adding or changing test strategy and fixtures. |
 | [ADR-0019](0019-vitest-as-test-runner.md) | Accepted | 2026-02-20 | Vitest as Test Runner | `testing` | Before adding or changing test strategy and fixtures. |
 | [ADR-0020](0020-release-please-for-versioning-and-changelog.md) | Accepted | 2026-03-03 | Use Release Please for Versioning and Changelog | `release` | Before changing release automation or version policy. |
-| [ADR-0021](0021-obsidian-cli-integration-testing.md) | Accepted | 2026-03-03 | Use Manual Obsidian CLI Integration Testing (v1.12+) | `testing`, `tooling` | Before adding or changing test strategy and fixtures. |
+| [ADR-0021](0021-obsidian-cli-integration-testing.md) | Accepted | 2026-03-03 | Add a Non-Required Obsidian CLI Integration Test Lane | `testing`, `tooling` | Before adding or changing test strategy and fixtures. |
 | [ADR-0022](0022-reconcile-planner-and-execution-contract.md) | Accepted | 2026-05-02 | Reconcile Planner and Execution Contract | `reconcile` | Before changing reconcile planning/execution behavior. |
 | [ADR-0023](0023-open-external-folder-does-not-assign-identity.md) | Accepted | 2026-05-07 | Open External Folder Does Not Assign Identity | `external-root`, `safety` | Before changing trust boundaries or destructive behavior. |
 | [ADR-0024](0024-strict-exact-adoption-with-journaled-marker-first-writes.md) | Superseded | 2026-05-07 | Strict Exact Adoption with Journaled Marker-First Writes | `external-root` | Before changing external folder derivation and marker rules. |

@@ -154,7 +154,8 @@ reconciliation.
 - `npm run lint`
 - `npm run format:check`
 - `npm run test`
-- `npm run test:integration` (requires a prepared Obsidian CLI environment)
+- `npm run test:integration` (fails unless Obsidian CLI is installed, enabled, and connected to a
+  running Obsidian runtime)
 - `npm run test:watch`
 - `npm run release:update-versions`
 - `npm run release:check-versions`

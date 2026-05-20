@@ -4,11 +4,11 @@ date: "2026-03-03"
 decision-makers: "Maintainers"
 ---
 
-# Use Manual Obsidian CLI Integration Testing (v1.12+)
+# Add a Non-Required Obsidian CLI Integration Test Lane
 
 ## Context and Problem Statement
 
-Unit and adapter tests cover internal logic, but they do not verify behavior through the real Obsidian runtime surface. Obsidian v1.12 introduced a CLI interface that enables command-level integration checks against a live vault.
+Unit and adapter tests cover internal logic, but they do not verify behavior through the real Obsidian runtime surface. Obsidian CLI enables command-level integration checks against a live vault when an Obsidian 1.12-series installer is present, CLI support is enabled, and the Obsidian app/runtime is available.
 
 This project needs an integration requirement that validates plugin behavior with real vault fixtures and real Obsidian command execution, while keeping standard CI fast and deterministic.
 
@@ -18,18 +18,22 @@ This project needs an integration requirement that validates plugin behavior wit
 - Reuse committed fixture topology for reproducibility
 - Keep default PR CI fast (unit/lint lane separate from integration lane)
 - Support both human maintainers and LLM agents with explicit, repeatable workflow
-- Avoid coupling integration test pass/fail to machines without Obsidian CLI installed
+- Fail clearly when Obsidian CLI is not installed or the Obsidian runtime is unavailable
+- Avoid coupling default PR validation to machines without an interactive Obsidian CLI environment
 
 ## Considered Options
 
 * Unit tests only
 * Run CLI integration tests in default CI on hosted runners
 * Mock the CLI process
+* Add a dedicated manual/local Obsidian CLI integration lane
 
 ## Decision Outcome
 
-Adopt a dedicated **manual Obsidian CLI integration test lane** with these constraints:
+Adopt a dedicated **non-required Obsidian CLI integration test lane** with these constraints:
 
+- Default validation (`npm run lint`, `npm run format:check`, `npm run test`, and build/release checks)
+  does not invoke Obsidian CLI integration tests
 - Integration tests live under `test/integration/**/*.integration.test.ts`
 - Integration tests are organized by workflow/domain file, not as one monolithic CLI file:
   - shared process and sandbox helpers live in `test/integration/obsidianCliHarness.ts`
@@ -43,12 +47,27 @@ Adopt a dedicated **manual Obsidian CLI integration test lane** with these const
   - install plugin artifacts into sandbox `.obsidian/plugins/<plugin-id>`
 - Integration tests must assert CLI command exposure when the CLI runtime responds
 - Integration tests should prefer committed scenario fixtures when directory shape is the behavior
-  being validated; runtime-created files remain appropriate for throwaway drift matrices
-- If the local CLI binary is absent, disabled, or times out, the integration lane reports the
-  unavailable environment and does not fail the default local validation path
+  being validated; runtime-created files are still appropriate for temporary, generated test cases
+  where the directory shape itself is not the behavior under test
+- If no Obsidian CLI binary is found, the integration lane fails because the required integration
+  dependency is not installed
+- If the CLI binary exists but Obsidian is not running, the command-line interface is disabled, or
+  the runtime times out, `npm run test:integration` fails because the integration runtime was not
+  actually exercised
 - On Windows, CLI execution uses `Obsidian.com` (not `Obsidian.exe`) when available
 - CI integration job is `workflow_dispatch` only and runs on `self-hosted` runners labeled `obsidian-cli`
 - Do not make the integration job a required pull request status check unless an online matching runner is available
+
+## Required Behavior
+
+- `npm run test:integration` refreshes the sandbox vault from committed fixtures.
+- `npm run test:integration` builds plugin artifacts before invoking Obsidian CLI.
+- `npm run test:integration` installs artifacts into `.obsidian/plugins/<plugin-id>`.
+- `npm run test:integration` verifies that expected plugin commands are exposed through the
+  Obsidian CLI command surface.
+- Integration files run serially.
+- The integration lane exits non-zero with clear command output when the CLI binary is missing, the
+  Obsidian runtime is unavailable, CLI support is disabled, or the CLI command times out.
 
 ### Consequences
 
@@ -60,7 +79,7 @@ Adopt a dedicated **manual Obsidian CLI integration test lane** with these const
 - Adds maintenance for integration scripts/workflow/docs
 
 ### Negative / Trade-offs
-- Requires prepared local or self-hosted environment with Obsidian CLI enabled
+- Requires prepared local or self-hosted environment with Obsidian installed and the CLI enabled
 - Manual GitHub runs stay queued until a matching `self-hosted` + `obsidian-cli` runner is online
 - Integration lane is slower than unit-only CI
 - Some Obsidian CLI builds do not expose a stable `version` command, so version assertions are
@@ -83,6 +102,11 @@ Adopt a dedicated **manual Obsidian CLI integration test lane** with these const
 - Cons: Does not validate actual Obsidian runtime semantics
 - Why rejected: Misses the key requirement of real integration coverage
 
+### Add a dedicated manual/local Obsidian CLI integration lane
+- Pros: Validates real Obsidian runtime behavior without slowing or destabilizing default PR checks
+- Cons: Requires a prepared interactive local or self-hosted runner environment
+- Why accepted: Provides the runtime coverage this project needs while keeping default validation deterministic
+
 ## More Information
 
 ### Non-Goals
@@ -99,3 +123,4 @@ Expand integration coverage as domain commands are implemented (Assign UUID, Ope
 - [ADR-0017](0017-testing-strategy-by-boundary.md)
 - [ADR-0018](0018-test-vault-fixtures-live-in-repo.md)
 - [test/fixtures/README.md](../../../test/fixtures/README.md)
+- [Obsidian CLI documentation](https://obsidian.md/help/cli)

@@ -6,10 +6,10 @@ import {
 } from 'vitest';
 
 import {
+  assertCliAvailable,
   assertSandboxPluginInstalled,
   formatCliResult,
   getSandboxVaultPath,
-  isEnvironmentUnavailable,
   readSandboxPluginId,
   runCli,
   waitForPluginCommands
@@ -26,12 +26,7 @@ describe('obsidian CLI smoke integration', () => {
 
   it('has the Obsidian CLI enabled', () => {
     const commandsResult = runCli(['commands'], sandboxVaultPath);
-    if (isEnvironmentUnavailable(commandsResult)) {
-      console.warn(`Skipping Obsidian CLI assertions because the CLI environment is unavailable.\n${formatCliResult(commandsResult)}`);
-      return;
-    }
-
-    expect(commandsResult.status, formatCliResult(commandsResult)).toBe(0);
+    assertCliAvailable(commandsResult);
 
     const combinedOutput = `${commandsResult.stdout}\n${commandsResult.stderr}`.trim();
     expect(
@@ -46,12 +41,7 @@ describe('obsidian CLI smoke integration', () => {
 
   it('lists plugin commands for this plugin id', async () => {
     const commandsResult = await waitForPluginCommands(pluginId, sandboxVaultPath);
-    if (isEnvironmentUnavailable(commandsResult)) {
-      console.warn(`Skipping plugin command assertions because the CLI environment is unavailable.\n${formatCliResult(commandsResult)}`);
-      return;
-    }
-
-    expect(commandsResult.status, formatCliResult(commandsResult)).toBe(0);
+    assertCliAvailable(commandsResult);
 
     const combinedOutput = `${commandsResult.stdout}\n${commandsResult.stderr}`;
     expect(
@@ -62,12 +52,7 @@ describe('obsidian CLI smoke integration', () => {
 
   it('exposes the expected plugin commands', async () => {
     const commandsResult = await waitForPluginCommands(pluginId, sandboxVaultPath);
-    if (isEnvironmentUnavailable(commandsResult)) {
-      console.warn(`Skipping expected command assertions because the CLI environment is unavailable.\n${formatCliResult(commandsResult)}`);
-      return;
-    }
-
-    expect(commandsResult.status, formatCliResult(commandsResult)).toBe(0);
+    assertCliAvailable(commandsResult);
 
     const combinedOutput = `${commandsResult.stdout}\n${commandsResult.stderr}`;
     expect(combinedOutput).toContain(`${pluginId}:assign-external-folder-uuid`);
