@@ -3,6 +3,7 @@ import {
   copyFile,
   mkdir,
   readFile,
+  rm,
   writeFile
 } from 'node:fs/promises';
 import path from 'node:path';
@@ -69,6 +70,7 @@ async function main(): Promise<void> {
   await copyFile(stylesCssPath, path.join(pluginPath, 'styles.css'));
   await copyFile(manifestPath, path.join(pluginPath, 'manifest.json'));
 
+  await rm(path.join(pluginPath, 'journal'), { force: true, recursive: true });
   await ensureCommunityPluginEnabled(sandboxVaultPath, manifest.id);
   await writeSandboxPluginSettings(pluginPath, sandboxExternalRootPath);
 

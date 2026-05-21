@@ -176,7 +176,7 @@ export class Plugin extends ObsidianPlugin {
         });
       },
       assertNoteUuidMatches: async (row, uuid): Promise<void> => {
-        assertNoteUuidMatches(this.app, this.getMarkdownFileByPath(row.notePath), uuid);
+        await assertNoteUuidMatches(this.app, this.getMarkdownFileByPath(row.notePath), uuid);
       },
       writeMarker: async (row, uuid): Promise<void> => {
         await writeExpectedMarkerIfMissingOrMatching({
