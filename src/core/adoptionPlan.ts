@@ -175,6 +175,7 @@ function buildAdoptionRows(
     markerIdentities: buildMarkerIdentities(externalScan),
     skippedDirectoryIdentities: externalScan.skippedDirectories.map((issue) => normalizePathForIdentity(issue.location))
   };
+  const relevantFolderIdentities = buildRelevantFolderIdentities(noteCandidateIdentities, context.markerIdentities);
   const rows: AdoptionPlanRow[] = [...blockedRows];
 
   for (const noteCandidate of noteCandidates) {
@@ -284,10 +285,7 @@ function buildAdoptionRows(
   }
 
   for (const directoryCandidate of directoryCandidates) {
-    if (
-      noteCandidateIdentities.has(directoryCandidate.identity)
-      || isInsideMarkedFolder(context.markerIdentities, directoryCandidate.identity)
-    ) {
+    if (isRelatedToRelevantFolder(directoryCandidate.identity, relevantFolderIdentities)) {
       continue;
     }
 
@@ -406,6 +404,16 @@ function buildNoteCandidates(
   };
 }
 
+function buildRelevantFolderIdentities(
+  noteCandidateIdentities: ReadonlySet<string>,
+  markerIdentities: readonly MarkerIdentity[]
+): Set<string> {
+  return new Set([
+    ...noteCandidateIdentities,
+    ...markerIdentities.map((markerIdentity) => markerIdentity.identity)
+  ]);
+}
+
 function buildSummaryText(errors: readonly string[], warnings: readonly string[], rows: readonly AdoptionPlanRow[]): string {
   return [
     `${String(errors.length)} error(s)`,
@@ -518,10 +526,6 @@ function groupByIdentity<T extends { identity: string }>(items: readonly T[]): M
   return groups;
 }
 
-function isInsideMarkedFolder(markerIdentities: readonly MarkerIdentity[], directoryIdentity: string): boolean {
-  return markerIdentities.some((markerIdentity) => isPathInsideOrEqualIdentity(directoryIdentity, markerIdentity.identity));
-}
-
 function isPathInsideOrEqualIdentity(childIdentity: string, parentIdentity: string): boolean {
   const normalizedChildIdentity = normalizeDisplayPath(childIdentity);
   const normalizedParentIdentity = normalizeDisplayPath(parentIdentity);
@@ -531,6 +535,20 @@ function isPathInsideOrEqualIdentity(childIdentity: string, parentIdentity: stri
 
   const parentPrefix = normalizedParentIdentity.endsWith('/') ? normalizedParentIdentity : `${normalizedParentIdentity}/`;
   return normalizedChildIdentity.startsWith(parentPrefix);
+}
+
+function isRelatedToRelevantFolder(directoryIdentity: string, relevantFolderIdentities: ReadonlySet<string>): boolean {
+  for (const relevantIdentity of relevantFolderIdentities) {
+    // Ancestor directories are structural containers, not orphan adoption candidates.
+    if (
+      isPathInsideOrEqualIdentity(directoryIdentity, relevantIdentity)
+      || isPathInsideOrEqualIdentity(relevantIdentity, directoryIdentity)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function sortEntries<T>(map: Map<string, T>): [string, T][] {

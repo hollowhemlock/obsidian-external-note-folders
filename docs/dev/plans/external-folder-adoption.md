@@ -41,6 +41,8 @@ for mixed external roots.
 - No suffix, basename, or fuzzy tree-tail inference is used.
 - Collisions, duplicate normalized folder identities, unmatched notes, and
   unmatched folders are reported but not adopted.
+- Parent folders that only contain bound, blocked, or adoptable external folders
+  are structural containers and are omitted from unmatched folder rows.
 - Candidate targets are blocked when they are ignored, inside skipped
   directories, marked, malformed, already bound, overlapped by ancestor or
   descendant marker evidence, or duplicated by normalized path identity.

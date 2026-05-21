@@ -101,6 +101,8 @@ does not expose that information directly.
 - Ignored target paths block the affected note with an ignored-target message.
 - Duplicate normalized derived targets block the affected notes.
 - Duplicate normalized target directories block the affected notes.
+- Ancestor directories of bound, blocked, or adoptable external folders are
+  structural containers and are omitted from unmatched external folder rows.
 - No fuzzy, suffix, tree-tail, or basename-only adoption is allowed.
 
 Execution remains marker-first, frontmatter-second, journaled, and preflighted

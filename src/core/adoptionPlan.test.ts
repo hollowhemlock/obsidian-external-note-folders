@@ -374,6 +374,40 @@ describe('adoption plan', () => {
     expect(plan.rows.filter((row) => row.kind === 'unmatched-external-folder')).toEqual([]);
   });
 
+  it('does not report ancestor directories of adoptable folders as unmatched', () => {
+    const parentFolderPath = path.join(EXTERNAL_ROOT, 'tests');
+    const adoptionRootPath = path.join(parentFolderPath, 'exnf-adoption');
+    const folderNotePath = path.join(adoptionRootPath, 'adopt-exnf-from-folder-note');
+    const plainNotePath = path.join(adoptionRootPath, 'adopt-exnf-from-plain-note');
+    const unrelatedLeafPath = path.join(parentFolderPath, 'unrelated-folder');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        directories: [
+          parentFolderPath,
+          adoptionRootPath,
+          folderNotePath,
+          plainNotePath,
+          unrelatedLeafPath
+        ]
+      }),
+      mutationSequence: 0,
+      notePaths: [
+        'tests/exnf-adoption/adopt-exnf-from-folder-note/adopt-exnf-from-folder-note.md',
+        'tests/exnf-adoption/adopt-exnf-from-plain-note.md'
+      ],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(getAdoptionRows(plan)).toHaveLength(2);
+    expect(plan.rows.filter((row) => row.kind === 'unmatched-external-folder')).toEqual([
+      {
+        externalFolder: 'tests/unrelated-folder',
+        folderPath: unrelatedLeafPath,
+        kind: 'unmatched-external-folder'
+      }
+    ]);
+  });
+
   it('does not report descendants of marked folders as unmatched', () => {
     const markedFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
     const childFolderPath = path.join(markedFolderPath, 'Research');
@@ -382,6 +416,7 @@ describe('adoption plan', () => {
       externalScan: buildExternalScan({
         bindings: new Map([[EXISTING_UUID, markedFolderPath]]),
         directories: [
+          path.join(EXTERNAL_ROOT, 'Projects'),
           markedFolderPath,
           childFolderPath,
           path.join(childFolderPath, 'Images'),
