@@ -46,5 +46,12 @@ describe('adoption integration', () => {
     expect(modalResult.stdout).toContain('tests/exnf-adoption/adopt-exnf-from-plain-note');
     expect(modalResult.stdout).toContain('tests/exnf-adoption/adopt-exnf-from-folder-note/adopt-exnf-from-folder-note.md');
     expect(modalResult.stdout).toContain('tests/exnf-adoption/adopt-exnf-from-folder-note');
+    expect(modalResult.stdout).toContain('Copyable plan');
+    expect(modalResult.stdout).toContain('Adopt 2 folder(s)');
+
+    runSandboxCli([
+      'eval',
+      'code=document.querySelectorAll(".modal-close-button").forEach((button) => button.click())'
+    ]);
   });
 });
