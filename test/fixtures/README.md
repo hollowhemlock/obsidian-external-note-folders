@@ -57,6 +57,10 @@ Expected JSON is canonical only after review against the committed fixture world
 - Cross-check summary counts against detailed rows.
 - Do not blindly promote generated observed output to expected output.
 
+Use [the external-folder state matrix](../../docs/dev/testing/external-folder-state-matrix.md) when
+choosing or reviewing fixture scenarios. The matrix records the real-world vault, external-root,
+marker, ignore, and journal states that tests should cover.
+
 ## Commands
 
 Create a fresh sandbox from fixture:

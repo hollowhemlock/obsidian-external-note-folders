@@ -16,6 +16,10 @@ Use integration tests for:
 Do not parse full modal markdown as the semantic oracle. Core behavior belongs in
 `test/semantic/**/*.semantic.test.ts`.
 
+Use [the external-folder state matrix](../../docs/dev/testing/external-folder-state-matrix.md) to
+decide when runtime coverage is needed for command wiring, settings, modals, scanner fidelity, or
+mutation post-state checks.
+
 Integration tests run with:
 
 ```powershell

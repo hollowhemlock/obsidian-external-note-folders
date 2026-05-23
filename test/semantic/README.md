@@ -20,6 +20,9 @@ The fixture vault scanner is an adapter for semantic tests. The Obsidian CLI int
 the scanner-fidelity check that compares this adapter with the production Obsidian-backed vault
 scan over committed fixture content.
 
+Use [the external-folder state matrix](../../docs/dev/testing/external-folder-state-matrix.md) to
+choose semantic fixture scenarios and identify classification coverage gaps.
+
 ## Fixture Expectations
 
 Expected JSON files live under `test/fixtures/fixture/expected/<domain>/<scenario>.json`.

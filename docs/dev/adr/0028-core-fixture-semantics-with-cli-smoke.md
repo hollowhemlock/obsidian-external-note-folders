@@ -25,6 +25,8 @@ while still preserving runtime smoke coverage for the real plugin command surfac
 - Preserve real Obsidian CLI coverage for command registration, settings, modals, and selected
   mutation behavior
 - Keep default validation runnable without Obsidian installed
+- Maintain a durable external-folder state matrix so combinatorial vault/external-root states are
+  stated explicitly instead of inferred from scattered tests
 
 ## Considered Options
 
@@ -46,6 +48,11 @@ interpretation, modal availability, copyable report presence, and selected mutat
 also verify scanner fidelity between Obsidian-backed scans and fixture adapters. They must not parse
 full modal markdown as the canonical semantic oracle.
 
+The project also maintains a living external-folder state matrix as testing documentation. The
+matrix is not an ADR and does not define product behavior, but it records the vault, external-root,
+marker, ignore, and journal states that should be represented by semantic fixtures, integration
+smoke tests, mutation tests, or explicit non-goals.
+
 ### Consequences
 
 ### Positive
@@ -58,6 +65,8 @@ full modal markdown as the canonical semantic oracle.
 - Test fixtures now include committed input trees and committed expected JSON
 - Expected JSON needs strict validation and human review
 - Some CLI tests still need a prepared Obsidian runtime
+- The external-folder state matrix needs periodic updates when new commands, marker formats, or
+  filesystem states become relevant
 
 ### Negative / Trade-offs
 - A thin fixture vault scanner is required to adapt Markdown fixtures into `VaultScanResult`
@@ -77,6 +86,7 @@ full modal markdown as the canonical semantic oracle.
 - Observed modal reports are written only as sandbox debug artifacts
 - Scanner-fidelity integration tests compare production Obsidian scan results with fixture-adapter
   scan results for committed fixture scenarios
+- The external-folder state matrix lives in `docs/dev/testing/external-folder-state-matrix.md`
 
 ## Pros and Cons of the Options
 
@@ -128,6 +138,7 @@ those codes and treat message text as user-facing detail.
 - [ADR-0017](0017-testing-strategy-by-boundary.md)
 - [ADR-0018](0018-test-vault-fixtures-live-in-repo.md)
 - [ADR-0021](0021-obsidian-cli-integration-testing.md)
+- [External folder state matrix](../testing/external-folder-state-matrix.md)
 - [test/fixtures/README.md](../../../test/fixtures/README.md)
 - [test/semantic/README.md](../../../test/semantic/README.md)
 - [test/integration/README.md](../../../test/integration/README.md)
