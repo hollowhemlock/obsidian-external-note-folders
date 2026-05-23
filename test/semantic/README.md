@@ -16,6 +16,10 @@ Use semantic tests when behavior can be tested without Obsidian:
 Do not use modal markdown as the oracle here. Observed reports belong in sandbox debug output, not
 semantic assertions.
 
+The fixture vault scanner is an adapter for semantic tests. The Obsidian CLI integration suite owns
+the scanner-fidelity check that compares this adapter with the production Obsidian-backed vault
+scan over committed fixture content.
+
 ## Fixture Expectations
 
 Expected JSON files live under `test/fixtures/fixture/expected/<domain>/<scenario>.json`.

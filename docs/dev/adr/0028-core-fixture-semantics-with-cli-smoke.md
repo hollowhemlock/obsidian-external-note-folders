@@ -43,7 +43,8 @@ and compare the resulting semantic model to strict expected JSON.
 
 Obsidian CLI integration tests are smoke/adapter tests. They verify command registration, settings
 interpretation, modal availability, copyable report presence, and selected mutation post-state. They
-must not parse full modal markdown as the canonical semantic oracle.
+also verify scanner fidelity between Obsidian-backed scans and fixture adapters. They must not parse
+full modal markdown as the canonical semantic oracle.
 
 ### Consequences
 
@@ -74,6 +75,8 @@ must not parse full modal markdown as the canonical semantic oracle.
 - Expected JSON uses `schemaVersion`, domain/scenario metadata, relative slash-normalized paths,
   strict row schemas, duplicate-row rejection, and summary-count cross-checks
 - Observed modal reports are written only as sandbox debug artifacts
+- Scanner-fidelity integration tests compare production Obsidian scan results with fixture-adapter
+  scan results for committed fixture scenarios
 
 ## Pros and Cons of the Options
 

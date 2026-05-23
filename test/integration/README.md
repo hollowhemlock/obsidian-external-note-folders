@@ -9,6 +9,7 @@ Use integration tests for:
 - settings loading and interpretation
 - modal availability
 - copyable report presence
+- scanner-fidelity checks between Obsidian-backed scans and fixture adapters
 - selected mutation smoke and post-state checks
 - behavior that specifically depends on Obsidian vault APIs
 
