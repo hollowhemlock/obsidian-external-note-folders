@@ -12,6 +12,7 @@ const FIXTURE_VAULT_RELATIVE_PATH = 'test/fixtures/fixture/vault';
 const FIXTURE_EXTERNAL_ROOT_RELATIVE_PATH = 'test/fixtures/fixture/external-root';
 const SANDBOX_VAULT_RELATIVE_PATH = 'test/fixtures/sandbox/vault';
 const SANDBOX_EXTERNAL_ROOT_RELATIVE_PATH = 'test/fixtures/sandbox/external-root';
+const SANDBOX_REPORTS_RELATIVE_PATH = 'test/fixtures/sandbox/reports';
 
 const JSON_INDENT = 2;
 
@@ -87,6 +88,7 @@ async function syncSandbox(mode: SyncMode): Promise<void> {
   const fixtureExternalRootPath = getAbsolutePath(FIXTURE_EXTERNAL_ROOT_RELATIVE_PATH);
   const sandboxVaultPath = getAbsolutePath(SANDBOX_VAULT_RELATIVE_PATH);
   const sandboxExternalRootPath = getAbsolutePath(SANDBOX_EXTERNAL_ROOT_RELATIVE_PATH);
+  const sandboxReportsPath = getAbsolutePath(SANDBOX_REPORTS_RELATIVE_PATH);
 
   if (mode === 'print-paths') {
     console.log(JSON.stringify(
@@ -118,6 +120,7 @@ async function syncSandbox(mode: SyncMode): Promise<void> {
     await clearDirectoryChildren(sandboxExternalRootPath);
     await copyDirectoryChildren(fixtureExternalRootPath, sandboxExternalRootPath);
   }
+  await rm(sandboxReportsPath, { force: true, recursive: true });
 
   console.log(`Fixture sync complete (${mode}).`);
   console.log(`Vault: ${fixtureVaultPath} -> ${sandboxVaultPath}`);

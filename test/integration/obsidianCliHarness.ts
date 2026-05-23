@@ -10,6 +10,7 @@ import { resolvePathFromRoot } from 'obsidian-dev-utils/ScriptUtils/Root';
 import { expect } from 'vitest';
 
 import { buildExnfMarkerFileName } from '../../src/core/marker.ts';
+export { writeSandboxReport } from '../support/integration/reportCapture.ts';
 
 export interface CliResult {
   command: string;

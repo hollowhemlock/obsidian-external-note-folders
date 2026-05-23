@@ -2,7 +2,7 @@
 
 This index is optimized for fast human and LLM retrieval.
 
-Last generated: 2026-05-16
+Last generated: 2026-05-21
 
 ## Procedures
 - **[review-checklist.md](review-checklist.md)** - Use when reviewing an ADR before accepting it.
@@ -50,6 +50,7 @@ Last generated: 2026-05-16
 | [ADR-0025](0025-active-note-open-recovery-scan.md) | Accepted | 2026-05-10 | Active-Note Open Recovery Scan | `external-root`, `safety`, `status-model` | Before changing active-note open fallback or recovery behavior. |
 | [ADR-0026](0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md) | Accepted | 2026-05-12 | Safe Partial Exact Adoption with External Root Ignore Patterns | `external-root`, `safety`, `status-model` | Before changing bulk adoption, external-root ignore patterns, or scan evidence policy. |
 | [ADR-0027](0027-uuid-named-marker-files.md) | Accepted | 2026-05-16 | UUID-Named External Folder Marker Files | `external-root`, `vault-model`, `status-model`, `release` | Before changing marker filenames, marker migration, or external folder identity scanning. |
+| [ADR-0028](0028-core-fixture-semantics-with-cli-smoke.md) | Accepted | 2026-05-21 | Core Fixture Semantics with Obsidian CLI Smoke Integration | `architecture`, `testing`, `tooling` | Before adding or changing test strategy and fixtures. |
 
 ## Discovery Tips
 - Search by tags first, then scan "When to read".

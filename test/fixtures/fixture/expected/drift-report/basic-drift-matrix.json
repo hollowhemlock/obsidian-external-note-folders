@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "domain": "drift-report",
+  "scenario": "basic-drift-matrix",
+  "summary": {
+    "errors": 1,
+    "warnings": 0,
+    "unexpectedPaths": 2,
+    "ignoredUnchecked": 0,
+    "missingExpectedFolders": 1,
+    "orphanFolders": 1,
+    "occupiedTargetPaths": 1,
+    "suggestions": 3
+  },
+  "unexpectedRows": [
+    {
+      "notePath": "drift-report/basic-drift-matrix/Moved/New Place/Move Me.md",
+      "expectedExternalFolderPath": "drift-report/basic-drift-matrix/Moved/New Place/Move Me",
+      "actualExternalFolderPath": "drift-report/basic-drift-matrix/Moved/Old Place/Move Me",
+      "uuid": "123e4567-e89b-42d3-a456-426614174201"
+    },
+    {
+      "notePath": "drift-report/basic-drift-matrix/Renamed/New Name.md",
+      "expectedExternalFolderPath": "drift-report/basic-drift-matrix/Renamed/New Name",
+      "actualExternalFolderPath": "drift-report/basic-drift-matrix/Renamed/Old Name",
+      "uuid": "123e4567-e89b-42d3-a456-426614174200"
+    }
+  ],
+  "ignoredRows": [],
+  "missingRows": [
+    {
+      "notePath": "drift-report/basic-drift-matrix/Occupied/Target.md",
+      "expectedExternalFolderPath": "drift-report/basic-drift-matrix/Occupied/Target",
+      "actualExternalFolderPath": null,
+      "uuid": "123e4567-e89b-42d3-a456-426614174202"
+    }
+  ],
+  "orphanRows": [
+    {
+      "notePath": null,
+      "expectedExternalFolderPath": null,
+      "actualExternalFolderPath": "drift-report/basic-drift-matrix/Orphan",
+      "uuid": "123e4567-e89b-42d3-a456-426614174203"
+    }
+  ],
+  "occupiedRows": [
+    {
+      "notePath": "drift-report/basic-drift-matrix/Occupied/Target.md",
+      "expectedExternalFolderPath": "drift-report/basic-drift-matrix/Occupied/Target",
+      "reason": "Unmarked folder occupies expected path.",
+      "uuid": "123e4567-e89b-42d3-a456-426614174202"
+    }
+  ],
+  "suggestions": [
+    {
+      "notePath": "drift-report/basic-drift-matrix/Moved/New Place/Move Me.md",
+      "expectedExternalFolderPath": "drift-report/basic-drift-matrix/Moved/New Place/Move Me",
+      "candidateExternalFolderPath": "drift-report/basic-drift-matrix/Moved/Old Place/Move Me",
+      "confidence": "high",
+      "rationale": "Same UUID is bound at a non-expected path.",
+      "uuid": "123e4567-e89b-42d3-a456-426614174201"
+    },
+    {
+      "notePath": "drift-report/basic-drift-matrix/Occupied/Target.md",
+      "expectedExternalFolderPath": "drift-report/basic-drift-matrix/Occupied/Target",
+      "candidateExternalFolderPath": "drift-report/basic-drift-matrix/Occupied/Target",
+      "confidence": "medium",
+      "rationale": "Same parent and normalized basename match.",
+      "uuid": "123e4567-e89b-42d3-a456-426614174202"
+    },
+    {
+      "notePath": "drift-report/basic-drift-matrix/Renamed/New Name.md",
+      "expectedExternalFolderPath": "drift-report/basic-drift-matrix/Renamed/New Name",
+      "candidateExternalFolderPath": "drift-report/basic-drift-matrix/Renamed/Old Name",
+      "confidence": "high",
+      "rationale": "Same UUID is bound at a non-expected path.",
+      "uuid": "123e4567-e89b-42d3-a456-426614174200"
+    }
+  ],
+  "errors": [
+    "Malformed marker at drift-report/basic-drift-matrix/Malformed/123e4567-e89b-42d3-a456-426614174204.exnf: Marker must contain a canonical lowercase UUID."
+  ],
+  "warnings": []
+}

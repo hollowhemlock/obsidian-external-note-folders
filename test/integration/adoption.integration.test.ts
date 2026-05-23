@@ -19,24 +19,29 @@ import {
   resolveRepoPath,
   runSandboxCli,
   waitForPluginCommands,
-  waitForSandboxModalText
+  waitForSandboxModalText,
+  writeSandboxReport
 } from './obsidianCliHarness.ts';
 
-const ADOPTION_FIXTURES = [
-  {
-    externalFolderPath: 'tests/exnf-adoption/adopt-exnf-from-plain-note',
-    notePath: 'tests/exnf-adoption/adopt-exnf-from-plain-note.md'
-  },
-  {
-    externalFolderPath: 'tests/exnf-adoption/adopt-exnf-from-folder-note',
-    notePath: 'tests/exnf-adoption/adopt-exnf-from-folder-note/adopt-exnf-from-folder-note.md'
-  }
-] as const;
+interface ExpectedAdoption {
+  externalFolderPath: string;
+  externalPayloadFiles: string[];
+  notePath: string;
+}
+
+interface ExpectedAdoptionShape {
+  adoptions: ExpectedAdoption[];
+  afterApply: {
+    adoptableMatches: number;
+  };
+}
 
 describe('adoption integration', () => {
+  let expectedShape: ExpectedAdoptionShape;
   let pluginId = '';
 
   beforeAll(async () => {
+    expectedShape = await readExpectedAdoptionShape();
     pluginId = await readSandboxPluginId();
     await assertSandboxPluginInstalled(pluginId);
   });
@@ -58,29 +63,31 @@ describe('adoption integration', () => {
 
     const modalResult = await waitForSandboxModalText('Adopt existing external folders');
     expect(modalResult.status, formatCliResult(modalResult)).toBe(0);
+    await writeSandboxReport('adoption/dry-run-modal.txt', modalResult.stdout);
     expect(modalResult.stdout).toContain('Adopt existing external folders');
-    expect(modalResult.stdout).toContain('2 adoptable match(es)');
-    expect(modalResult.stdout).toContain('tests/exnf-adoption/adopt-exnf-from-plain-note.md');
-    expect(modalResult.stdout).toContain('tests/exnf-adoption/adopt-exnf-from-plain-note');
-    expect(modalResult.stdout).toContain('tests/exnf-adoption/adopt-exnf-from-folder-note/adopt-exnf-from-folder-note.md');
-    expect(modalResult.stdout).toContain('tests/exnf-adoption/adopt-exnf-from-folder-note');
+    expect(modalResult.stdout).toContain(`${String(expectedShape.adoptions.length)} adoptable match(es)`);
+    for (const expectedAdoption of expectedShape.adoptions) {
+      expect(modalResult.stdout).toContain(expectedAdoption.notePath);
+      expect(modalResult.stdout).toContain(expectedAdoption.externalFolderPath);
+    }
     expect(modalResult.stdout).toContain('Copyable plan');
-    expect(modalResult.stdout).toContain('Adopt 2 folder(s)');
+    expect(modalResult.stdout).toContain(`Adopt ${String(expectedShape.adoptions.length)} folder(s)`);
 
-    clickSandboxModalButton('Adopt 2 folder(s)');
-    const confirmModalResult = await waitForSandboxModalText('Confirm adopt 2 folder(s)');
+    clickSandboxModalButton(`Adopt ${String(expectedShape.adoptions.length)} folder(s)`);
+    const confirmModalResult = await waitForSandboxModalText(`Confirm adopt ${String(expectedShape.adoptions.length)} folder(s)`);
     expect(confirmModalResult.status, formatCliResult(confirmModalResult)).toBe(0);
-    clickSandboxModalButton('Confirm adopt 2 folder(s)');
+    clickSandboxModalButton(`Confirm adopt ${String(expectedShape.adoptions.length)} folder(s)`);
 
-    for (const fixture of ADOPTION_FIXTURES) {
-      await waitForAdoptedBinding(fixture.notePath, fixture.externalFolderPath);
+    for (const expectedAdoption of expectedShape.adoptions) {
+      await waitForAdoptedBinding(expectedAdoption);
     }
 
     const rerunResult = runSandboxCli(['command', `id=${pluginId}:adopt-existing-external-folders`]);
     expect(rerunResult.status, formatCliResult(rerunResult)).toBe(0);
     const rerunModalResult = await waitForSandboxModalText('Adopt existing external folders');
     expect(rerunModalResult.status, formatCliResult(rerunModalResult)).toBe(0);
-    expect(rerunModalResult.stdout).toContain('0 adoptable match(es)');
+    await writeSandboxReport('adoption/after-apply-modal.txt', rerunModalResult.stdout);
+    expect(rerunModalResult.stdout).toContain(`${String(expectedShape.afterApply.adoptableMatches)} adoptable match(es)`);
 
     closeSandboxModals();
   }, 30_000);
@@ -106,25 +113,41 @@ function closeSandboxModals(): void {
   ]);
 }
 
-async function readAdoptedBinding(notePath: string, externalFolderPath: string): Promise<string> {
-  const noteContent = await readFile(path.join(resolveRepoPath('test/fixtures/sandbox/vault'), notePath), 'utf8');
+async function readAdoptedBinding(expectedAdoption: ExpectedAdoption): Promise<string> {
+  const noteContent = await readFile(path.join(resolveRepoPath('test/fixtures/sandbox/vault'), expectedAdoption.notePath), 'utf8');
   const uuid = parseExnfUuid(noteContent);
-  const markerPath = path.join(
+  const externalFolderPath = path.join(
     resolveRepoPath('test/fixtures/sandbox/external-root'),
+    expectedAdoption.externalFolderPath
+  );
+  const markerPath = path.join(
     externalFolderPath,
     buildExnfMarkerFileName(uuid)
   );
   await access(markerPath);
   const markerContent = await readFile(markerPath, 'utf8');
   expect(markerContent.trim()).toBe(uuid);
+  for (const payloadFile of expectedAdoption.externalPayloadFiles) {
+    await access(path.join(externalFolderPath, payloadFile));
+  }
   return uuid;
 }
 
-async function waitForAdoptedBinding(notePath: string, externalFolderPath: string): Promise<void> {
+async function readExpectedAdoptionShape(): Promise<ExpectedAdoptionShape> {
+  const content = await readFile(resolveRepoPath('test/fixtures/fixture/expected/exnf-adoption/post-adoption.json'), 'utf8');
+  const parsed = JSON.parse(content) as unknown;
+  if (!isExpectedAdoptionShape(parsed)) {
+    throw new Error('Invalid expected adoption post-state fixture.');
+  }
+
+  return parsed;
+}
+
+async function waitForAdoptedBinding(expectedAdoption: ExpectedAdoption): Promise<void> {
   let latestError: unknown;
   for (let attempt = 0; attempt < 20; attempt += 1) {
     try {
-      await readAdoptedBinding(notePath, externalFolderPath);
+      await readAdoptedBinding(expectedAdoption);
       return;
     } catch (error: unknown) {
       latestError = error;
@@ -136,7 +159,32 @@ async function waitForAdoptedBinding(notePath: string, externalFolderPath: strin
 
   throw latestError instanceof Error
     ? latestError
-    : new Error(`Adoption did not complete for ${notePath}.`);
+    : new Error(`Adoption did not complete for ${expectedAdoption.notePath}.`);
+}
+
+function isExpectedAdoption(input: unknown): input is ExpectedAdoption {
+  return typeof input === 'object'
+    && input !== null
+    && 'externalFolderPath' in input
+    && typeof input.externalFolderPath === 'string'
+    && 'externalPayloadFiles' in input
+    && Array.isArray(input.externalPayloadFiles)
+    && input.externalPayloadFiles.every((payloadFile) => typeof payloadFile === 'string')
+    && 'notePath' in input
+    && typeof input.notePath === 'string';
+}
+
+function isExpectedAdoptionShape(input: unknown): input is ExpectedAdoptionShape {
+  return typeof input === 'object'
+    && input !== null
+    && 'adoptions' in input
+    && Array.isArray(input.adoptions)
+    && input.adoptions.every(isExpectedAdoption)
+    && 'afterApply' in input
+    && typeof input.afterApply === 'object'
+    && input.afterApply !== null
+    && 'adoptableMatches' in input.afterApply
+    && typeof input.afterApply.adoptableMatches === 'number';
 }
 
 function parseExnfUuid(noteContent: string): string {
