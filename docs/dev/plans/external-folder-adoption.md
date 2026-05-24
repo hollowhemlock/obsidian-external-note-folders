@@ -41,6 +41,8 @@ for mixed external roots.
 - No suffix, basename, or fuzzy tree-tail inference is used.
 - Collisions, duplicate normalized folder identities, unmatched notes, and
   unmatched folders are reported but not adopted.
+- Parent folders that only contain bound, blocked, or adoptable external folders
+  are structural containers and are omitted from unmatched folder rows.
 - Candidate targets are blocked when they are ignored, inside skipped
   directories, marked, malformed, already bound, overlapped by ancestor or
   descendant marker evidence, or duplicated by normalized path identity.
@@ -86,5 +88,6 @@ for mixed external roots.
 - Adoption proves row-local coherence, not whole-root coherence. Mixed roots may
   still contain unrelated warnings after a successful adoption run.
 - Active-note open recovery may traverse the external root after expected-path
-  failure. Scan caps, progress UI, cancellation, and cached indexes are out of
-  scope until performance requires them.
+  failure. Long-running commands show a start/progress modal, but scan caps,
+  cancellation, and cached indexes are out of scope until performance requires
+  them.

@@ -1,0 +1,34 @@
+# Semantic Tests
+
+Semantic tests are the canonical oracle for core report and plan behavior. They run without
+Obsidian, read committed fixture input, build production scan-result models, and compare pure core
+outputs against expected JSON.
+
+Use semantic tests when behavior can be tested without Obsidian:
+
+- drift report classification
+- adoption plan classification
+- verify report classification
+- reconcile dry-run planning
+- marker migration planning
+- ignored, skipped, malformed, duplicate, orphan, occupied, and unavailable states
+
+Do not use modal markdown as the oracle here. Observed reports belong in sandbox debug output, not
+semantic assertions.
+
+The fixture vault scanner is an adapter for semantic tests. The Obsidian CLI integration suite owns
+the scanner-fidelity check that compares this adapter with the production Obsidian-backed vault
+scan over committed fixture content.
+
+Use [the external-folder state matrix](../../docs/dev/testing/external-folder-state-matrix.md) to
+choose semantic fixture scenarios and identify classification coverage gaps.
+
+## Fixture Expectations
+
+Expected JSON files live under `test/fixtures/fixture/expected/<domain>/<scenario>.json`.
+
+Expected JSON must be reviewed against the committed fixture world. Generated observed JSON may be
+used as a draft, but it must not be blindly promoted to expected output.
+
+Rows are compared as unordered sets by stable row identity unless a future scenario explicitly
+requires order-sensitive behavior.

@@ -98,7 +98,7 @@ are disabled.
 
 ### Out of Scope
 
-- Scan caps, progress UI, cancellation, cache/indexing, or background indexing
+- Scan caps, cancellation, cache/indexing, or background indexing
 - Full drift classification from within `Open external folder`
 - Changing marker payload schema
 

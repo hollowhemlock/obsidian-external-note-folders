@@ -19,6 +19,7 @@ import {
   formatLegacyMarkerConflictMessage,
   parseExnfMarkerFile
 } from '../core/marker.ts';
+import { registerUuidBinding } from '../core/scanResult.ts';
 
 export interface ScanExternalRootFileSystem {
   readDirectoryEntries: (directoryPath: string) => Promise<Dirent[]>;
@@ -104,27 +105,6 @@ function getErrorMessage(error: unknown): string {
 
 function ignoreMatcherRelativePath(externalRootPath: string, folderPath: string): string {
   return path.relative(externalRootPath, folderPath).replaceAll(path.sep, '/');
-}
-
-function registerBinding(
-  bindings: Map<string, string>,
-  duplicatePaths: Map<string, string[]>,
-  uuid: string,
-  folderPath: string
-): void {
-  const existingPath = bindings.get(uuid);
-  if (!existingPath) {
-    bindings.set(uuid, folderPath);
-    return;
-  }
-
-  if (existingPath === folderPath) {
-    return;
-  }
-
-  const duplicateSet = new Set<string>(duplicatePaths.get(uuid) ?? [existingPath]);
-  duplicateSet.add(folderPath);
-  duplicatePaths.set(uuid, [...duplicateSet].sort());
 }
 
 function registerLegacyMarkerConflict(
@@ -218,7 +198,7 @@ async function walkDirectory(
       if (record.format === 'legacy') {
         result.legacyMarkers?.push(record);
       }
-      registerBinding(result.bindings, result.duplicatePaths, record.uuid, directoryPath);
+      registerUuidBinding(result.bindings, result.duplicatePaths, record.uuid, directoryPath, { ignoreExactDuplicate: true });
     } catch (error: unknown) {
       result.malformedMarkers.push({
         location: entryPath,

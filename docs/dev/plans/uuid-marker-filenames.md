@@ -242,8 +242,8 @@ a core dependency.
 
 ### Scan Performance at Scale
 
-The README currently notes that ignore rules, scan caps, progress UI,
-cancellation, and cached indexes are out of scope until performance requires
+Long-running commands now show a start/progress modal, but scan caps,
+cancellation, and cached indexes remain out of scope until performance requires
 them. Active-note recovery scan is the first command likely to hit this cliff
 when the external root contains many folders.
 

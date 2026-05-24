@@ -1,0 +1,21 @@
+{
+  "adoptions": [
+    {
+      "externalFolderPath": "tests/exnf-adoption/adopt-exnf-from-folder-note",
+      "externalPayloadFiles": [
+        "external-folder-content.txt"
+      ],
+      "notePath": "tests/exnf-adoption/adopt-exnf-from-folder-note/adopt-exnf-from-folder-note.md"
+    },
+    {
+      "externalFolderPath": "tests/exnf-adoption/adopt-exnf-from-plain-note",
+      "externalPayloadFiles": [
+        "external-folder-content.txt"
+      ],
+      "notePath": "tests/exnf-adoption/adopt-exnf-from-plain-note.md"
+    }
+  ],
+  "afterApply": {
+    "adoptableMatches": 0
+  }
+}

@@ -3,7 +3,7 @@ import type { Linter } from 'eslint';
 import { obsidianDevUtilsConfigs } from 'obsidian-dev-utils/ScriptUtils/ESLint/eslint.config';
 
 const configs: Linter.Config[] = [
-  ...obsidianDevUtilsConfigs,
+  ...obsidianDevUtilsConfigs.map(includeTestTypeScriptFiles),
   {
     ignores: ['test/fixtures/**', 'test/integration/**']
   },
@@ -49,8 +49,32 @@ const configs: Linter.Config[] = [
       '@typescript-eslint/no-non-null-assertion': 'off',
       'no-magic-numbers': 'off'
     }
+  },
+  {
+    files: ['test/support/**/*.ts'],
+    rules: {
+      'no-magic-numbers': 'off',
+      'perfectionist/sort-interfaces': 'off',
+      'perfectionist/sort-modules': 'off'
+    }
   }
 ];
+
+function includeTestTypeScriptFiles(config: Linter.Config): Linter.Config {
+  const files = config.files;
+  if (!Array.isArray(files) || !files.includes('src/**/*.ts')) {
+    return config;
+  }
+
+  return {
+    ...config,
+    files: [
+      ...files,
+      'test/semantic/**/*.ts',
+      'test/support/**/*.ts'
+    ]
+  };
+}
 
 // eslint-disable-next-line import-x/no-default-export -- ESLint infrastructure requires a default export.
 export default configs;
