@@ -19,6 +19,7 @@ export interface ExpectedDriftOccupiedRow {
 export interface ExpectedDriftReport {
   domain: 'drift-report';
   errors: string[];
+  externalRootIgnorePatterns?: string[];
   ignoredRows: ExpectedDriftBindingRow[];
   missingRows: ExpectedDriftBindingRow[];
   occupiedRows: ExpectedDriftOccupiedRow[];
@@ -54,6 +55,7 @@ export interface ExpectedDriftSummary {
 const DRIFT_ALLOWED_KEYS = new Set([
   'domain',
   'errors',
+  'externalRootIgnorePatterns',
   'ignoredRows',
   'missingRows',
   'occupiedRows',
@@ -125,6 +127,10 @@ function assertExpectedDriftReport(
   assertDriftSummary(input['summary'], context.expectedPath);
   for (const key of ['errors', 'warnings']) {
     assertStringArray(input[key], `${context.expectedPath}.${key}`);
+  }
+
+  if (Object.hasOwn(input, 'externalRootIgnorePatterns')) {
+    assertStringArray(input.externalRootIgnorePatterns, `${context.expectedPath}.externalRootIgnorePatterns`);
   }
 
   for (const key of ['ignoredRows', 'missingRows', 'orphanRows', 'unexpectedRows']) {

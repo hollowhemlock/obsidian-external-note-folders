@@ -20,6 +20,21 @@
         "R15"
       ],
       "notes": "Covers the first committed drift semantic fixture: off-path bindings, missing expected folders, orphan markers, occupied targets, malformed unrelated markers, and exact-name unmarked suggestions."
+    },
+    {
+      "kind": "semantic-fixture",
+      "domain": "drift-report",
+      "scenario": "ignored-bound-folder",
+      "expectedPath": "test/fixtures/fixture/expected/drift-report/ignored-bound-folder.json",
+      "stateIds": [
+        "G9",
+        "G10",
+        "V14",
+        "T17",
+        "R12",
+        "R13"
+      ],
+      "notes": "Covers a note whose expected bound folder is ignored: ignored marker evidence is invisible, the report emits ignored/unchecked, and the folder is not misclassified as healthy or missing."
     }
   ],
   "plannedCoverage": [
@@ -34,8 +49,6 @@
         "G5",
         "G7",
         "G8",
-        "G9",
-        "G10",
         "G11",
         "G12",
         "G13",
@@ -59,7 +72,6 @@
         "V11",
         "V12",
         "V13",
-        "V14",
         "V18",
         "V19"
       ],
@@ -83,7 +95,6 @@
         "T14",
         "T15",
         "T16",
-        "T17",
         "T18",
         "T19",
         "T20",
@@ -106,8 +117,6 @@
         "R9",
         "R10",
         "R11",
-        "R12",
-        "R13",
         "R14",
         "R16",
         "R17",

@@ -10,22 +10,29 @@ import { prepareSemanticScenario } from '../support/fixtures/fixtureScenario.ts'
 import { expectDriftReportToMatchExpected } from '../support/fixtures/semanticAssertions.ts';
 import { scanFixtureVault } from '../support/fixtures/vaultFixtureScanner.ts';
 
+const SCENARIOS = [
+  'basic-drift-matrix',
+  'ignored-bound-folder'
+] as const;
+
 describe('drift report semantic fixtures', () => {
-  it('classifies the basic drift matrix from committed fixtures', async () => {
+  it.each(SCENARIOS)('classifies %s from committed fixtures', async (scenarioName) => {
     const scenario = await prepareSemanticScenario({
       domain: 'drift-report',
-      scenario: 'basic-drift-matrix'
+      scenario: scenarioName
     });
     const expected = await readExpectedDriftReport({
       domain: 'drift-report',
       expectedPath: scenario.expectedPath,
-      scenario: 'basic-drift-matrix'
+      scenario: scenarioName
     });
     const vaultScan = await scanFixtureVault({
-      relativeScenarioPath: 'drift-report/basic-drift-matrix',
+      relativeScenarioPath: `drift-report/${scenarioName}`,
       vaultRootPath: scenario.semanticVaultPath
     });
-    const externalScan = await scanExternalRoot(scenario.semanticExternalRootPath);
+    const externalScan = await scanExternalRoot(scenario.semanticExternalRootPath, {
+      ignorePatterns: expected.externalRootIgnorePatterns ?? []
+    });
 
     const report = buildDriftReport(vaultScan, externalScan);
 

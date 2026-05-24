@@ -1,0 +1,1 @@
+Payload inside an ignored bound folder.
