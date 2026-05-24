@@ -48,8 +48,13 @@ export async function writeUuidToNoteIfMissing(app: App, file: TFile, uuid: stri
   });
 }
 
-function isRecord(input: unknown): input is Record<string, unknown> {
-  return typeof input === 'object' && input !== null;
+function isPlainRecord(input: unknown): input is Record<string, unknown> {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(input) as null | object;
+  return prototype === Object.prototype || prototype === null;
 }
 
 function parseMarkdownFrontmatter(markdown: string): Record<string, unknown> | undefined {
@@ -59,5 +64,13 @@ function parseMarkdownFrontmatter(markdown: string): Record<string, unknown> | u
   }
 
   const parsedYaml: unknown = parseYaml(match.groups?.['frontmatter'] ?? '');
-  return isRecord(parsedYaml) ? parsedYaml : {};
+  if (parsedYaml === null || parsedYaml === undefined) {
+    return {};
+  }
+
+  if (!isPlainRecord(parsedYaml)) {
+    throw new Error('Cannot verify note UUID because Markdown frontmatter must be a mapping object.');
+  }
+
+  return parsedYaml;
 }

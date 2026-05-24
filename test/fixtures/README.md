@@ -16,15 +16,19 @@ or implementation detail.
 
 Use this convention:
 
-- Put scenario data under `fixture/vault/tests/<domain>/<scenario-slug>` and
-  `fixture/external-root/tests/<domain>/<scenario-slug>`.
+- Put formal semantic scenario data under `fixture/vault/<domain>/<scenario-slug>` and
+  `fixture/external-root/<domain>/<scenario-slug>`, with expected JSON under
+  `fixture/expected/<domain>/<scenario-slug>.json`.
+- Workflow fixtures may intentionally place user-visible notes and folders under
+  `fixture/vault/tests/<domain>/...` and `fixture/external-root/tests/<domain>/...` when the
+  command behavior should report those paths.
 - Use lowercase kebab-case for `<domain>` and `<scenario-slug>`.
 - Prefer action-oriented slugs such as `adopt-exnf-from-plain-note` or
   `adopt-exnf-from-folder-note`.
-- For a plain-note fixture, use `tests/<domain>/<scenario-slug>.md` in the vault and
+- For a plain-note workflow fixture, use `tests/<domain>/<scenario-slug>.md` in the vault and
   `tests/<domain>/<scenario-slug>/` in the external root.
-- For a folder-note fixture, use `tests/<domain>/<scenario-slug>/<scenario-slug>.md` in the vault
-  and `tests/<domain>/<scenario-slug>/` in the external root.
+- For a folder-note workflow fixture, use `tests/<domain>/<scenario-slug>/<scenario-slug>.md` in
+  the vault and `tests/<domain>/<scenario-slug>/` in the external root.
 - External-root folder paths should mirror the note-derived vault path. When external folder
   contents matter, name payload files from the external-folder perspective, such as
   `external-folder-content.txt`, instead of from the test scenario perspective.

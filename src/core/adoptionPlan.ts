@@ -102,6 +102,11 @@ interface PlannerContext {
   skippedDirectoryIdentities: string[];
 }
 
+interface RelevantFolderIndex {
+  ancestorOrSelfIdentities: ReadonlySet<string>;
+  relevantIdentities: ReadonlySet<string>;
+}
+
 export function buildAdoptionPlan(input: {
   externalScan: ExternalScanResult;
   mutationSequence: number;
@@ -175,7 +180,7 @@ function buildAdoptionRows(
     markerIdentities: buildMarkerIdentities(externalScan),
     skippedDirectoryIdentities: externalScan.skippedDirectories.map((issue) => normalizePathForIdentity(issue.location))
   };
-  const relevantFolderIdentities = buildRelevantFolderIdentities(noteCandidateIdentities, context.markerIdentities);
+  const relevantFolderIndex = buildRelevantFolderIndex(noteCandidateIdentities, context.markerIdentities);
   const rows: AdoptionPlanRow[] = [...blockedRows];
 
   for (const noteCandidate of noteCandidates) {
@@ -285,7 +290,7 @@ function buildAdoptionRows(
   }
 
   for (const directoryCandidate of directoryCandidates) {
-    if (isRelatedToRelevantFolder(directoryCandidate.identity, relevantFolderIdentities)) {
+    if (isRelatedToRelevantFolder(directoryCandidate.identity, relevantFolderIndex)) {
       continue;
     }
 
@@ -404,14 +409,25 @@ function buildNoteCandidates(
   };
 }
 
-function buildRelevantFolderIdentities(
+function buildRelevantFolderIndex(
   noteCandidateIdentities: ReadonlySet<string>,
   markerIdentities: readonly MarkerIdentity[]
-): Set<string> {
-  return new Set([
-    ...noteCandidateIdentities,
-    ...markerIdentities.map((markerIdentity) => markerIdentity.identity)
+): RelevantFolderIndex {
+  const relevantIdentities = new Set([
+    ...[...noteCandidateIdentities].map((identity) => normalizeDisplayPath(identity)),
+    ...markerIdentities.map((markerIdentity) => normalizeDisplayPath(markerIdentity.identity))
   ]);
+  const ancestorOrSelfIdentities = new Set<string>();
+  for (const relevantIdentity of relevantIdentities) {
+    for (const ancestorIdentity of getAncestorOrSelfIdentities(relevantIdentity)) {
+      ancestorOrSelfIdentities.add(ancestorIdentity);
+    }
+  }
+
+  return {
+    ancestorOrSelfIdentities,
+    relevantIdentities
+  };
 }
 
 function buildSummaryText(errors: readonly string[], warnings: readonly string[], rows: readonly AdoptionPlanRow[]): string {
@@ -503,6 +519,21 @@ function formatRows(title: string, rows: readonly AdoptionPlanRow[]): string {
   ].join('\n');
 }
 
+function getAncestorOrSelfIdentities(identity: string): string[] {
+  const identities: string[] = [];
+  let currentIdentity = normalizeDisplayPath(identity);
+  while (currentIdentity.length > 0) {
+    identities.push(currentIdentity);
+    const lastSeparatorIndex = currentIdentity.lastIndexOf('/');
+    if (lastSeparatorIndex === -1) {
+      break;
+    }
+    currentIdentity = currentIdentity.slice(0, lastSeparatorIndex);
+  }
+
+  return identities;
+}
+
 function getParentPath(inputPath: string): string {
   const normalizedPath = normalizeDisplayPath(inputPath);
   const lastSeparatorIndex = normalizedPath.lastIndexOf('/');
@@ -537,13 +568,15 @@ function isPathInsideOrEqualIdentity(childIdentity: string, parentIdentity: stri
   return normalizedChildIdentity.startsWith(parentPrefix);
 }
 
-function isRelatedToRelevantFolder(directoryIdentity: string, relevantFolderIdentities: ReadonlySet<string>): boolean {
-  for (const relevantIdentity of relevantFolderIdentities) {
-    // Ancestor directories are structural containers, not orphan adoption candidates.
-    if (
-      isPathInsideOrEqualIdentity(directoryIdentity, relevantIdentity)
-      || isPathInsideOrEqualIdentity(relevantIdentity, directoryIdentity)
-    ) {
+function isRelatedToRelevantFolder(directoryIdentity: string, relevantFolderIndex: RelevantFolderIndex): boolean {
+  const normalizedDirectoryIdentity = normalizeDisplayPath(directoryIdentity);
+  // Ancestor directories are structural containers, not orphan adoption candidates.
+  if (relevantFolderIndex.ancestorOrSelfIdentities.has(normalizedDirectoryIdentity)) {
+    return true;
+  }
+
+  for (const ancestorIdentity of getAncestorOrSelfIdentities(normalizedDirectoryIdentity)) {
+    if (relevantFolderIndex.relevantIdentities.has(ancestorIdentity)) {
       return true;
     }
   }
