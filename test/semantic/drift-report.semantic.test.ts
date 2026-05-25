@@ -12,7 +12,8 @@ import { scanFixtureVault } from '../support/fixtures/vaultFixtureScanner.ts';
 
 const SCENARIOS = [
   'basic-drift-matrix',
-  'ignored-bound-folder'
+  'ignored-bound-folder',
+  'identity-conflicts'
 ] as const;
 
 describe('drift report semantic fixtures', () => {

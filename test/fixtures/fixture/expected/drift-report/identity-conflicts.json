@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "domain": "drift-report",
+  "scenario": "identity-conflicts",
+  "summary": {
+    "errors": 4,
+    "warnings": 0,
+    "unexpectedPaths": 1,
+    "ignoredUnchecked": 0,
+    "missingExpectedFolders": 3,
+    "orphanFolders": 1,
+    "occupiedTargetPaths": 3,
+    "suggestions": 4
+  },
+  "errors": [
+    "External root UUID 123e4567-e89b-42d3-a456-426614174234 is duplicated at: drift-report/identity-conflicts/Duplicate External/One, drift-report/identity-conflicts/Duplicate External/Two",
+    "Malformed marker at drift-report/identity-conflicts/Malformed Target/Broken/123e4567-e89b-42d3-a456-426614174233.exnf: Marker must contain a canonical lowercase UUID.",
+    "Malformed marker at drift-report/identity-conflicts/Mismatched Filename/Mismatch/123e4567-e89b-42d3-a456-426614174235.exnf: Marker filename UUID 123e4567-e89b-42d3-a456-426614174235 does not match payload UUID 123e4567-e89b-42d3-a456-426614174236.",
+    "Vault UUID 123e4567-e89b-42d3-a456-426614174230 is duplicated at: drift-report/identity-conflicts/Duplicate Vault/A.md, drift-report/identity-conflicts/Duplicate Vault/B.md"
+  ],
+  "warnings": [],
+  "unexpectedRows": [
+    {
+      "notePath": "drift-report/identity-conflicts/Duplicate External/Home.md",
+      "expectedExternalFolderPath": "drift-report/identity-conflicts/Duplicate External/Home",
+      "actualExternalFolderPath": "drift-report/identity-conflicts/Duplicate External/One",
+      "uuid": "123e4567-e89b-42d3-a456-426614174234"
+    }
+  ],
+  "ignoredRows": [],
+  "missingRows": [
+    {
+      "notePath": "drift-report/identity-conflicts/Expected Occupied/Target.md",
+      "expectedExternalFolderPath": "drift-report/identity-conflicts/Expected Occupied/Target",
+      "actualExternalFolderPath": null,
+      "uuid": "123e4567-e89b-42d3-a456-426614174231"
+    },
+    {
+      "notePath": "drift-report/identity-conflicts/Malformed Target/Broken.md",
+      "expectedExternalFolderPath": "drift-report/identity-conflicts/Malformed Target/Broken",
+      "actualExternalFolderPath": null,
+      "uuid": "123e4567-e89b-42d3-a456-426614174233"
+    },
+    {
+      "notePath": "drift-report/identity-conflicts/Mismatched Filename/Mismatch.md",
+      "expectedExternalFolderPath": "drift-report/identity-conflicts/Mismatched Filename/Mismatch",
+      "actualExternalFolderPath": null,
+      "uuid": "123e4567-e89b-42d3-a456-426614174235"
+    }
+  ],
+  "orphanRows": [
+    {
+      "notePath": null,
+      "expectedExternalFolderPath": null,
+      "actualExternalFolderPath": "drift-report/identity-conflicts/Expected Occupied/Target",
+      "uuid": "123e4567-e89b-42d3-a456-426614174232"
+    }
+  ],
+  "occupiedRows": [
+    {
+      "notePath": "drift-report/identity-conflicts/Expected Occupied/Target.md",
+      "expectedExternalFolderPath": "drift-report/identity-conflicts/Expected Occupied/Target",
+      "reason": "Bound to different UUID: 123e4567-e89b-42d3-a456-426614174232",
+      "uuid": "123e4567-e89b-42d3-a456-426614174231"
+    },
+    {
+      "notePath": "drift-report/identity-conflicts/Malformed Target/Broken.md",
+      "expectedExternalFolderPath": "drift-report/identity-conflicts/Malformed Target/Broken",
+      "reason": "Unmarked folder occupies expected path.",
+      "uuid": "123e4567-e89b-42d3-a456-426614174233"
+    },
+    {
+      "notePath": "drift-report/identity-conflicts/Mismatched Filename/Mismatch.md",
+      "expectedExternalFolderPath": "drift-report/identity-conflicts/Mismatched Filename/Mismatch",
+      "reason": "Unmarked folder occupies expected path.",
+      "uuid": "123e4567-e89b-42d3-a456-426614174235"
+    }
+  ],
+  "suggestions": [
+    {
+      "notePath": "drift-report/identity-conflicts/Duplicate External/Home.md",
+      "expectedExternalFolderPath": "drift-report/identity-conflicts/Duplicate External/Home",
+      "candidateExternalFolderPath": "drift-report/identity-conflicts/Duplicate External/One",
+      "confidence": "high",
+      "rationale": "Same UUID is bound at a non-expected path.",
+      "uuid": "123e4567-e89b-42d3-a456-426614174234"
+    },
+    {
+      "notePath": "drift-report/identity-conflicts/Expected Occupied/Target.md",
+      "expectedExternalFolderPath": "drift-report/identity-conflicts/Expected Occupied/Target",
+      "candidateExternalFolderPath": "drift-report/identity-conflicts/Expected Occupied/Target",
+      "confidence": "medium",
+      "rationale": "Same parent and normalized basename match.",
+      "uuid": "123e4567-e89b-42d3-a456-426614174231"
+    },
+    {
+      "notePath": "drift-report/identity-conflicts/Malformed Target/Broken.md",
+      "expectedExternalFolderPath": "drift-report/identity-conflicts/Malformed Target/Broken",
+      "candidateExternalFolderPath": "drift-report/identity-conflicts/Malformed Target/Broken",
+      "confidence": "medium",
+      "rationale": "Same parent and normalized basename match.",
+      "uuid": "123e4567-e89b-42d3-a456-426614174233"
+    },
+    {
+      "notePath": "drift-report/identity-conflicts/Mismatched Filename/Mismatch.md",
+      "expectedExternalFolderPath": "drift-report/identity-conflicts/Mismatched Filename/Mismatch",
+      "candidateExternalFolderPath": "drift-report/identity-conflicts/Mismatched Filename/Mismatch",
+      "confidence": "medium",
+      "rationale": "Same parent and normalized basename match.",
+      "uuid": "123e4567-e89b-42d3-a456-426614174235"
+    }
+  ]
+}
