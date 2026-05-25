@@ -16,6 +16,31 @@ const OTHER_UUID = '123e4567-e89b-42d3-a456-426614174001';
 const VALID_UUID = '123e4567-e89b-42d3-a456-426614174000';
 
 describe('verify report builder', () => {
+  it('reports empty scans without warnings or integrity errors', () => {
+    const report = buildVerifyReport({
+      bindings: new Map(),
+      duplicatePaths: new Map(),
+      invalidFrontmatter: []
+    }, {
+      accessErrors: [],
+      bindings: new Map(),
+      directories: [],
+      duplicatePaths: new Map(),
+      ignoredDirectories: [],
+      ignoreErrors: [],
+      ignorePatterns: [],
+      malformedMarkers: [],
+      rootPath: 'X:\\External',
+      skippedDirectories: []
+    });
+
+    expect(report.hasIntegrityErrors).toBe(false);
+    expect(report.summaryText).toBe('0 error(s), 0 warning(s), 0 ignored, 0 unavailable, 0 ok');
+    expect(report.okRows).toEqual([]);
+    expect(report.unavailableRows).toEqual([]);
+    expect(report.warningRows).toEqual([]);
+  });
+
   it('classifies ok, unavailable, warning, and error states', () => {
     const vaultScan: VaultScanResult = {
       bindings: new Map([
@@ -85,6 +110,44 @@ describe('verify report builder', () => {
     expect(report.markdownReport).toContain('| Vault file | External folder | UUID |');
     expect(report.markdownReport).toContain('| Notes/Alpha.md | Notes/Alpha | 123e4567-e89b-42d3-a456-426614174000 |');
     expect(report.markdownReport).toContain('| - | Orphan | 123e4567-e89b-42d3-a456-426614174999 |');
+  });
+
+  it('reports duplicate orphan external UUIDs as integrity errors', () => {
+    const report = buildVerifyReport({
+      bindings: new Map(),
+      duplicatePaths: new Map(),
+      invalidFrontmatter: []
+    }, {
+      accessErrors: [],
+      bindings: new Map([[VALID_UUID, 'X:\\External\\Archive\\One']]),
+      directories: [
+        'X:\\External\\Archive',
+        'X:\\External\\Archive\\One',
+        'X:\\External\\Archive\\Two'
+      ],
+      duplicatePaths: new Map([[VALID_UUID, [
+        'X:\\External\\Archive\\One',
+        'X:\\External\\Archive\\Two'
+      ]]]),
+      ignoredDirectories: [],
+      ignoreErrors: [],
+      ignorePatterns: [],
+      malformedMarkers: [],
+      rootPath: 'X:\\External',
+      skippedDirectories: []
+    });
+
+    expect(report.hasIntegrityErrors).toBe(true);
+    expect(report.errors).toEqual([
+      'External root UUID 123e4567-e89b-42d3-a456-426614174000 is duplicated at: X:\\External\\Archive\\One, X:\\External\\Archive\\Two'
+    ]);
+    expect(report.warningRows).toEqual([
+      {
+        externalFolder: 'Archive/One',
+        notePath: null,
+        uuid: VALID_UUID
+      }
+    ]);
   });
 
   it('omits availability classification when access errors exist', () => {

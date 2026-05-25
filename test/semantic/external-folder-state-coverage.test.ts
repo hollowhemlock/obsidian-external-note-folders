@@ -10,12 +10,21 @@ import {
 
 import { resolveRepoPath } from '../support/fixtures/fixtureScenario.ts';
 
-type CoverageEntry = SemanticFixtureCoverageEntry | UnitTestCoverageEntry;
+type CoverageEntry = IntegrationTestCoverageEntry | SemanticFixtureCoverageEntry | UnitTestCoverageEntry;
 
 interface CoverageLedger {
   coveredScenarios: CoverageEntry[];
   plannedCoverage: PlannedCoverageEntry[];
   schemaVersion: 1;
+}
+
+interface IntegrationTestCoverageEntry {
+  domain: string;
+  kind: 'integration-test';
+  notes: string;
+  scenario: string;
+  stateIds: string[];
+  testPath: string;
 }
 
 interface PlannedCoverageEntry {
@@ -77,10 +86,10 @@ describe('external folder state coverage ledger', () => {
     }
   });
 
-  it('links covered unit-test scenarios to committed test files', async () => {
+  it('links covered test scenarios to committed test files', async () => {
     const ledger = await readCoverageLedger();
     for (const scenario of ledger.coveredScenarios) {
-      if (scenario.kind !== 'unit-test') {
+      if (scenario.kind !== 'unit-test' && scenario.kind !== 'integration-test') {
         continue;
       }
 
@@ -94,8 +103,8 @@ function assertCoverageEntry(input: unknown, label: string): asserts input is Co
     throw new Error(`${label} must be an object.`);
   }
 
-  if (input['kind'] !== 'semantic-fixture' && input['kind'] !== 'unit-test') {
-    throw new Error(`${label}.kind must be semantic-fixture or unit-test.`);
+  if (input['kind'] !== 'semantic-fixture' && input['kind'] !== 'unit-test' && input['kind'] !== 'integration-test') {
+    throw new Error(`${label}.kind must be semantic-fixture, unit-test, or integration-test.`);
   }
 
   for (const key of ['domain', 'notes', 'scenario']) {
@@ -110,7 +119,7 @@ function assertCoverageEntry(input: unknown, label: string): asserts input is Co
     }
   }
 
-  if (input['kind'] === 'unit-test') {
+  if (input['kind'] === 'unit-test' || input['kind'] === 'integration-test') {
     if (typeof input['testPath'] !== 'string' || input['testPath'].length === 0) {
       throw new Error(`${label}.testPath must be a non-empty string.`);
     }
