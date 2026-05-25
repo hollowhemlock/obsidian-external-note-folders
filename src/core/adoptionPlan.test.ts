@@ -362,6 +362,30 @@ describe('adoption plan', () => {
     expect(plan.rows.filter((row) => row.kind === 'blocked-note')).toHaveLength(2);
   });
 
+  it('blocks duplicate external directories that collide after Unicode path normalization', () => {
+    const composedFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Café');
+    const decomposedFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Cafe\u0301');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        directories: [composedFolderPath, decomposedFolderPath]
+      }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Café.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(getAdoptionRows(plan)).toEqual([]);
+    expect(plan.rows).toEqual([
+      {
+        externalFolder: 'Projects/Café',
+        kind: 'blocked-note',
+        message: 'Multiple external directories have the same normalized identity.',
+        notePath: 'Projects/Café.md',
+        reason: 'duplicate-target-directory'
+      }
+    ]);
+  });
+
   it('does not also report candidate directories as unmatched when notes are blocked', () => {
     const folderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
     const plan = buildAdoptionPlan({

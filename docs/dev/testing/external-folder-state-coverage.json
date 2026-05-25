@@ -72,17 +72,29 @@
         "G12"
       ],
       "notes": "Covers scanner-level global root states: unset, relative, missing, file root, unreadable root, empty root, skipped descendants, symlink entries, and invalid ignore settings."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "adoption-plan",
+      "scenario": "normalized-directory-collision",
+      "testPath": "src/core/adoptionPlan.test.ts",
+      "stateIds": [
+        "G13"
+      ],
+      "notes": "Covers case/Unicode-style normalized path identity collisions by blocking duplicate external directory candidates that normalize to the same target identity."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "adoption-plan",
+      "scenario": "broad-root-structural-containers",
+      "testPath": "src/core/adoptionPlan.test.ts",
+      "stateIds": [
+        "G14"
+      ],
+      "notes": "Covers broad-root noise by treating root container paths such as test fixture ancestors as structural folders rather than unmatched external folders."
     }
   ],
   "plannedCoverage": [
-    {
-      "target": "global-scan-state semantic and integration fixtures",
-      "stateIds": [
-        "G13",
-        "G14"
-      ],
-      "reason": "Root access, ignore, skipped-directory, symlink, path-identity, and broad-root noise states need focused fixtures because they exercise scanner setup and settings behavior."
-    },
     {
       "target": "vault-note-state semantic fixtures",
       "stateIds": [
