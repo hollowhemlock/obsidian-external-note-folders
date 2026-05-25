@@ -209,6 +209,84 @@
         "T13"
       ],
       "notes": "Covers duplicate legacy plus UUID-named markers for the same UUID as already-migrated stale cleanup evidence."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "verify-report",
+      "scenario": "root-wide-marker-evidence",
+      "testPath": "src/core/verify.test.ts",
+      "stateIds": [
+        "R0",
+        "R1",
+        "R5",
+        "R14"
+      ],
+      "notes": "Covers no-marker scans, one expected marker match, duplicate orphan marker identities, and skipped subtree warning-only evidence."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "marker-migration",
+      "scenario": "legacy-and-mixed-root-evidence",
+      "testPath": "src/core/markerMigrationPlan.test.ts",
+      "stateIds": [
+        "R8",
+        "R9"
+      ],
+      "notes": "Covers legacy-only and mixed legacy plus UUID-named marker evidence in migration planning."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "adoption-plan",
+      "scenario": "unrelated-existing-identities",
+      "testPath": "src/core/adoptionPlan.test.ts",
+      "stateIds": [
+        "R10",
+        "R11"
+      ],
+      "notes": "Covers unrelated existing vault identities and unrelated external markers as adoption warnings instead of global blockers."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "open-recovery",
+      "scenario": "exact-name-candidates",
+      "testPath": "src/core/openExternalFolderRecovery.test.ts",
+      "stateIds": [
+        "R16",
+        "R17",
+        "R18"
+      ],
+      "notes": "Covers exact-name candidates marked with the active UUID, another UUID, malformed marker evidence, and multiple candidate rows."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "adoption-plan",
+      "scenario": "structural-container-filtering",
+      "testPath": "src/core/adoptionPlan.test.ts",
+      "stateIds": [
+        "R19",
+        "R20"
+      ],
+      "notes": "Covers ancestor container directories and descendants under marked folders being excluded from unmatched external folder rows."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "adoption-plan",
+      "scenario": "normalized-directory-collision",
+      "testPath": "src/core/adoptionPlan.test.ts",
+      "stateIds": [
+        "R21"
+      ],
+      "notes": "Covers case/Unicode duplicate external targets by blocking normalized duplicate directory identities."
+    },
+    {
+      "kind": "integration-test",
+      "domain": "adoption",
+      "scenario": "post-adoption-payload-preservation",
+      "testPath": "test/integration/adoption.integration.test.ts",
+      "stateIds": [
+        "R22"
+      ],
+      "notes": "Covers adoption preserving existing external folder payload files after marker and frontmatter writes."
     }
   ],
   "plannedCoverage": [
@@ -226,27 +304,6 @@
         "T21"
       ],
       "reason": "Unreadable expected-folder parent behavior is OS-permission dependent and needs a focused storage/integration fixture or test adapter before it can be asserted reliably."
-    },
-    {
-      "target": "root-wide-evidence semantic fixtures",
-      "stateIds": [
-        "R0",
-        "R1",
-        "R5",
-        "R8",
-        "R9",
-        "R10",
-        "R11",
-        "R14",
-        "R16",
-        "R17",
-        "R18",
-        "R19",
-        "R20",
-        "R21",
-        "R22"
-      ],
-      "reason": "Duplicate, ignored, skipped, exact-name candidate, structural ancestor, case/Unicode collision, and payload-preservation states need targeted report, adoption, open, and mutation fixtures."
     },
     {
       "target": "journal-and-resume mutation fixtures",
