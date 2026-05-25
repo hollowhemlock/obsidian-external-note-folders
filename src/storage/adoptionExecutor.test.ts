@@ -125,6 +125,34 @@ describe('adoption executor', () => {
     await expect(listIncompleteAdoptionJournals(journalRootPath)).resolves.toHaveLength(1);
   });
 
+  it('leaves an incomplete journal when marker writing fails before frontmatter writes', async () => {
+    const journalRootPath = await createTempRoot(tempDirectories);
+    const writeNoteUuid = vi.fn(async () => undefined);
+
+    const result = await executeAdoptionPlan({
+      journalRootPath,
+      operations: {
+        assertMarkerMatches: vi.fn(async () => undefined),
+        assertNoteUuidMatches: vi.fn(async () => undefined),
+        writeMarker: vi.fn(async () => {
+          throw new Error('marker unavailable');
+        }),
+        writeNoteUuid
+      },
+      plan: buildPlan()
+    });
+
+    expect(result.succeeded).toBe(false);
+    expect(writeNoteUuid).not.toHaveBeenCalled();
+    expect(result.journal.completedAt).toBeNull();
+    expect(result.journal.entries[0]).toMatchObject({
+      message: 'marker unavailable',
+      outcome: 'failure',
+      stage: 'marker-write'
+    });
+    await expect(listIncompleteAdoptionJournals(journalRootPath)).resolves.toHaveLength(1);
+  });
+
   it('resumes frontmatter-write failures without rewriting the marker', async () => {
     const journalRootPath = await createTempRoot(tempDirectories);
     const failedResult = await executeAdoptionPlan({
@@ -218,6 +246,35 @@ describe('adoption executor', () => {
     });
   });
 
+  it('returns no incomplete journals when the journal root is missing', async () => {
+    const missingJournalRootPath = path.join(await createTempRoot(tempDirectories), 'missing-journal-root');
+
+    await expect(listIncompleteAdoptionJournals(missingJournalRootPath)).resolves.toEqual([]);
+  });
+
+  it('lists multiple incomplete adoption journals for manual resolution', async () => {
+    const journalRootPath = await createTempRoot(tempDirectories);
+    for (let index = 0; index < 2; index += 1) {
+      await executeAdoptionPlan({
+        journalRootPath,
+        operations: {
+          assertMarkerMatches: vi.fn(async () => undefined),
+          assertNoteUuidMatches: vi.fn(async () => undefined),
+          writeMarker: vi.fn(async () => undefined),
+          writeNoteUuid: vi.fn(async () => {
+            throw new Error('frontmatter unavailable');
+          })
+        },
+        plan: buildPlan()
+      });
+    }
+
+    const incompleteJournals = await listIncompleteAdoptionJournals(journalRootPath);
+
+    expect(incompleteJournals).toHaveLength(2);
+    expect(incompleteJournals.every((journal) => journal.entryCount === 1)).toBe(true);
+  });
+
   it('ignores stale completed journals when listing incomplete journals', async () => {
     const journalRootPath = await createTempRoot(tempDirectories);
     const result = await executeAdoptionPlan({
@@ -234,6 +291,39 @@ describe('adoption executor', () => {
     await writeFile(result.journalPath, `${JSON.stringify(result.journal, null, 2)}\n`, 'utf8');
 
     await expect(listIncompleteAdoptionJournals(journalRootPath)).resolves.toEqual([]);
+  });
+
+  it('rejects corrupt adoption journal JSON before listing it', async () => {
+    const journalRootPath = await createTempRoot(tempDirectories);
+    await writeFile(path.join(journalRootPath, 'corrupt.json'), '{', 'utf8');
+
+    await expect(listIncompleteAdoptionJournals(journalRootPath)).rejects.toThrow();
+  });
+
+  it('rejects adoption journals with the wrong kind or version before listing them', async () => {
+    const journalRootPath = await createTempRoot(tempDirectories);
+    const journalPath = path.join(journalRootPath, 'wrong-kind.json');
+    await writeFile(
+      journalPath,
+      `${
+        JSON.stringify(
+          {
+            completedAt: null,
+            entries: [],
+            externalRootPath: 'X:/External',
+            kind: 'other-journal',
+            runId: 'run',
+            schemaVersion: 99,
+            startedAt: new Date().toISOString()
+          },
+          null,
+          2
+        )
+      }\n`,
+      'utf8'
+    );
+
+    await expect(listIncompleteAdoptionJournals(journalRootPath)).rejects.toThrow(`Invalid adoption journal: ${journalPath}`);
   });
 
   it('rejects partial adoption journal JSON before listing it', async () => {
