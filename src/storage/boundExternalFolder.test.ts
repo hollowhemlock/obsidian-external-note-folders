@@ -28,6 +28,7 @@ import {
 
 const VALID_UUID = '123e4567-e89b-42d3-a456-426614174000';
 const OTHER_UUID = '123e4567-e89b-42d3-a456-426614174001';
+const THIRD_UUID = '123e4567-e89b-42d3-a456-426614174002';
 
 describe('bound external folder mutations', () => {
   const tempDirectories: string[] = [];
@@ -97,6 +98,18 @@ describe('bound external folder mutations', () => {
       notePath: 'Projects/Alpha.md',
       uuid: VALID_UUID
     })).rejects.toThrow();
+  });
+
+  it('rejects expected paths occupied by files', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    await mkdir(path.join(externalRootPath, 'Projects'), { recursive: true });
+    await writeFile(path.join(externalRootPath, 'Projects', 'Alpha'), 'not a directory', 'utf8');
+
+    await expect(inspectExpectedExternalFolder({
+      externalRootPath,
+      notePath: 'Projects/Alpha.md',
+      uuid: VALID_UUID
+    })).rejects.toThrow('already occupied');
   });
 
   it('rejects occupied expected folders with conflicting marker files', async () => {
@@ -169,6 +182,43 @@ describe('bound external folder mutations', () => {
     });
   });
 
+  it('returns the expected folder when only its legacy marker matches', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    await mkdir(targetFolderPath, { recursive: true });
+    await writeFile(path.join(targetFolderPath, EXNF_LEGACY_MARKER_FILE_NAME), `${VALID_UUID}\n`, 'utf8');
+
+    const result = await inspectExpectedExternalFolder({
+      externalRootPath,
+      notePath: 'Projects/Alpha.md',
+      uuid: VALID_UUID
+    });
+
+    expect(result).toEqual({
+      folderPath: targetFolderPath,
+      kind: 'bound'
+    });
+  });
+
+  it('returns the expected folder when matching legacy and UUID-named markers coexist', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    await mkdir(targetFolderPath, { recursive: true });
+    await writeFile(path.join(targetFolderPath, EXNF_LEGACY_MARKER_FILE_NAME), `${VALID_UUID}\n`, 'utf8');
+    await writeFile(markerPath(targetFolderPath), `${VALID_UUID}\n`, 'utf8');
+
+    const result = await inspectExpectedExternalFolder({
+      externalRootPath,
+      notePath: 'Projects/Alpha.md',
+      uuid: VALID_UUID
+    });
+
+    expect(result).toEqual({
+      folderPath: targetFolderPath,
+      kind: 'bound'
+    });
+  });
+
   it('blocks expected folders with conflicting legacy and UUID-named markers', async () => {
     const externalRootPath = await createTempRoot(tempDirectories);
     const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
@@ -189,6 +239,89 @@ describe('bound external folder mutations', () => {
       message: `Legacy marker ${
         path.join(targetFolderPath, EXNF_LEGACY_MARKER_FILE_NAME)
       } contains UUID ${VALID_UUID}, but UUID-named marker(s) in the same folder contain ${OTHER_UUID}.`
+    });
+  });
+
+  it('blocks expected folders when the legacy marker conflicts with a matching UUID-named marker', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    await mkdir(targetFolderPath, { recursive: true });
+    await writeFile(path.join(targetFolderPath, EXNF_LEGACY_MARKER_FILE_NAME), `${OTHER_UUID}\n`, 'utf8');
+    await writeFile(markerPath(targetFolderPath), `${VALID_UUID}\n`, 'utf8');
+
+    const result = await inspectExpectedExternalFolder({
+      externalRootPath,
+      notePath: 'Projects/Alpha.md',
+      uuid: VALID_UUID
+    });
+
+    expect(result).toEqual({
+      folderPath: targetFolderPath,
+      kind: 'marker-conflict',
+      markerPath: path.join(targetFolderPath, EXNF_LEGACY_MARKER_FILE_NAME),
+      message: `Legacy marker ${
+        path.join(targetFolderPath, EXNF_LEGACY_MARKER_FILE_NAME)
+      } contains UUID ${OTHER_UUID}, but UUID-named marker(s) in the same folder contain ${VALID_UUID}.`
+    });
+  });
+
+  it('reports malformed legacy markers on expected folders', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    const legacyMarkerPath = path.join(targetFolderPath, EXNF_LEGACY_MARKER_FILE_NAME);
+    await mkdir(targetFolderPath, { recursive: true });
+    await writeFile(legacyMarkerPath, 'not-a-uuid\n', 'utf8');
+
+    const result = await inspectExpectedExternalFolder({
+      externalRootPath,
+      notePath: 'Projects/Alpha.md',
+      uuid: VALID_UUID
+    });
+
+    expect(result).toEqual({
+      folderPath: targetFolderPath,
+      kind: 'malformed-marker',
+      markerPath: legacyMarkerPath,
+      message: 'Marker must contain a canonical lowercase UUID.'
+    });
+  });
+
+  it('accepts expected folders with a matching marker plus stale UUID-named markers', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    await mkdir(targetFolderPath, { recursive: true });
+    await writeFile(markerPath(targetFolderPath), `${VALID_UUID}\n`, 'utf8');
+    await writeFile(markerPath(targetFolderPath, OTHER_UUID), `${OTHER_UUID}\n`, 'utf8');
+
+    const result = await inspectExpectedExternalFolder({
+      externalRootPath,
+      notePath: 'Projects/Alpha.md',
+      uuid: VALID_UUID
+    });
+
+    expect(result).toEqual({
+      folderPath: targetFolderPath,
+      kind: 'bound'
+    });
+  });
+
+  it('reports expected folders with only nonmatching UUID-named markers as mismatched', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    await mkdir(targetFolderPath, { recursive: true });
+    await writeFile(markerPath(targetFolderPath, OTHER_UUID), `${OTHER_UUID}\n`, 'utf8');
+    await writeFile(markerPath(targetFolderPath, THIRD_UUID), `${THIRD_UUID}\n`, 'utf8');
+
+    const result = await inspectExpectedExternalFolder({
+      externalRootPath,
+      notePath: 'Projects/Alpha.md',
+      uuid: VALID_UUID
+    });
+
+    expect(result).toEqual({
+      folderPath: targetFolderPath,
+      kind: 'mismatched-marker',
+      markerUuid: `${OTHER_UUID}, ${THIRD_UUID}`
     });
   });
 

@@ -147,6 +147,68 @@
         "V13"
       ],
       "notes": "Covers assigned notes that derive the same target, including Unicode-normalized note path collisions."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "bound-external-folder",
+      "scenario": "expected-folder-inspection",
+      "testPath": "src/storage/boundExternalFolder.test.ts",
+      "stateIds": [
+        "T1",
+        "T2",
+        "T4",
+        "T5",
+        "T6",
+        "T7",
+        "T10",
+        "T11",
+        "T12",
+        "T19",
+        "T20",
+        "T22"
+      ],
+      "notes": "Covers expected-folder files, unmarked directories, matching uuid and legacy markers, legacy conflicts, malformed legacy markers, multiple UUID-named markers, symlink/reparse rejection, parent creation, and root-boundary safety."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "adoption-plan",
+      "scenario": "skipped-target",
+      "testPath": "src/core/adoptionPlan.test.ts",
+      "stateIds": [
+        "T18"
+      ],
+      "notes": "Covers adoption blocking when a note's derived expected folder is inside a skipped external subtree."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "open-recovery",
+      "scenario": "owner-note-candidates",
+      "testPath": "src/core/openExternalFolderRecovery.test.ts",
+      "stateIds": [
+        "T15"
+      ],
+      "notes": "Covers recovery candidate display for folders marked with a UUID whose owner note is known."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "adoption-plan",
+      "scenario": "overlap-conflicts",
+      "testPath": "src/core/adoptionPlan.test.ts",
+      "stateIds": [
+        "T23",
+        "T24"
+      ],
+      "notes": "Covers ancestor and descendant bound-folder overlap blockers for adoption candidates."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "marker-migration",
+      "scenario": "legacy-marker-migration",
+      "testPath": "src/core/markerMigrationPlan.test.ts",
+      "stateIds": [
+        "T13"
+      ],
+      "notes": "Covers duplicate legacy plus UUID-named markers for the same UUID as already-migrated stale cleanup evidence."
     }
   ],
   "plannedCoverage": [
@@ -161,26 +223,9 @@
     {
       "target": "expected-folder-state semantic fixtures",
       "stateIds": [
-        "T1",
-        "T2",
-        "T4",
-        "T5",
-        "T6",
-        "T7",
-        "T10",
-        "T11",
-        "T12",
-        "T13",
-        "T15",
-        "T18",
-        "T19",
-        "T20",
-        "T21",
-        "T22",
-        "T23",
-        "T24"
+        "T21"
       ],
-      "reason": "Expected-folder marker, legacy, ignored, skipped, symlink, root-boundary, and overlap states need command-specific fixtures for open, verify, adoption, reconcile, and migration."
+      "reason": "Unreadable expected-folder parent behavior is OS-permission dependent and needs a focused storage/integration fixture or test adapter before it can be asserted reliably."
     },
     {
       "target": "root-wide-evidence semantic fixtures",

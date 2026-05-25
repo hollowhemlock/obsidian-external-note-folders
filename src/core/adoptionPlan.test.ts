@@ -322,6 +322,37 @@ describe('adoption plan', () => {
     ]);
   });
 
+  it('blocks notes whose derived target is inside a skipped directory', () => {
+    const skippedFolderPath = path.join(EXTERNAL_ROOT, 'Projects');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        skippedDirectories: [
+          {
+            location: skippedFolderPath,
+            message: 'EPERM'
+          }
+        ]
+      }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(getAdoptionRows(plan)).toEqual([]);
+    expect(plan.rows).toEqual([
+      {
+        externalFolder: 'Projects/Alpha',
+        kind: 'blocked-note',
+        message: 'Derived external folder path is inside a skipped external directory.',
+        notePath: 'Projects/Alpha.md',
+        reason: 'target-skipped'
+      }
+    ]);
+    expect(plan.warnings).toEqual([
+      `Skipped external directory at ${skippedFolderPath}: EPERM`
+    ]);
+  });
+
   it('excludes all notes that already have duplicate vault identities', () => {
     const alphaFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
     const betaFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Beta');
