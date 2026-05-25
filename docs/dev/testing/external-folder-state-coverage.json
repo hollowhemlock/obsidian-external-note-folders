@@ -53,11 +53,12 @@
         "R7"
       ],
       "notes": "Covers identity-integrity drift states: duplicate vault identities, duplicate external identities, expected folders occupied by another UUID, malformed target markers, and marker filename/payload mismatch."
-    }
-  ],
-  "plannedCoverage": [
+    },
     {
-      "target": "global-scan-state semantic and integration fixtures",
+      "kind": "unit-test",
+      "domain": "external-root-scan",
+      "scenario": "global-root-states",
+      "testPath": "src/storage/scanExternalRoot.test.ts",
       "stateIds": [
         "G0",
         "G1",
@@ -68,7 +69,15 @@
         "G7",
         "G8",
         "G11",
-        "G12",
+        "G12"
+      ],
+      "notes": "Covers scanner-level global root states: unset, relative, missing, file root, unreadable root, empty root, skipped descendants, symlink entries, and invalid ignore settings."
+    }
+  ],
+  "plannedCoverage": [
+    {
+      "target": "global-scan-state semantic and integration fixtures",
+      "stateIds": [
         "G13",
         "G14"
       ],

@@ -58,6 +58,49 @@ describe('external root scanning', () => {
     ]);
   });
 
+  it('reports a missing external root as an access error', async () => {
+    const externalRootPath = path.join(await createTempRoot(tempDirectories), 'Missing');
+
+    const result = await scanExternalRoot(externalRootPath);
+
+    expect(result.accessErrors).toEqual([
+      {
+        location: externalRootPath,
+        message: expect.any(String) as string
+      }
+    ]);
+    expect(result.directories).toEqual([]);
+    expect(result.bindings).toEqual(new Map());
+  });
+
+  it('reports a file external root as an access error', async () => {
+    const tempRootPath = await createTempRoot(tempDirectories);
+    const externalRootPath = path.join(tempRootPath, 'external-root-file');
+    await writeFile(externalRootPath, 'not a directory', 'utf8');
+
+    const result = await scanExternalRoot(externalRootPath);
+
+    expect(result.accessErrors).toEqual([
+      {
+        location: await realpath(externalRootPath),
+        message: expect.any(String) as string
+      }
+    ]);
+    expect(result.directories).toEqual([]);
+    expect(result.bindings).toEqual(new Map());
+  });
+
+  it('reports an empty external root without bindings or warnings', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+
+    const result = await scanExternalRoot(externalRootPath);
+
+    expect(result.accessErrors).toEqual([]);
+    expect(result.skippedDirectories).toEqual([]);
+    expect(result.directories).toEqual([]);
+    expect(result.bindings).toEqual(new Map());
+  });
+
   it('discovers valid marker bindings recursively', async () => {
     const externalRootPath = await createTempRoot(tempDirectories);
     const folderPath = path.join(externalRootPath, 'Projects', 'Alpha');
@@ -124,6 +167,42 @@ describe('external root scanning', () => {
       }
     ]);
     expect(result.bindings).toEqual(new Map([[VALID_UUID, readableFolderPath]]));
+  });
+
+  it('records invalid negation ignore patterns as scan errors', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+
+    const result = await scanExternalRoot(externalRootPath, {
+      ignorePatterns: ['!Projects/Ignored/']
+    });
+
+    expect(result.accessErrors).toEqual([]);
+    expect(result.ignoreErrors).toEqual([
+      {
+        message: 'Negation patterns are not supported.',
+        pattern: '!Projects/Ignored/'
+      }
+    ]);
+  });
+
+  it('records filesystem-absolute ignore patterns as scan errors', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+
+    const result = await scanExternalRoot(externalRootPath, {
+      ignorePatterns: ['C:/Users/ryanh/foo/', '//server/share/foo/']
+    });
+
+    expect(result.accessErrors).toEqual([]);
+    expect(result.ignoreErrors).toEqual([
+      {
+        message: 'Ignore patterns must be relative to the configured external root.',
+        pattern: 'C:/Users/ryanh/foo/'
+      },
+      {
+        message: 'Ignore patterns must be relative to the configured external root.',
+        pattern: '//server/share/foo/'
+      }
+    ]);
   });
 
   it('reports duplicate marker UUIDs', async () => {
@@ -243,6 +322,29 @@ describe('external root scanning', () => {
     expect(result.bindings).toEqual(new Map());
   });
 
+  it('does not traverse symbolic link entries returned by the scanner filesystem', async () => {
+    const externalRootPath = path.join(os.tmpdir(), 'external-note-folders-symlink-scan');
+
+    const result = await scanExternalRoot(externalRootPath, {
+      fileSystem: {
+        readDirectoryEntries: async (directoryPath) => {
+          if (directoryPath === externalRootPath) {
+            return [mockDirent('Link', 'symlink')];
+          }
+
+          throw new Error('symbolic link should not be traversed');
+        },
+        readMarkerFile: async () => `${VALID_UUID}\n`,
+        resolveRealPath: async () => externalRootPath
+      }
+    });
+
+    expect(result.accessErrors).toEqual([]);
+    expect(result.skippedDirectories).toEqual([]);
+    expect(result.directories).toEqual([]);
+    expect(result.bindings).toEqual(new Map());
+  });
+
   it('skips ignored descendant directories before reading them', async () => {
     const externalRootPath = await createTempRoot(tempDirectories);
     const readableFolderPath = path.join(externalRootPath, 'Projects', 'Readable');
@@ -313,7 +415,7 @@ function isUnsupportedSymlinkError(error: unknown): boolean {
   );
 }
 
-function mockDirent(name: string, kind: 'directory' | 'file'): Dirent {
+function mockDirent(name: string, kind: 'directory' | 'file' | 'symlink'): Dirent {
   return {
     isBlockDevice: () => false,
     isCharacterDevice: () => false,
@@ -321,7 +423,7 @@ function mockDirent(name: string, kind: 'directory' | 'file'): Dirent {
     isFIFO: () => false,
     isFile: () => kind === 'file',
     isSocket: () => false,
-    isSymbolicLink: () => false,
+    isSymbolicLink: () => kind === 'symlink',
     name
   } as Dirent;
 }
