@@ -331,3 +331,9 @@ plus focused fixtures for mutation commands.
 | Integration mutation | Adoption apply, reconcile move, marker migration rename, journal/resume |
 | Scanner fidelity | Production Obsidian scan equals fixture scanner for every new semantic fixture domain |
 | Regression fixtures | Broad-root repo noise, ignored subtrees, EPERM/skipped dirs, payload preservation |
+
+Coverage tracking lives in
+[External Folder State Coverage](external-folder-state-coverage.json). The ledger must account for
+every canonical state ID in this matrix as either covered by a committed scenario or planned for a
+specific future fixture group. `npm run test` validates that the ledger stays synchronized with this
+matrix and with committed expected JSON.

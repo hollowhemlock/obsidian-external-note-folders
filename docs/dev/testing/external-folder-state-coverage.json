@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 1,
+  "coveredScenarios": [
+    {
+      "kind": "semantic-fixture",
+      "domain": "drift-report",
+      "scenario": "basic-drift-matrix",
+      "expectedPath": "test/fixtures/fixture/expected/drift-report/basic-drift-matrix.json",
+      "stateIds": [
+        "G6",
+        "V3",
+        "V15",
+        "V16",
+        "V17",
+        "T0",
+        "T3",
+        "R2",
+        "R4",
+        "R6",
+        "R15"
+      ],
+      "notes": "Covers the first committed drift semantic fixture: off-path bindings, missing expected folders, orphan markers, occupied targets, malformed unrelated markers, and exact-name unmarked suggestions."
+    },
+    {
+      "kind": "semantic-fixture",
+      "domain": "drift-report",
+      "scenario": "ignored-bound-folder",
+      "expectedPath": "test/fixtures/fixture/expected/drift-report/ignored-bound-folder.json",
+      "stateIds": [
+        "G9",
+        "G10",
+        "V14",
+        "T17",
+        "R12",
+        "R13"
+      ],
+      "notes": "Covers a note whose expected bound folder is ignored: ignored marker evidence is invisible, the report emits ignored/unchecked, and the folder is not misclassified as healthy or missing."
+    }
+  ],
+  "plannedCoverage": [
+    {
+      "target": "global-scan-state semantic and integration fixtures",
+      "stateIds": [
+        "G0",
+        "G1",
+        "G2",
+        "G3",
+        "G4",
+        "G5",
+        "G7",
+        "G8",
+        "G11",
+        "G12",
+        "G13",
+        "G14"
+      ],
+      "reason": "Root access, ignore, skipped-directory, symlink, path-identity, and broad-root noise states need focused fixtures because they exercise scanner setup and settings behavior."
+    },
+    {
+      "target": "vault-note-state semantic fixtures",
+      "stateIds": [
+        "V0",
+        "V1",
+        "V2",
+        "V4",
+        "V5",
+        "V6",
+        "V7",
+        "V8",
+        "V9",
+        "V10",
+        "V11",
+        "V12",
+        "V13",
+        "V18",
+        "V19"
+      ],
+      "reason": "Active-note preconditions, invalid frontmatter, duplicates, derivation baselines, ignored bindings, and expected-path conflicts need smaller fixtures than the drift omnibus scenario."
+    },
+    {
+      "target": "expected-folder-state semantic fixtures",
+      "stateIds": [
+        "T1",
+        "T2",
+        "T4",
+        "T5",
+        "T6",
+        "T7",
+        "T8",
+        "T9",
+        "T10",
+        "T11",
+        "T12",
+        "T13",
+        "T14",
+        "T15",
+        "T16",
+        "T18",
+        "T19",
+        "T20",
+        "T21",
+        "T22",
+        "T23",
+        "T24"
+      ],
+      "reason": "Expected-folder marker, legacy, ignored, skipped, symlink, root-boundary, and overlap states need command-specific fixtures for open, verify, adoption, reconcile, and migration."
+    },
+    {
+      "target": "root-wide-evidence semantic fixtures",
+      "stateIds": [
+        "R0",
+        "R1",
+        "R3",
+        "R5",
+        "R7",
+        "R8",
+        "R9",
+        "R10",
+        "R11",
+        "R14",
+        "R16",
+        "R17",
+        "R18",
+        "R19",
+        "R20",
+        "R21",
+        "R22"
+      ],
+      "reason": "Duplicate, ignored, skipped, exact-name candidate, structural ancestor, case/Unicode collision, and payload-preservation states need targeted report, adoption, open, and mutation fixtures."
+    },
+    {
+      "target": "journal-and-resume mutation fixtures",
+      "stateIds": [
+        "J0",
+        "J1",
+        "J2",
+        "J3",
+        "J4",
+        "J5",
+        "J6",
+        "J7",
+        "J8",
+        "J9",
+        "J10",
+        "J11",
+        "J12",
+        "J13",
+        "J14",
+        "J15"
+      ],
+      "reason": "Journal and resume states are mutation/recovery behavior and should be covered by focused executor or CLI mutation fixtures."
+    }
+  ]
+}

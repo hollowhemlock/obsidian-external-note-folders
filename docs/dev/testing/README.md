@@ -11,6 +11,9 @@ READMEs:
 
 - [External Folder State Matrix](external-folder-state-matrix.md): living inventory of vault,
   external-root, marker, ignore, journal, and command states that tests should cover.
+- [External Folder State Coverage](external-folder-state-coverage.json): machine-readable ledger of
+  matrix states that are covered by committed scenarios or intentionally planned for future
+  scenarios.
 - [ADR-0028](../adr/0028-core-fixture-semantics-with-cli-smoke.md): decision to use core fixture
   semantic tests with Obsidian CLI smoke and adapter tests.
 
@@ -41,4 +44,6 @@ The external-folder state matrix is a living reference. Update it when:
 - a fixture scenario intentionally changes expected coverage.
 
 When adding a new semantic or integration fixture, check whether the matrix already names the state.
-If not, update the matrix in the same PR or explicitly document why the state is out of scope.
+If not, update the matrix in the same PR or explicitly document why the state is out of scope. If
+the fixture covers an existing state, update the coverage ledger so `npm run test` can verify that
+matrix coverage stays explicit.

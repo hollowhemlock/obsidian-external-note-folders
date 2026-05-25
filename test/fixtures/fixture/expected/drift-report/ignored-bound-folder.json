@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "domain": "drift-report",
+  "scenario": "ignored-bound-folder",
+  "externalRootIgnorePatterns": [
+    "drift-report/ignored-bound-folder/Notes/Alpha/"
+  ],
+  "summary": {
+    "errors": 0,
+    "warnings": 1,
+    "unexpectedPaths": 0,
+    "ignoredUnchecked": 1,
+    "missingExpectedFolders": 0,
+    "orphanFolders": 0,
+    "occupiedTargetPaths": 0,
+    "suggestions": 0
+  },
+  "unexpectedRows": [],
+  "ignoredRows": [
+    {
+      "notePath": "drift-report/ignored-bound-folder/Notes/Alpha.md",
+      "expectedExternalFolderPath": "drift-report/ignored-bound-folder/Notes/Alpha",
+      "actualExternalFolderPath": null,
+      "uuid": "123e4567-e89b-42d3-a456-426614174220"
+    }
+  ],
+  "missingRows": [],
+  "orphanRows": [],
+  "occupiedRows": [],
+  "suggestions": [],
+  "errors": [],
+  "warnings": [
+    "Ignored 1 external directory: drift-report/ignored-bound-folder/Notes/Alpha"
+  ]
+}
