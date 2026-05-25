@@ -10,14 +10,7 @@ import {
 
 import { resolveRepoPath } from '../support/fixtures/fixtureScenario.ts';
 
-interface CoverageEntry {
-  domain: string;
-  expectedPath: string;
-  kind: 'semantic-fixture';
-  notes: string;
-  scenario: string;
-  stateIds: string[];
-}
+type CoverageEntry = SemanticFixtureCoverageEntry | UnitTestCoverageEntry;
 
 interface CoverageLedger {
   coveredScenarios: CoverageEntry[];
@@ -29,6 +22,24 @@ interface PlannedCoverageEntry {
   reason: string;
   stateIds: string[];
   target: string;
+}
+
+interface SemanticFixtureCoverageEntry {
+  domain: string;
+  expectedPath: string;
+  kind: 'semantic-fixture';
+  notes: string;
+  scenario: string;
+  stateIds: string[];
+}
+
+interface UnitTestCoverageEntry {
+  domain: string;
+  kind: 'unit-test';
+  notes: string;
+  scenario: string;
+  stateIds: string[];
+  testPath: string;
 }
 
 const MATRIX_PATH = 'docs/dev/testing/external-folder-state-matrix.md';
@@ -51,6 +62,10 @@ describe('external folder state coverage ledger', () => {
   it('links covered semantic scenarios to committed expected JSON', async () => {
     const ledger = await readCoverageLedger();
     for (const scenario of ledger.coveredScenarios) {
+      if (scenario.kind !== 'semantic-fixture') {
+        continue;
+      }
+
       await access(resolveRepoPath(scenario.expectedPath));
       const expected = await readJson(scenario.expectedPath);
       if (!isRecord(expected)) {
@@ -61,6 +76,17 @@ describe('external folder state coverage ledger', () => {
       expect(expected['scenario']).toBe(scenario.scenario);
     }
   });
+
+  it('links covered unit-test scenarios to committed test files', async () => {
+    const ledger = await readCoverageLedger();
+    for (const scenario of ledger.coveredScenarios) {
+      if (scenario.kind !== 'unit-test') {
+        continue;
+      }
+
+      await access(resolveRepoPath(scenario.testPath));
+    }
+  });
 });
 
 function assertCoverageEntry(input: unknown, label: string): asserts input is CoverageEntry {
@@ -68,13 +94,25 @@ function assertCoverageEntry(input: unknown, label: string): asserts input is Co
     throw new Error(`${label} must be an object.`);
   }
 
-  if (input['kind'] !== 'semantic-fixture') {
-    throw new Error(`${label}.kind must be semantic-fixture.`);
+  if (input['kind'] !== 'semantic-fixture' && input['kind'] !== 'unit-test') {
+    throw new Error(`${label}.kind must be semantic-fixture or unit-test.`);
   }
 
-  for (const key of ['domain', 'expectedPath', 'notes', 'scenario']) {
+  for (const key of ['domain', 'notes', 'scenario']) {
     if (typeof input[key] !== 'string' || input[key].length === 0) {
       throw new Error(`${label}.${key} must be a non-empty string.`);
+    }
+  }
+
+  if (input['kind'] === 'semantic-fixture') {
+    if (typeof input['expectedPath'] !== 'string' || input['expectedPath'].length === 0) {
+      throw new Error(`${label}.expectedPath must be a non-empty string.`);
+    }
+  }
+
+  if (input['kind'] === 'unit-test') {
+    if (typeof input['testPath'] !== 'string' || input['testPath'].length === 0) {
+      throw new Error(`${label}.testPath must be a non-empty string.`);
     }
   }
 
