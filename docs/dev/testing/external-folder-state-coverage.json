@@ -92,26 +92,71 @@
         "G14"
       ],
       "notes": "Covers broad-root noise by treating root container paths such as test fixture ancestors as structural folders rather than unmatched external folders."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "frontmatter",
+      "scenario": "exnf-frontmatter-states",
+      "testPath": "src/core/frontmatter.test.ts",
+      "stateIds": [
+        "V2",
+        "V4",
+        "V5",
+        "V6"
+      ],
+      "notes": "Covers missing, malformed, non-string, and noncanonical exnf frontmatter values using the production frontmatter parser."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "scan-result",
+      "scenario": "duplicate-vault-identity-scale",
+      "testPath": "src/core/scanResult.test.ts",
+      "stateIds": [
+        "V8"
+      ],
+      "notes": "Covers duplicate identity accumulation beyond two note paths, which is the shared registration behavior used by vault scanning."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "path-policy",
+      "scenario": "note-path-derivation-baselines",
+      "testPath": "src/core/pathPolicy.test.ts",
+      "stateIds": [
+        "V9",
+        "V10"
+      ],
+      "notes": "Covers plain-note and folder-note derivation baselines for expected external folder paths."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "adoption-plan",
+      "scenario": "duplicate-derived-targets",
+      "testPath": "src/core/adoptionPlan.test.ts",
+      "stateIds": [
+        "V11"
+      ],
+      "notes": "Covers unassigned notes that derive the same target and are blocked from adoption."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "verify-report",
+      "scenario": "derived-target-collisions",
+      "testPath": "src/core/verify.test.ts",
+      "stateIds": [
+        "V12",
+        "V13"
+      ],
+      "notes": "Covers assigned notes that derive the same target, including Unicode-normalized note path collisions."
     }
   ],
   "plannedCoverage": [
     {
-      "target": "vault-note-state semantic fixtures",
+      "target": "active-note command precondition integration fixtures",
       "stateIds": [
         "V0",
-        "V1",
-        "V2",
-        "V4",
-        "V5",
-        "V6",
-        "V8",
-        "V9",
-        "V10",
-        "V11",
-        "V12",
-        "V13"
+        "V1"
       ],
-      "reason": "Active-note preconditions, invalid frontmatter, duplicates, derivation baselines, ignored bindings, and expected-path conflicts need smaller fixtures than the drift omnibus scenario."
+      "reason": "No-active-file and active-non-Markdown-file behavior lives at the Obsidian workspace command boundary and needs CLI or adapter-level command tests."
     },
     {
       "target": "expected-folder-state semantic fixtures",

@@ -197,6 +197,39 @@ describe('verify report builder', () => {
     ]);
   });
 
+  it('reports notes that collide after Unicode path normalization', () => {
+    const externalRootPath = path.resolve('external-root');
+    const composedNotePath = 'Projects/Café.md';
+    const decomposedNotePath = 'Projects/Cafe\u0301.md';
+    const vaultScan: VaultScanResult = {
+      bindings: new Map([
+        [OTHER_UUID, decomposedNotePath],
+        [VALID_UUID, composedNotePath]
+      ]),
+      duplicatePaths: new Map(),
+      invalidFrontmatter: []
+    };
+    const externalScan: ExternalScanResult = {
+      accessErrors: [],
+      bindings: new Map(),
+      directories: [],
+      duplicatePaths: new Map(),
+      ignoredDirectories: [],
+      ignoreErrors: [],
+      ignorePatterns: [],
+      malformedMarkers: [],
+      rootPath: externalRootPath,
+      skippedDirectories: []
+    };
+
+    const report = buildVerifyReport(vaultScan, externalScan);
+
+    expect(report.hasIntegrityErrors).toBe(true);
+    expect(report.errors).toEqual([
+      `Derived external folder path Projects/Café is shared by multiple notes: ${decomposedNotePath}, ${composedNotePath}`
+    ]);
+  });
+
   it('reports ignored linked folders as ignored instead of unavailable', () => {
     const externalRootPath = path.resolve('external-root');
     const externalFolderPath = path.join(externalRootPath, 'Notes', 'Alpha');

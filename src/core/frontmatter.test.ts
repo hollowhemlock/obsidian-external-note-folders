@@ -35,6 +35,14 @@ describe('frontmatter helpers', () => {
     });
   });
 
+  it('rejects malformed UUID strings', () => {
+    expect(getExnfFrontmatterValue({ exnf: 'not-a-uuid' })).toEqual({
+      kind: 'invalid',
+      reason: 'must be a canonical lowercase UUID',
+      value: 'not-a-uuid'
+    });
+  });
+
   it('rejects non-canonical UUID strings', () => {
     expect(getExnfFrontmatterValue({ exnf: VALID_UUID.toUpperCase() })).toEqual({
       kind: 'invalid',
