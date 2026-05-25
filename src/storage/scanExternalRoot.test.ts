@@ -1,3 +1,5 @@
+import type { Dirent } from 'node:fs';
+
 import {
   mkdir,
   mkdtemp,
@@ -141,6 +143,37 @@ describe('external root scanning', () => {
     );
   });
 
+  it('scans directory entries in stable name order', async () => {
+    const externalRootPath = path.join(os.tmpdir(), 'external-note-folders-stable-order');
+    const alphaFolderPath = path.join(externalRootPath, 'Alpha');
+    const zetaFolderPath = path.join(externalRootPath, 'Zeta');
+    const markerFileName = buildExnfMarkerFileName(VALID_UUID);
+
+    const result = await scanExternalRoot(externalRootPath, {
+      fileSystem: {
+        readDirectoryEntries: async (directoryPath) => {
+          if (directoryPath === externalRootPath) {
+            return [
+              mockDirent('Zeta', 'directory'),
+              mockDirent('Alpha', 'directory')
+            ];
+          }
+
+          if (directoryPath === alphaFolderPath || directoryPath === zetaFolderPath) {
+            return [mockDirent(markerFileName, 'file')];
+          }
+
+          return [];
+        },
+        readMarkerFile: async () => `${VALID_UUID}\n`,
+        resolveRealPath: async () => externalRootPath
+      }
+    });
+
+    expect(result.bindings).toEqual(new Map([[VALID_UUID, alphaFolderPath]]));
+    expect(result.duplicatePaths).toEqual(new Map([[VALID_UUID, [alphaFolderPath, zetaFolderPath]]]));
+  });
+
   it('reports malformed markers', async () => {
     const externalRootPath = await createTempRoot(tempDirectories);
     const folderPath = path.join(externalRootPath, 'Projects', 'Alpha');
@@ -278,6 +311,19 @@ function isUnsupportedSymlinkError(error: unknown): boolean {
     && 'code' in error
     && (error.code === 'EPERM' || error.code === 'EACCES')
   );
+}
+
+function mockDirent(name: string, kind: 'directory' | 'file'): Dirent {
+  return {
+    isBlockDevice: () => false,
+    isCharacterDevice: () => false,
+    isDirectory: () => kind === 'directory',
+    isFIFO: () => false,
+    isFile: () => kind === 'file',
+    isSocket: () => false,
+    isSymbolicLink: () => false,
+    name
+  } as Dirent;
 }
 
 async function writeLegacyMarker(folderPath: string, uuid: string): Promise<void> {

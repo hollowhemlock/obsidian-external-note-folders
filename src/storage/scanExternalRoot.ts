@@ -123,6 +123,10 @@ function registerLegacyMarkerConflict(
   });
 }
 
+function sortDirectoryEntries(entries: readonly Dirent[]): Dirent[] {
+  return [...entries].sort((left, right) => left.name.localeCompare(right.name));
+}
+
 async function walkDirectory(
   directoryPath: string,
   result: ExternalScanResult,
@@ -145,6 +149,7 @@ async function walkDirectory(
     }
     return;
   }
+  entries = sortDirectoryEntries(entries);
 
   const directoryMarkers: ExternalMarkerRecord[] = [];
   for (const entry of entries) {
