@@ -287,6 +287,44 @@
         "R22"
       ],
       "notes": "Covers adoption preserving existing external folder payload files after marker and frontmatter writes."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "adoption-executor",
+      "scenario": "adoption-journal-lifecycle",
+      "testPath": "src/storage/adoptionExecutor.test.ts",
+      "stateIds": [
+        "J0",
+        "J1",
+        "J2",
+        "J3",
+        "J4",
+        "J5",
+        "J7",
+        "J8",
+        "J10"
+      ],
+      "notes": "Covers missing journal roots, one or multiple incomplete adoption journals, completed stale journals, corrupt/wrong-kind journals, marker-write failure before frontmatter, frontmatter-write resume, and resume preflight blocking after manual mutation."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "reconcile-executor",
+      "scenario": "reconcile-journal-failures",
+      "testPath": "src/storage/reconcileExecutor.test.ts",
+      "stateIds": [
+        "J11"
+      ],
+      "notes": "Covers reconcile move execution writing an audit journal and stopping with failure journal entries when live filesystem state invalidates the plan."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "marker-migration-executor",
+      "scenario": "marker-migration-journal-failures",
+      "testPath": "src/storage/markerMigrationExecutor.test.ts",
+      "stateIds": [
+        "J12"
+      ],
+      "notes": "Covers marker migration execution writing a journal and stopping with failure entries when live marker state invalidates the plan."
     }
   ],
   "plannedCoverage": [
@@ -308,24 +346,13 @@
     {
       "target": "journal-and-resume mutation fixtures",
       "stateIds": [
-        "J0",
-        "J1",
-        "J2",
-        "J3",
-        "J4",
-        "J5",
         "J6",
-        "J7",
-        "J8",
         "J9",
-        "J10",
-        "J11",
-        "J12",
         "J13",
         "J14",
         "J15"
       ],
-      "reason": "Journal and resume states are mutation/recovery behavior and should be covered by focused executor or CLI mutation fixtures."
+      "reason": "Remaining journal states require command-boundary or deliberately fault-injected integration coverage: missing external root during resume, impossible frontmatter-without-marker recovery, stale preflight plans, concurrent mutating commands, and UI failure after successful external write."
     }
   ]
 }
