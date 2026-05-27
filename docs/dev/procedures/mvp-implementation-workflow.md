@@ -9,6 +9,7 @@ The MVP plan defines scope. This workflow defines how to move through that scope
 Use this procedure with:
 
 - `docs/dev/product/intent.md`
+- `docs/dev/agent/autonomy-policy.md`
 - `docs/dev/procedures/tdd-workflow.md`
 - `docs/dev/procedures/mvp-validation.md`
 - `docs/dev/procedures/commit-pull-request-merge-review-gate.md`
@@ -161,3 +162,5 @@ Every pull request implementing MVP behavior should include:
 - Residual risks and follow-up items.
 
 If the pull request changes filesystem mutation behavior, include a short mutation safety summary.
+If an agent repairs validation or CI failures during the pull request, summarize why the repair was
+scope-preserving under `docs/dev/agent/autonomy-policy.md`.

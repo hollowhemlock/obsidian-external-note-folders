@@ -86,6 +86,9 @@ When an LLM is implementing via this procedure:
 6. **Pause for review** between cycles if the human is reviewing live. Don't batch multiple Red→Green→Refactor cycles without checkpoint.
 7. **Flag uncertainty** — if the next test to write is unclear, ask rather than guess. A wrong test is worse than no test.
 
+Follow `docs/dev/agent/autonomy-policy.md` before repairing validation failures, changing generated
+file sources, or recording improvement observations.
+
 ## Guidance for Human Developers
 
 1. **Keep cycles short** — if a Green step takes more than ~15 minutes, the Red step probably bit off too much. Write a smaller test.

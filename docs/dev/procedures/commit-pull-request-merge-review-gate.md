@@ -16,6 +16,10 @@ behavior, safety, or architecture change that conflicts with current product
 intent must make that conflict explicit and resolve it through product-intent
 documentation, ADR work, implementation work, or a tracked follow-up.
 
+Agent autonomy boundaries are governed by
+[`docs/dev/agent/autonomy-policy.md`](../agent/autonomy-policy.md). Autonomous repair may address
+validation or CI failures only when the repair is scope-preserving under that policy.
+
 ## Global Contract (All Stages)
 
 ### Required Inputs
@@ -49,6 +53,7 @@ documentation, ADR work, implementation work, or a tracked follow-up.
 - Incomplete `override_request` -> keep `BLOCK`
 - Override may only downgrade `BLOCK` to `PASS_WITH_WARNINGS` (never `PASS`)
 - Product-intent documentation changes do not require implementation in the same change by default
+- Autonomous repair must not expand pull request scope under the label of optimization
 
 ### Evidence Provenance by Stage
 
