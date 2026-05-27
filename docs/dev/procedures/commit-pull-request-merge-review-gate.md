@@ -1,4 +1,4 @@
-# Commit/Pull Request/Merge Review Gate (v2)
+# Commit/Pull Request/Merge Review Gate
 
 ## Purpose
 
@@ -7,6 +7,14 @@ Define a strict, model-agnostic review contract for three stages:
 1. Commit review
 2. Pull request review
 3. Merge gate
+
+Reviews must also evaluate alignment with
+[`docs/dev/product/intent.md`](../product/intent.md). Product intent is the
+highest-level product authority; ADRs and procedures refine or constrain it.
+Changing product intent does not automatically trigger code changes, but any
+behavior, safety, or architecture change that conflicts with current product
+intent must make that conflict explicit and resolve it through product-intent
+documentation, ADR work, implementation work, or a tracked follow-up.
 
 ## Global Contract (All Stages)
 
@@ -20,6 +28,8 @@ Define a strict, model-agnostic review contract for three stages:
 - `evidence_timestamp`: ISO-8601
 - `ci_run_url` (required when blocker-relevant evidence is CI-backed; required for pull/merge blocker checks)
 - `release_context`: `none | patch | minor | breaking`
+- `product_intent_alignment`: product-intent principle(s), governing ADR/spec, or `not_applicable` with reason
+- `product_intent_change`: `none | clarifies | changes`
 - `open_risks`
 
 ### Optional Inputs
@@ -34,8 +44,11 @@ Define a strict, model-agnostic review contract for three stages:
 - `confidence=low` for any critical-path check -> `BLOCK`
 - Required CI-backed checks presented without CI evidence -> `BLOCK`
 - Stale or invalid `evidence_timestamp` -> `BLOCK`
+- Behavior, safety, or architecture change without product-intent alignment evidence -> `BLOCK`
+- Material conflict with product intent without an explicit product-intent/ADR update or tracked follow-up -> `BLOCK`
 - Incomplete `override_request` -> keep `BLOCK`
 - Override may only downgrade `BLOCK` to `PASS_WITH_WARNINGS` (never `PASS`)
+- Product-intent documentation changes do not require implementation in the same change by default
 
 ### Evidence Provenance by Stage
 
@@ -46,7 +59,7 @@ Define a strict, model-agnostic review contract for three stages:
 ### Required Output Schema
 
 - `Decision`: `PASS | PASS_WITH_WARNINGS | BLOCK`
-- `DecisionReasonCodes`: enum list (example: `MISSING_EVIDENCE`, `COMMIT_FORMAT_INVALID`, `TEST_GAP`, `SCOPE_MIXED`, `CI_MISSING`, `RELEASE_MISMATCH`, `UNRESOLVED_BLOCKERS`, `LOW_CONFIDENCE_CRITICAL`, `OVERRIDE_APPLIED`)
+- `DecisionReasonCodes`: enum list (example: `MISSING_EVIDENCE`, `COMMIT_FORMAT_INVALID`, `TEST_GAP`, `SCOPE_MIXED`, `CI_MISSING`, `RELEASE_MISMATCH`, `PRODUCT_INTENT_MISSING`, `PRODUCT_INTENT_CONFLICT`, `UNRESOLVED_BLOCKERS`, `LOW_CONFIDENCE_CRITICAL`, `OVERRIDE_APPLIED`)
 - `Confidence`: `high | medium | low`
 - `Findings` (severity ordered):
   - `severity`: `critical | high | medium | low`
@@ -59,6 +72,8 @@ Define a strict, model-agnostic review contract for three stages:
   - tests updated for behavior changes
   - validation commands present
   - release impact correctness
+  - product intent alignment
+  - product intent change handling
 - `MissingEvidence`: list or `none`
 - `OverrideStatus`: `none | requested | applied | rejected`
 - `MergeReadiness`:
@@ -79,6 +94,7 @@ Define a strict, model-agnostic review contract for three stages:
 - Atomic boundaries (single logical concern)
 - TDD alignment when behavior changed (or explicit justified deviation)
 - Scope alignment between stated intent and changed files
+- Alignment with product intent when behavior, safety, or architecture changes
 - Missing tests as blocker vs justified deviation
 
 ### Hard Rules
@@ -86,6 +102,7 @@ Define a strict, model-agnostic review contract for three stages:
 - Invalid commit format -> `BLOCK`
 - Behavior changed without test evidence and without justified deviation -> `BLOCK`
 - Unrelated concerns mixed in one commit -> `BLOCK`
+- Behavior, safety, or architecture change missing product-intent alignment -> `BLOCK`
 
 ## Stage 2: Pull Request Review
 
@@ -94,6 +111,7 @@ Define a strict, model-agnostic review contract for three stages:
 - Pull request template completeness
 - CI expectations (lint, format:check, test)
 - Release implications and semver mapping
+- Product-intent alignment and whether the PR changes high-level intent
 - Regression/edge-case findings with file-level evidence
 - Explicit assumptions and caveats
 
@@ -102,6 +120,7 @@ Define a strict, model-agnostic review contract for three stages:
 - Missing or failing CI evidence -> `BLOCK`
 - Incorrect release impact label -> `BLOCK`
 - Material divergence between pull request scope and commit intent -> `BLOCK`
+- Material divergence between pull request behavior and product intent without resolution -> `BLOCK`
 
 ### Release Triangulation Rule
 
@@ -121,6 +140,7 @@ Any material inconsistency -> `BLOCK`.
 - Unresolved findings from prior stages
 - Conventional-commit/release compatibility
 - Release pull request checks (semver/changelog/files changed)
+- Product-intent/ADR conflicts resolved or explicitly tracked
 - Post-merge checks when applicable (release assets + `versions.json` expectations)
 
 ### Hard Rules
@@ -128,10 +148,16 @@ Any material inconsistency -> `BLOCK`.
 - Output `BLOCK` unless blockers are exactly `none`
 - Missing blocker-relevant evidence -> `BLOCK`
 - Release pull request with missing required release evidence -> `BLOCK`
+- Product-intent conflict without a documented resolution path -> `BLOCK`
 
 ## Governance Metadata
 
-Status: advisory until the repository defines a canonical storage location and validation automation for this metadata.
+This section covers review-process governance metadata. It is separate from
+product intent authority, whose source of truth is
+[`docs/dev/product/intent.md`](../product/intent.md).
+
+Status: advisory until the repository defines a canonical storage location and
+validation automation for this review-process metadata.
 
 Suggested fields:
 
@@ -158,3 +184,5 @@ Policy:
 8. Low confidence on critical behavior classification -> `BLOCK`
 9. Override requested without expiry/follow-up -> remains `BLOCK`
 10. Missing governance metadata without a repo source of truth -> merge `PASS_WITH_WARNINGS`
+11. Behavior change conflicts with product intent and has no product-intent/ADR update or follow-up -> `BLOCK`
+12. Product-intent clarification with no implementation change and no claimed behavior change -> `PASS` when normal docs validation passes
