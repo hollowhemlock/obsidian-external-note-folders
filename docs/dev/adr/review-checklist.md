@@ -14,6 +14,14 @@ Use this checklist when reviewing an Architecture Decision Record before accepti
 - [ ] A new team member could understand the problem without prior context
 - [ ] Technical, organizational, and timeline constraints are stated
 
+## Product Intent Alignment
+
+- [ ] Names the product-intent principle it refines, constrains, or implements
+- [ ] States whether it changes high-level product intent
+- [ ] If it conflicts with `docs/dev/product/intent.md`, the product intent update is included or
+      explicitly scheduled
+- [ ] Does not use implementation convenience to silently change product direction
+
 ## Decision Drivers
 
 - [ ] Drivers are specific and traceable to real requirements or constraints

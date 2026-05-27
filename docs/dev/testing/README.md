@@ -9,6 +9,8 @@ READMEs:
 
 ## Canonical References
 
+- [Product Intent](../product/intent.md): high-level product authority that tests and fixtures should
+  support when they cover safety-relevant or non-obvious behavior.
 - [External Folder State Matrix](external-folder-state-matrix.md): living inventory of vault,
   external-root, marker, ignore, journal, and command states that tests should cover.
 - [External Folder State Coverage](external-folder-state-coverage.json): machine-readable ledger of
@@ -25,11 +27,15 @@ legacy marker migration, and partial failures.
 
 When adding or changing behavior:
 
+- Start from the product intent or governing ADR before choosing low-level test shape.
 - Check the state matrix for existing coverage expectations.
 - Prefer semantic tests for report/plan classification when Obsidian is not required.
 - Use Obsidian CLI integration tests for command wiring, settings interpretation, modals,
   scanner-fidelity checks, and selected mutation post-state checks.
 - Add or update fixture scenarios before accepting mutation output as the target shape.
+- For high-risk semantic fixtures, expected JSON, mutation tests, or broad-root scanner behavior,
+  record the product intent, ADR, or state-matrix state being proven in the test, fixture metadata, or
+  coverage ledger.
 - Treat generated reports as debugging artifacts, not golden snapshots.
 
 ## Maintenance

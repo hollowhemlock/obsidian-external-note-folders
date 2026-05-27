@@ -8,6 +8,8 @@ The MVP plan defines scope. This workflow defines how to move through that scope
 
 Use this procedure with:
 
+- `docs/dev/product/intent.md`
+- `docs/dev/agent/autonomy-policy.md`
 - `docs/dev/procedures/tdd-workflow.md`
 - `docs/dev/procedures/mvp-validation.md`
 - `docs/dev/procedures/commit-pull-request-merge-review-gate.md`
@@ -29,6 +31,8 @@ Record the audit in the issue, branch notes, or pull request description. Do not
 
 Each implementation item must have a narrow work statement before coding:
 
+- Product-intent principle served by the work, or a note that the change is tooling/docs-only.
+- Governing ADR, plan, or explicit gap in current product intent.
 - Plan item reference from `docs/dev/plans/mvp.md`.
 - Owning module or boundary, such as core, Obsidian adapter, storage, UI, scripts, or docs.
 - Expected behavior in one or two sentences.
@@ -149,6 +153,7 @@ Do not add execute mode until dry-run planning is test-covered and manually unde
 
 Every pull request implementing MVP behavior should include:
 
+- Product-intent principle and governing ADR/spec reference.
 - Plan item references.
 - Status audit changes.
 - Tests added or explicit no-test deviations.
@@ -157,3 +162,5 @@ Every pull request implementing MVP behavior should include:
 - Residual risks and follow-up items.
 
 If the pull request changes filesystem mutation behavior, include a short mutation safety summary.
+If an agent repairs validation or CI failures during the pull request, summarize why the repair was
+scope-preserving under `docs/dev/agent/autonomy-policy.md`.

@@ -5,6 +5,7 @@ This procedure defines how to implement features and fixes using TDD with atomic
 ## Prerequisites
 
 - Feature or fix has a clear scope (plan, issue, or task description)
+- Behavior changes identify the product-intent principle, ADR, or state-matrix item they serve
 - `npm test` passes on the current branch before starting
 
 ## The Cycle
@@ -78,11 +79,15 @@ npm run lint
 When an LLM is implementing via this procedure:
 
 1. **State the test intent** before writing it — describe what behavior the test captures and why it matters.
-2. **Show the failing test output** — confirm the test fails for the right reason (assertion failure on the expected behavior, not a syntax error or import failure).
-3. **Keep shared history green** — failing tests may exist locally during Red, but commits prepared for review should pass.
-4. **Minimize the Green step** — resist adding code beyond what the test requires. Premature generalization is the most common LLM failure mode.
-5. **Pause for review** between cycles if the human is reviewing live. Don't batch multiple Red→Green→Refactor cycles without checkpoint.
-6. **Flag uncertainty** — if the next test to write is unclear, ask rather than guess. A wrong test is worse than no test.
+2. **Name the authority source** — link the product-intent principle, ADR, state-matrix item, or explicit task that justifies the test.
+3. **Show the failing test output** — confirm the test fails for the right reason (assertion failure on the expected behavior, not a syntax error or import failure).
+4. **Keep shared history green** — failing tests may exist locally during Red, but commits prepared for review should pass.
+5. **Minimize the Green step** — resist adding code beyond what the test requires. Premature generalization is the most common LLM failure mode.
+6. **Pause for review** between cycles if the human is reviewing live. Don't batch multiple Red→Green→Refactor cycles without checkpoint.
+7. **Flag uncertainty** — if the next test to write is unclear, ask rather than guess. A wrong test is worse than no test.
+
+Follow `docs/dev/agent/autonomy-policy.md` before repairing validation failures, changing generated
+file sources, or recording improvement observations.
 
 ## Guidance for Human Developers
 
