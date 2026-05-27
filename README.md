@@ -223,6 +223,7 @@ steps.
 
 ### Development policy references
 
+- Product intent: `docs/dev/product/intent.md`
 - TDD workflow: `docs/dev/procedures/tdd-workflow.md`
 - MVP implementation workflow: `docs/dev/procedures/mvp-implementation-workflow.md`
 - Review gate policy: `docs/dev/procedures/commit-pull-request-merge-review-gate.md`

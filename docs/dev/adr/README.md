@@ -4,6 +4,10 @@ This index is optimized for fast human and LLM retrieval.
 
 Last generated: 2026-05-21
 
+High-level product intent lives in [Product Intent](../product/intent.md). ADRs refine, constrain,
+and implement that intent for specific architectural, safety, command, testing, and release
+decisions.
+
 ## Procedures
 - **[review-checklist.md](review-checklist.md)** - Use when reviewing an ADR before accepting it.
 - **[0000-template.md](0000-template.md)** - Template for new ADRs.
