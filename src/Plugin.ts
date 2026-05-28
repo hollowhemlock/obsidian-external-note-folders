@@ -28,6 +28,10 @@ import {
 } from './core/markerMigrationPlan.ts';
 import { chooseInitialOpenExternalFolderAction } from './core/openExternalFolderFlow.ts';
 import { buildOpenExternalFolderRecoveryPlan } from './core/openExternalFolderRecovery.ts';
+import {
+  DEFAULT_PROGRESS_MODAL_MIN_VISIBLE_MS,
+  waitForMinimumVisibleDuration
+} from './core/progressTiming.ts';
 import { buildReconcilePlan } from './core/reconcilePlan.ts';
 import { buildVerifyReport } from './core/verify.ts';
 import { DriftReportModal } from './DriftReportModal.ts';
@@ -920,6 +924,7 @@ export class Plugin extends ObsidianPlugin {
   ): Promise<T> {
     const progressModal = new CommandProgressModal(this.app, title, description);
     progressModal.open();
+    const openedAtMs = Date.now();
     await new Promise<void>((resolve) => {
       setTimeout(resolve, 0);
     });
@@ -927,6 +932,16 @@ export class Plugin extends ObsidianPlugin {
     try {
       return await operation();
     } finally {
+      await waitForMinimumVisibleDuration({
+        minimumVisibleMs: DEFAULT_PROGRESS_MODAL_MIN_VISIBLE_MS,
+        now: () => Date.now(),
+        openedAtMs,
+        sleep: async (durationMs) => {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, durationMs);
+          });
+        }
+      });
       progressModal.close();
     }
   }
