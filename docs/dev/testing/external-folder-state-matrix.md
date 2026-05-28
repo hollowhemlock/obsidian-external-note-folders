@@ -215,7 +215,7 @@ integrity state.
 | Combination | Expected row |
 | --- | --- |
 | V2 + exact T2/T3 + unique target | `adopt` |
-| V2 + T0 | `unmatched-note` |
+| V2 + T0 | No row; adoption reports are external-root driven and do not enumerate unbound vault notes whose derived folders are absent |
 | V2 + target ignored T17 | `blocked-note`: `ignored-target` |
 | V2 + target skipped T18 | `blocked-note`: `target-skipped` |
 | V2 + T4/T5/T8 | `blocked-note`: `target-already-bound` |

@@ -390,7 +390,48 @@ describe('adoption plan', () => {
     });
 
     expect(getAdoptionRows(plan)).toEqual([]);
-    expect(plan.rows.filter((row) => row.kind === 'blocked-note')).toHaveLength(2);
+    expect(plan.rows.filter((row) => row.kind === 'blocked-note')).toEqual([
+      {
+        externalFolder: 'Projects/Alpha',
+        kind: 'blocked-note',
+        message: 'Multiple notes derive the same external folder: Projects/Alpha.md, Projects/Alpha/Alpha.md',
+        notePath: 'Projects/Alpha.md',
+        reason: 'duplicate-note-target'
+      },
+      {
+        externalFolder: 'Projects/Alpha',
+        kind: 'blocked-note',
+        message: 'Multiple notes derive the same external folder: Projects/Alpha.md, Projects/Alpha/Alpha.md',
+        notePath: 'Projects/Alpha/Alpha.md',
+        reason: 'duplicate-note-target'
+      }
+    ]);
+  });
+
+  it('does not report unbound notes when their derived folders are absent', () => {
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan(),
+      mutationSequence: 0,
+      notePaths: [
+        'Projects/Alpha.md',
+        'Projects/Beta/Beta.md'
+      ],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(plan.rows).toEqual([]);
+    expect(plan.summaryText).toContain('0 unmatched note(s)');
+  });
+
+  it('does not report duplicate note targets when no matching external branch exists', () => {
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan(),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md', 'Projects/Alpha/Alpha.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(plan.rows).toEqual([]);
   });
 
   it('blocks duplicate external directories that collide after Unicode path normalization', () => {

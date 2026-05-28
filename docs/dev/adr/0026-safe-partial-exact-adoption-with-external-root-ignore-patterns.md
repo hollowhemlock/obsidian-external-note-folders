@@ -103,6 +103,11 @@ does not expose that information directly.
 - Duplicate normalized target directories block the affected notes.
 - Ancestor directories of bound, blocked, or adoptable external folders are
   structural containers and are omitted from unmatched external folder rows.
+- Adoption reports are external-root driven. Unbound vault notes whose derived
+  external folder is absent from the scanned, ignored, or skipped external-root
+  tree are omitted instead of reported as unmatched notes. When a real external
+  branch matches duplicate note forms, such as sibling `A/B.md` and folder note
+  `A/B/B.md`, both notes are reported as blocked duplicate candidates.
 - No fuzzy, suffix, tree-tail, or basename-only adoption is allowed.
 
 Execution remains marker-first, frontmatter-second, journaled, and preflighted

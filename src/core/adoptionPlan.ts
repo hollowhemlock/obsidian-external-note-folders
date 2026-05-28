@@ -7,10 +7,7 @@ import {
   normalizeDisplayPath,
   toExternalRelativeDisplayPath
 } from './displayPath.ts';
-import {
-  buildExternalRootIgnoreMatcher,
-  formatIgnoredDirectoryWarnings
-} from './externalRootIgnore.ts';
+import { formatIgnoredDirectoryWarnings } from './externalRootIgnore.ts';
 import {
   deriveExternalFolderPath,
   normalizePathForIdentity
@@ -97,7 +94,7 @@ interface NoteCandidateBuildResult {
 interface PlannerContext {
   directoryCandidatesByIdentity: Map<string, DirectoryCandidate[]>;
   externalScan: ExternalScanResult;
-  ignoredTargetMatcher: ReturnType<typeof buildExternalRootIgnoreMatcher>;
+  ignoredDirectoryIdentities: ReadonlySet<string>;
   markerIdentities: MarkerIdentity[];
   skippedDirectoryIdentities: string[];
 }
@@ -172,20 +169,30 @@ function buildAdoptionRows(
     folderPath,
     identity: normalizePathForIdentity(folderPath)
   }));
-  const noteCandidateIdentities = new Set(noteCandidates.map((candidate) => candidate.identity));
   const context: PlannerContext = {
     directoryCandidatesByIdentity: groupByIdentity(directoryCandidates),
     externalScan,
-    ignoredTargetMatcher: buildExternalRootIgnoreMatcher(externalScan.rootPath, externalScan.ignorePatterns),
+    ignoredDirectoryIdentities: new Set(externalScan.ignoredDirectories.map((directory) => normalizePathForIdentity(directory.folderPath))),
     markerIdentities: buildMarkerIdentities(externalScan),
     skippedDirectoryIdentities: externalScan.skippedDirectories.map((issue) => normalizePathForIdentity(issue.location))
   };
-  const relevantFolderIndex = buildRelevantFolderIndex(noteCandidateIdentities, context.markerIdentities);
+  const relevantCandidateIdentities = new Set<string>();
   const rows: AdoptionPlanRow[] = [...blockedRows];
 
   for (const noteCandidate of noteCandidates) {
     const noteCandidateSiblings = noteCandidatesByIdentity.get(noteCandidate.identity) ?? [];
     const directoryCandidateSiblings = context.directoryCandidatesByIdentity.get(noteCandidate.identity) ?? [];
+    const isExactIgnoredDirectory = context.ignoredDirectoryIdentities.has(noteCandidate.identity);
+    const skippedDirectory = context.skippedDirectoryIdentities
+      .find((skippedIdentity) => isPathInsideOrEqualIdentity(noteCandidate.identity, skippedIdentity));
+    const hasMatchingExternalBranch = directoryCandidateSiblings.length > 0
+      || isExactIgnoredDirectory
+      || Boolean(skippedDirectory);
+    if (!hasMatchingExternalBranch) {
+      continue;
+    }
+
+    relevantCandidateIdentities.add(noteCandidate.identity);
 
     if (noteCandidateSiblings.length > 1) {
       rows.push({
@@ -198,7 +205,7 @@ function buildAdoptionRows(
       continue;
     }
 
-    if (context.ignoredTargetMatcher.ignoresAbsoluteDirectoryPath(noteCandidate.folderPath)) {
+    if (isExactIgnoredDirectory) {
       rows.push({
         externalFolder: noteCandidate.externalFolder,
         kind: 'blocked-note',
@@ -209,8 +216,6 @@ function buildAdoptionRows(
       continue;
     }
 
-    const skippedDirectory = context.skippedDirectoryIdentities
-      .find((skippedIdentity) => isPathInsideOrEqualIdentity(noteCandidate.identity, skippedIdentity));
     if (skippedDirectory) {
       rows.push({
         externalFolder: noteCandidate.externalFolder,
@@ -273,11 +278,6 @@ function buildAdoptionRows(
 
     const directoryCandidate = directoryCandidateSiblings[0];
     if (!directoryCandidate) {
-      rows.push({
-        externalFolder: noteCandidate.externalFolder,
-        kind: 'unmatched-note',
-        notePath: noteCandidate.notePath
-      });
       continue;
     }
 
@@ -289,6 +289,7 @@ function buildAdoptionRows(
     });
   }
 
+  const relevantFolderIndex = buildRelevantFolderIndex(relevantCandidateIdentities, context.markerIdentities);
   for (const directoryCandidate of directoryCandidates) {
     if (isRelatedToRelevantFolder(directoryCandidate.identity, relevantFolderIndex)) {
       continue;
