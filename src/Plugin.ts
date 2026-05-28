@@ -924,10 +924,10 @@ export class Plugin extends ObsidianPlugin {
   ): Promise<T> {
     const progressModal = new CommandProgressModal(this.app, title, description);
     progressModal.open();
-    const openedAtMs = Date.now();
     await new Promise<void>((resolve) => {
       setTimeout(resolve, 0);
     });
+    const openedAtMs = Date.now();
 
     try {
       return await operation();

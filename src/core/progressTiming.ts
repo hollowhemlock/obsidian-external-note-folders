@@ -6,8 +6,17 @@ export async function waitForMinimumVisibleDuration(input: {
   openedAtMs: number;
   sleep: (durationMs: number) => Promise<void>;
 }): Promise<void> {
+  if (!Number.isFinite(input.minimumVisibleMs) || input.minimumVisibleMs <= 0) {
+    return;
+  }
+
   const elapsedMs = input.now() - input.openedAtMs;
-  const remainingMs = input.minimumVisibleMs - elapsedMs;
+  if (!Number.isFinite(elapsedMs)) {
+    return;
+  }
+
+  const clampedElapsedMs = Math.max(0, elapsedMs);
+  const remainingMs = input.minimumVisibleMs - clampedElapsedMs;
   if (remainingMs <= 0) {
     return;
   }
