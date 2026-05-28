@@ -322,6 +322,39 @@ describe('adoption plan', () => {
     ]);
   });
 
+  it('blocks notes whose derived target is inside an ignored directory', () => {
+    const folderPath = path.join(EXTERNAL_ROOT, 'Projects');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        directories: [],
+        ignoredDirectories: [
+          {
+            folderPath,
+            relativePath: 'Projects'
+          }
+        ],
+        ignorePatterns: ['Projects/']
+      }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(getAdoptionRows(plan)).toEqual([]);
+    expect(plan.rows).toEqual([
+      {
+        externalFolder: 'Projects/Alpha',
+        kind: 'blocked-note',
+        message: 'Derived external folder path is ignored by external root ignore patterns.',
+        notePath: 'Projects/Alpha.md',
+        reason: 'ignored-target'
+      }
+    ]);
+    expect(plan.warnings).toEqual([
+      'Ignored 1 external directory: Projects'
+    ]);
+  });
+
   it('blocks notes whose derived target is inside a skipped directory', () => {
     const skippedFolderPath = path.join(EXTERNAL_ROOT, 'Projects');
     const plan = buildAdoptionPlan({

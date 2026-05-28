@@ -182,11 +182,12 @@ function buildAdoptionRows(
   for (const noteCandidate of noteCandidates) {
     const noteCandidateSiblings = noteCandidatesByIdentity.get(noteCandidate.identity) ?? [];
     const directoryCandidateSiblings = context.directoryCandidatesByIdentity.get(noteCandidate.identity) ?? [];
-    const isExactIgnoredDirectory = context.ignoredDirectoryIdentities.has(noteCandidate.identity);
+    const ignoredDirectory = [...context.ignoredDirectoryIdentities]
+      .find((ignoredIdentity) => isPathInsideOrEqualIdentity(noteCandidate.identity, ignoredIdentity));
     const skippedDirectory = context.skippedDirectoryIdentities
       .find((skippedIdentity) => isPathInsideOrEqualIdentity(noteCandidate.identity, skippedIdentity));
     const hasMatchingExternalBranch = directoryCandidateSiblings.length > 0
-      || isExactIgnoredDirectory
+      || Boolean(ignoredDirectory)
       || Boolean(skippedDirectory);
     if (!hasMatchingExternalBranch) {
       continue;
@@ -205,7 +206,7 @@ function buildAdoptionRows(
       continue;
     }
 
-    if (isExactIgnoredDirectory) {
+    if (ignoredDirectory) {
       rows.push({
         externalFolder: noteCandidate.externalFolder,
         kind: 'blocked-note',
