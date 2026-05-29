@@ -73,10 +73,22 @@ Create a fresh sandbox from fixture:
 npm run fixtures:new-sandbox
 ```
 
+Create fresh sandboxes for the current checkout and linked Git worktrees:
+
+```powershell
+npm run fixtures:new-sandboxes
+```
+
 Refresh sandbox content from fixture while preserving `sandbox/vault/.obsidian`:
 
 ```powershell
 npm run fixtures:refresh-sandbox
+```
+
+Refresh sandbox content for the current checkout and linked Git worktrees:
+
+```powershell
+npm run fixtures:refresh-sandboxes
 ```
 
 Print resolved fixture/sandbox absolute paths:
@@ -84,6 +96,10 @@ Print resolved fixture/sandbox absolute paths:
 ```powershell
 npm run fixtures:paths
 ```
+
+When the repository has multiple Git worktrees, this also lists any existing sibling worktree
+sandbox vaults. Dev build/install scripts update those sandboxes in addition to the current
+checkout's sandbox.
 
 Open fixture vault in Obsidian:
 

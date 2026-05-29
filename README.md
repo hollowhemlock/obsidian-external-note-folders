@@ -77,7 +77,6 @@ Starter patterns for this repository layout:
 ```gitignore
 projects/software/obsidian/by_plug/mine/obsidian-external-note-folders/
 projects/software/00-general/docs-as-contracts/docs-as-contracts-main/.tmp/
-projects/software/00-general/docs-as-contracts/docs-as-contracts-main/.codex-tmp/
 ```
 
 Pattern semantics follow Git's ignore rules where supported and are implemented
@@ -262,8 +261,12 @@ The plugin does not use `window.DEBUG`.
 - Fixture layout lives in `test/fixtures`.
 - Run `npm run fixtures:new-sandbox` to create `sandbox/vault` and `sandbox/external-root`
   from committed fixture data.
+- Run `npm run fixtures:new-sandboxes` to create the current sandbox plus any linked Git worktree
+  sandboxes from the same committed fixture data.
 - Run `npm run fixtures:refresh-sandbox` to refresh note/external-root content while preserving
   `sandbox/vault/.obsidian`.
+- Run `npm run fixtures:refresh-sandboxes` to refresh the current and linked worktree sandbox
+  content while preserving each sandbox vault's `.obsidian`.
 - `npm run test:integration` uses `fixtures:refresh-sandbox` so it can run while the sandbox vault
   is open in Obsidian. The GitHub integration workflow is manual-only and requires an online
   self-hosted runner labeled `obsidian-cli`.
@@ -277,6 +280,9 @@ The plugin does not use `window.DEBUG`.
   directly in Obsidian.
 - Run `npm run vault:open -- <vault-path>` to open a specific vault path.
 - `scripts/dev.ts` targets `test/fixtures/sandbox/vault/.obsidian` as the default dev vault.
+- When multiple Git worktrees exist, `scripts/dev.ts` and `scripts/install-plugin-to-sandbox.ts`
+  also update existing sibling worktree sandboxes. This lets the normal checkout sandbox and a
+  linked worktree sandbox both run the current build without manually changing paths.
 
 Environment support for additional Obsidian config folders is available in `scripts/dev.ts`:
 

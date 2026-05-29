@@ -39,8 +39,13 @@ for mixed external roots.
   paths and existing external directories. Folder-note collapse applies, so
   `A/B/B.md` matches external folder `A/B`.
 - No suffix, basename, or fuzzy tree-tail inference is used.
-- Collisions, duplicate normalized folder identities, unmatched notes, and
-  unmatched folders are reported but not adopted.
+- Collisions, duplicate normalized folder identities, and unmatched folders are
+  reported but not adopted.
+- Adoption reports are external-root driven. Unbound vault notes whose derived
+  folder is absent from the scanned, ignored, or skipped external-root tree are
+  omitted instead of producing broad unmatched-note noise. If an external branch
+  matches duplicate note forms, such as sibling `A/B.md` and folder note
+  `A/B/B.md`, both notes are reported as blocked duplicate candidates.
 - Parent folders that only contain bound, blocked, or adoptable external folders
   are structural containers and are omitted from unmatched folder rows.
 - Candidate targets are blocked when they are ignored, inside skipped
