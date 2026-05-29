@@ -283,7 +283,7 @@ The plugin does not use `window.DEBUG`.
 - `scripts/dev.ts` targets `test/fixtures/sandbox/vault/.obsidian` as the default dev vault.
 - When multiple Git worktrees exist, `scripts/dev.ts` and `scripts/install-plugin-to-sandbox.ts`
   also update existing sibling worktree sandboxes. This lets the normal checkout sandbox and a
-  Codex worktree sandbox both run the current build without manually changing paths.
+  linked worktree sandbox both run the current build without manually changing paths.
 
 Environment support for additional Obsidian config folders is available in `scripts/dev.ts`:
 

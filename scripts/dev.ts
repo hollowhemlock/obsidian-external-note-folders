@@ -5,7 +5,7 @@
  *   - OBSIDIAN_CONFIG_FOLDERS — comma-separated additional vault paths
  *
  * When this repository has multiple Git worktrees, existing sibling worktree
- * sandbox vaults are also copy targets so a local sandbox and a Codex worktree
+ * sandbox vaults are also copy targets so a local sandbox and a linked worktree
  * sandbox can both run the current build.
  */
 
