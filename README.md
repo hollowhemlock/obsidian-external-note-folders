@@ -77,7 +77,6 @@ Starter patterns for this repository layout:
 ```gitignore
 projects/software/obsidian/by_plug/mine/obsidian-external-note-folders/
 projects/software/00-general/docs-as-contracts/docs-as-contracts-main/.tmp/
-projects/software/00-general/docs-as-contracts/docs-as-contracts-main/.codex-tmp/
 ```
 
 Pattern semantics follow Git's ignore rules where supported and are implemented
