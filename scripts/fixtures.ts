@@ -6,17 +6,28 @@ import {
   rm
 } from 'node:fs/promises';
 import path from 'node:path';
-import { resolvePathFromRoot } from 'obsidian-dev-utils/ScriptUtils/Root';
+
+import {
+  getCurrentSandboxPaths,
+  getExistingLinkedWorktreeSandboxPaths,
+  getLinkedWorktreeSandboxPaths,
+  resolveProjectPath,
+  SANDBOX_REPORTS_RELATIVE_PATH
+} from './sandbox-paths.ts';
 
 const FIXTURE_VAULT_RELATIVE_PATH = 'test/fixtures/fixture/vault';
 const FIXTURE_EXTERNAL_ROOT_RELATIVE_PATH = 'test/fixtures/fixture/external-root';
-const SANDBOX_VAULT_RELATIVE_PATH = 'test/fixtures/sandbox/vault';
-const SANDBOX_EXTERNAL_ROOT_RELATIVE_PATH = 'test/fixtures/sandbox/external-root';
-const SANDBOX_REPORTS_RELATIVE_PATH = 'test/fixtures/sandbox/reports';
 
 const JSON_INDENT = 2;
 
 type SyncMode = 'content-only' | 'full' | 'print-paths';
+
+interface SyncOptions {
+  mode: SyncMode;
+  scope: SyncScope;
+}
+
+type SyncScope = 'all-worktrees' | 'current';
 
 async function assertExists(targetPath: string, label: string): Promise<void> {
   try {
@@ -65,38 +76,54 @@ async function fullReplaceDirectory(sourcePath: string, destinationPath: string)
 }
 
 function getAbsolutePath(relativePath: string): string {
-  return resolvePathFromRoot(relativePath) ?? path.resolve(process.cwd(), relativePath);
+  return resolveProjectPath(relativePath);
 }
 
 async function main(): Promise<void> {
-  const mode = parseMode(process.argv.slice(2));
-  await syncSandbox(mode);
+  const options = parseOptions(process.argv.slice(2));
+  await syncSandbox(options);
 }
 
-function parseMode(argv: readonly string[]): SyncMode {
+function parseOptions(argv: readonly string[]): SyncOptions {
+  const scope = argv.includes('--all-worktrees') ? 'all-worktrees' : 'current';
   if (argv.includes('--print-paths')) {
-    return 'print-paths';
+    return {
+      mode: 'print-paths',
+      scope
+    };
   }
   if (argv.includes('--content-only')) {
-    return 'content-only';
+    return {
+      mode: 'content-only',
+      scope
+    };
   }
-  return 'full';
+  return {
+    mode: 'full',
+    scope
+  };
 }
 
-async function syncSandbox(mode: SyncMode): Promise<void> {
+async function syncSandbox(options: SyncOptions): Promise<void> {
   const fixtureVaultPath = getAbsolutePath(FIXTURE_VAULT_RELATIVE_PATH);
   const fixtureExternalRootPath = getAbsolutePath(FIXTURE_EXTERNAL_ROOT_RELATIVE_PATH);
-  const sandboxVaultPath = getAbsolutePath(SANDBOX_VAULT_RELATIVE_PATH);
-  const sandboxExternalRootPath = getAbsolutePath(SANDBOX_EXTERNAL_ROOT_RELATIVE_PATH);
-  const sandboxReportsPath = getAbsolutePath(SANDBOX_REPORTS_RELATIVE_PATH);
+  const currentSandboxPaths = getCurrentSandboxPaths();
+  const syncTargets = options.scope === 'all-worktrees'
+    ? [currentSandboxPaths, ...getLinkedWorktreeSandboxPaths()]
+    : [currentSandboxPaths];
 
-  if (mode === 'print-paths') {
+  if (options.mode === 'print-paths') {
     console.log(JSON.stringify(
       {
         fixtureExternalRootPath,
         fixtureVaultPath,
-        sandboxExternalRootPath,
-        sandboxVaultPath
+        linkedWorktreeSandboxes: getExistingLinkedWorktreeSandboxPaths().map((sandboxPaths) => ({
+          sandboxExternalRootPath: sandboxPaths.externalRootPath,
+          sandboxVaultPath: sandboxPaths.vaultPath,
+          worktreePath: sandboxPaths.worktreePath
+        })),
+        sandboxExternalRootPath: currentSandboxPaths.externalRootPath,
+        sandboxVaultPath: currentSandboxPaths.vaultPath
       },
       null,
       JSON_INDENT
@@ -107,24 +134,27 @@ async function syncSandbox(mode: SyncMode): Promise<void> {
   await assertExists(fixtureVaultPath, 'fixture vault');
   await assertExists(fixtureExternalRootPath, 'fixture external root');
 
-  if (mode === 'full') {
-    await fullReplaceDirectory(fixtureVaultPath, sandboxVaultPath);
-  } else {
-    await clearDirectoryChildren(sandboxVaultPath, new Set(['.obsidian']));
-    await copyDirectoryChildren(fixtureVaultPath, sandboxVaultPath, new Set(['.obsidian']));
-  }
+  for (const sandboxPaths of syncTargets) {
+    const sandboxReportsPath = path.join(sandboxPaths.worktreePath, SANDBOX_REPORTS_RELATIVE_PATH);
+    if (options.mode === 'full') {
+      await fullReplaceDirectory(fixtureVaultPath, sandboxPaths.vaultPath);
+    } else {
+      await clearDirectoryChildren(sandboxPaths.vaultPath, new Set(['.obsidian']));
+      await copyDirectoryChildren(fixtureVaultPath, sandboxPaths.vaultPath, new Set(['.obsidian']));
+    }
 
-  if (mode === 'full') {
-    await fullReplaceDirectory(fixtureExternalRootPath, sandboxExternalRootPath);
-  } else {
-    await clearDirectoryChildren(sandboxExternalRootPath);
-    await copyDirectoryChildren(fixtureExternalRootPath, sandboxExternalRootPath);
-  }
-  await rm(sandboxReportsPath, { force: true, recursive: true });
+    if (options.mode === 'full') {
+      await fullReplaceDirectory(fixtureExternalRootPath, sandboxPaths.externalRootPath);
+    } else {
+      await clearDirectoryChildren(sandboxPaths.externalRootPath);
+      await copyDirectoryChildren(fixtureExternalRootPath, sandboxPaths.externalRootPath);
+    }
+    await rm(sandboxReportsPath, { force: true, recursive: true });
 
-  console.log(`Fixture sync complete (${mode}).`);
-  console.log(`Vault: ${fixtureVaultPath} -> ${sandboxVaultPath}`);
-  console.log(`External root: ${fixtureExternalRootPath} -> ${sandboxExternalRootPath}`);
+    console.log(`Fixture sync complete (${options.mode}, ${sandboxPaths.source}).`);
+    console.log(`Vault: ${fixtureVaultPath} -> ${sandboxPaths.vaultPath}`);
+    console.log(`External root: ${fixtureExternalRootPath} -> ${sandboxPaths.externalRootPath}`);
+  }
 }
 
 // eslint-disable-next-line no-void -- top-level entry point

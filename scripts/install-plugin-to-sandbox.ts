@@ -9,6 +9,11 @@ import {
 import path from 'node:path';
 import { resolvePathFromRoot } from 'obsidian-dev-utils/ScriptUtils/Root';
 
+import {
+  getExistingSandboxPaths,
+  resolveProjectPath
+} from './sandbox-paths.ts';
+
 interface Manifest {
   id: string;
 }
@@ -23,8 +28,6 @@ const CANDIDATE_ARTIFACT_PATHS = {
   stylesCss: ['styles.css', 'dist/build/styles.css']
 };
 
-const SANDBOX_VAULT_RELATIVE_PATH = 'test/fixtures/sandbox/vault';
-const SANDBOX_EXTERNAL_ROOT_RELATIVE_PATH = 'test/fixtures/sandbox/external-root';
 const COMMUNITY_PLUGINS_RELATIVE_PATH = '.obsidian/community-plugins.json';
 
 async function ensureCommunityPluginEnabled(vaultPath: string, pluginId: string): Promise<void> {
@@ -60,26 +63,25 @@ async function main(): Promise<void> {
   const stylesCssPath = await findArtifact(CANDIDATE_ARTIFACT_PATHS.stylesCss);
 
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as unknown as Manifest;
-  const sandboxVaultPath = resolvePath(SANDBOX_VAULT_RELATIVE_PATH);
-  const sandboxExternalRootPath = resolvePath(SANDBOX_EXTERNAL_ROOT_RELATIVE_PATH);
+  for (const sandboxPaths of getExistingSandboxPaths()) {
+    const pluginPath = path.join(sandboxPaths.obsidianConfigPath, 'plugins', manifest.id);
+    await mkdir(pluginPath, { recursive: true });
 
-  const pluginPath = path.join(sandboxVaultPath, '.obsidian', 'plugins', manifest.id);
-  await mkdir(pluginPath, { recursive: true });
+    await copyFile(mainJsPath, path.join(pluginPath, 'main.js'));
+    await copyFile(stylesCssPath, path.join(pluginPath, 'styles.css'));
+    await copyFile(manifestPath, path.join(pluginPath, 'manifest.json'));
 
-  await copyFile(mainJsPath, path.join(pluginPath, 'main.js'));
-  await copyFile(stylesCssPath, path.join(pluginPath, 'styles.css'));
-  await copyFile(manifestPath, path.join(pluginPath, 'manifest.json'));
+    await rm(path.join(pluginPath, 'journal'), { force: true, recursive: true });
+    await ensureCommunityPluginEnabled(sandboxPaths.vaultPath, manifest.id);
+    await writeSandboxPluginSettings(pluginPath, sandboxPaths.externalRootPath);
 
-  await rm(path.join(pluginPath, 'journal'), { force: true, recursive: true });
-  await ensureCommunityPluginEnabled(sandboxVaultPath, manifest.id);
-  await writeSandboxPluginSettings(pluginPath, sandboxExternalRootPath);
-
-  console.log(`Installed plugin '${manifest.id}' to sandbox: ${pluginPath}`);
-  console.log(`Configured sandbox external root: ${sandboxExternalRootPath}`);
+    console.log(`Installed plugin '${manifest.id}' to ${sandboxPaths.source} sandbox: ${pluginPath}`);
+    console.log(`Configured ${sandboxPaths.source} sandbox external root: ${sandboxPaths.externalRootPath}`);
+  }
 }
 
 function resolvePath(relativePath: string): string {
-  return resolvePathFromRoot(relativePath) ?? path.resolve(process.cwd(), relativePath);
+  return resolvePathFromRoot(relativePath) ?? resolveProjectPath(relativePath);
 }
 
 async function writeSandboxPluginSettings(pluginPath: string, externalRootPath: string): Promise<void> {
