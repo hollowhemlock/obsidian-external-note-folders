@@ -32,6 +32,7 @@ validation or CI failures only when the repair is scope-preserving under that po
 - `evidence_timestamp`: ISO-8601
 - `ci_run_url` (required when blocker-relevant evidence is CI-backed; required for pull/merge blocker checks)
 - `release_context`: `none | patch | minor | breaking`
+- `release_intent_artifact`: PR template evidence and, for `patch`, `minor`, or `breaking`, a `.release-intent/*.md` file
 - `product_intent_alignment`: product-intent principle(s), governing ADR/spec, or `not_applicable` with reason
 - `product_intent_change`: `none | clarifies | changes`
 - `open_risks`
@@ -124,6 +125,8 @@ validation or CI failures only when the repair is scope-preserving under that po
 
 - Missing or failing CI evidence -> `BLOCK`
 - Incorrect release impact label -> `BLOCK`
+- Missing release intent file for `patch`, `minor`, or `breaking` release impact -> `BLOCK`
+- Release-relevant PR without a conventional PR title and intended merge or squash title -> `BLOCK`
 - Material divergence between pull request scope and commit intent -> `BLOCK`
 - Material divergence between pull request behavior and product intent without resolution -> `BLOCK`
 
@@ -132,7 +135,9 @@ validation or CI failures only when the repair is scope-preserving under that po
 Require consistency across:
 
 - `declared_release_impact` (pull request metadata)
+- `release_intent_artifact` (PR template and `.release-intent/*.md` file when required)
 - `semantic_intent` (commit types/messages)
+- `merge_title_intent` (PR title plus intended merge or squash title)
 - `changed_surface` (actual behavioral/code impact)
 
 Any material inconsistency -> `BLOCK`.
@@ -191,3 +196,5 @@ Policy:
 10. Missing governance metadata without a repo source of truth -> merge `PASS_WITH_WARNINGS`
 11. Behavior change conflicts with product intent and has no product-intent/ADR update or follow-up -> `BLOCK`
 12. Product-intent clarification with no implementation change and no claimed behavior change -> `PASS` when normal docs validation passes
+13. Release-relevant PR missing `.release-intent/*.md` file -> pull `BLOCK`
+14. Release-relevant PR with non-conventional intended merge title -> pull/merge `BLOCK`

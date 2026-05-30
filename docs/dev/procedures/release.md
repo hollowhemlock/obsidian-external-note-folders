@@ -29,17 +29,24 @@ This procedure defines how releases are generated, reviewed, and published in th
   back to the same release tag.
 - `versions.json` is updated in the release PR before release publication; it is
   not committed by the post-release asset workflow.
+- `.release-intent/*.md` files are canonical review and recovery evidence for
+  release-relevant normal PRs. Release Please does not currently consume them
+  directly, so conventional PR and merge titles still matter.
 
 ## Human Workflow
 
-1. Merge conventional-commit PRs into `main`.
-2. Wait for/refresh the release PR created by Release Please.
+1. Merge PRs into `main` only when release impact, release intent files, PR
+   titles, and intended merge or squash titles agree.
+2. Wait for/refresh the release PR created by Release Please. If no release PR
+   appears after a release-relevant merge, inspect the Release Please workflow
+   logs before assuming no release is needed.
 3. Wait for `release-versions` to update `versions.json` if the release PR
    changed `manifest.json` version.
 4. Review the release PR for:
    - correct semver bump
    - accurate changelog entries
    - expected files changed only, including generated `versions.json`
+   - coverage of outstanding `.release-intent/*.md` entries
 5. Merge the release PR.
 6. Confirm the GitHub release was created and release assets are attached.
 7. Confirm the `publish-obsidian-assets` workflow completed successfully.
@@ -47,18 +54,23 @@ This procedure defines how releases are generated, reviewed, and published in th
 
 ## LLM Agent Workflow
 
-1. Ensure commit subjects match `<type>: <description>`.
-2. Do not manually edit release PR versions unless requested.
-3. If release PR CI reports stale `versions.json`, first check whether
+1. Classify release impact as `none`, `patch`, `minor`, or `breaking`.
+2. For `patch`, `minor`, or `breaking`, add a matching
+   `.release-intent/YYYY-MM-DD-short-slug.md` file and fill the PR template
+   release impact fields.
+3. Ensure commit subjects, PR title, and intended merge or squash title match
+   `<type>: <description>` conventions and agree with the release intent.
+4. Do not manually edit release PR versions unless requested.
+5. If release PR CI reports stale `versions.json`, first check whether
    `release-versions` ran, failed, or is waiting on the `RELEASE_PLEASE_TOKEN`
    secret. Only manually run `npm run release:update-versions` if the workflow
    is unavailable.
-4. Before merge guidance, verify CI status on the release PR.
-5. After release, verify:
+6. Before merge guidance, verify CI status on the release PR.
+7. After release, verify:
    - tag and `manifest.json` version match
    - release assets include all required files
    - `versions.json` contains the new version key
-6. If release job fails, diagnose root cause first; do not retag blindly.
+8. If release job fails, diagnose root cause first; do not retag blindly.
 
 ## Failure and Recovery
 
@@ -71,6 +83,10 @@ This procedure defines how releases are generated, reviewed, and published in th
 - If `versions.json` is stale: check the `release-versions` workflow first. If
   manual recovery is still required, run `npm run release:update-versions`,
   commit the result to the release PR branch, and let CI re-check it.
+- If Release Please reports no user-facing commits after a release-relevant
+  merge: check whether the merge commit or PR title was non-conventional. Use
+  `.release-intent/*.md` files and the PR template as the release recovery
+  source; do not silently accept the skipped proposal.
 - If tag/version mismatch fails release: fix `manifest.json` version via release PR and re-run release.
 - If build fails before release: fix code/build pipeline on `main`; Release
   Please will update the release PR.
@@ -81,5 +97,6 @@ This procedure defines how releases are generated, reviewed, and published in th
 ## Conventions
 
 - Use the enforced conventional commit types from repo policy: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+- Use `.release-intent/*.md` files for release-relevant normal PRs.
 - Treat release PRs as reviewable artifacts, not auto-merge by default.
 - Use Node 24 for local release validation and GitHub Actions release builds.

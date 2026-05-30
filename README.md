@@ -193,12 +193,19 @@ Local enforcement uses Husky `commit-msg` hook (installed by `npm install` via `
 
 Feature and fix PRs should not manually update `package.json`, `manifest.json`,
 `CHANGELOG.md`, or `versions.json` for versioning. Merge normal work into
-`main` using conventional commit messages; Release Please opens or updates a
-separate release PR with the package and manifest version bump plus changelog.
+`main` using conventional commit messages, conventional PR and merge titles, and
+matching `.release-intent/*.md` files for patch, minor, or breaking changes.
+Release Please opens or updates a separate release PR with the package and
+manifest version bump plus changelog.
 
 Release PRs must also keep `versions.json` current. CI runs
 `npm run release:check-versions`; the `release-versions` workflow updates and
 commits `versions.json` automatically on Release Please PR branches.
+
+Release intent files are review and recovery evidence for release-relevant
+normal PRs. If Release Please does not propose a release after a release-relevant
+merge, inspect the Release Please workflow logs and use `.release-intent/`
+entries as the source for recovery instead of accepting a silent skip.
 
 Review and merge the release PR only when you intend to publish a release. After
 that merge, Release Please creates the GitHub release and tag. The release asset

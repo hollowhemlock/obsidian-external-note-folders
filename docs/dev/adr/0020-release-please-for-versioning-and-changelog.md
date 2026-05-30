@@ -44,6 +44,9 @@ Implementation choices:
 - Trigger a separate workflow on GitHub Release `published` to build and upload `main.js`, `styles.css`, and `manifest.json`
 - Allow that release asset workflow to be manually rerun for an existing tag
 - Pin release validation and GitHub Actions build tooling to Node 24
+- Treat ADR-0029 release intent files as canonical review and recovery evidence
+  for release-relevant normal PRs while Release Please remains the release PR
+  automation
 
 ### Consequences
 
@@ -57,7 +60,8 @@ Implementation choices:
 - Adds GitHub workflow and Release Please configuration files to maintain
 
 ### Negative / Trade-offs
-- Release process now depends on commit message quality (`feat`, `fix`, etc.)
+- Release process now depends on parseable conventional PR or merge titles until
+  release automation consumes release intent files directly
 - Release automation requires a configured `RELEASE_PLEASE_TOKEN` secret
 - Release PRs may temporarily show stale `versions.json` until the
   `release-versions` workflow commits generated metadata
@@ -88,10 +92,14 @@ Implementation choices:
 
 ### Future Considerations
 
-If Release Please continues to create manual recovery work, replace it with a simpler Obsidian-specific version script and tag-driven release workflow.
+ADR-0029 adds file-based release intent as the canonical evidence for
+release-relevant changes. If Release Please continues to create manual recovery
+work, replace it with Changesets or a simpler Obsidian-specific release script
+that consumes `.release-intent/` files directly.
 
 ### References
 
 - [docs/dev/plans/mvp.md](../plans/mvp.md)
 - [ADR-0010](0010-use-generator-obsidian-plugin.md)
 - [ADR-0017](0017-testing-strategy-by-boundary.md)
+- [ADR-0029](0029-file-based-release-intent.md)
