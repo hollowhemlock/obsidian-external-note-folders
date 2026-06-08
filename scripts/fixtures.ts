@@ -19,6 +19,8 @@ const FIXTURE_VAULT_RELATIVE_PATH = 'test/fixtures/fixture/vault';
 const FIXTURE_EXTERNAL_ROOT_RELATIVE_PATH = 'test/fixtures/fixture/external-root';
 
 const JSON_INDENT = 2;
+const REMOVE_MAX_RETRIES = 10;
+const REMOVE_RETRY_DELAY_MS = 100;
 
 type SyncMode = 'content-only' | 'full' | 'print-paths';
 
@@ -47,7 +49,7 @@ async function clearDirectoryChildren(
     if (entriesToPreserve.has(entry.name)) {
       continue;
     }
-    await rm(path.join(directoryPath, entry.name), { force: true, recursive: true });
+    await removePath(path.join(directoryPath, entry.name));
   }
 }
 
@@ -70,13 +72,24 @@ async function copyDirectoryChildren(
 }
 
 async function fullReplaceDirectory(sourcePath: string, destinationPath: string): Promise<void> {
-  await rm(destinationPath, { force: true, recursive: true });
+  await removePath(destinationPath);
   await mkdir(path.dirname(destinationPath), { recursive: true });
   await cp(sourcePath, destinationPath, { force: true, recursive: true });
 }
 
 function getAbsolutePath(relativePath: string): string {
   return resolveProjectPath(relativePath);
+}
+
+function isBusyRemoveError(error: unknown): boolean {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && (
+      error.code === 'EBUSY'
+      || error.code === 'ENOTEMPTY'
+      || error.code === 'EPERM'
+    );
 }
 
 async function main(): Promise<void> {
@@ -102,6 +115,25 @@ function parseOptions(argv: readonly string[]): SyncOptions {
     mode: 'full',
     scope
   };
+}
+
+async function removePath(targetPath: string): Promise<void> {
+  try {
+    await rm(targetPath, {
+      force: true,
+      maxRetries: REMOVE_MAX_RETRIES,
+      recursive: true,
+      retryDelay: REMOVE_RETRY_DELAY_MS
+    });
+  } catch (error: unknown) {
+    if (isBusyRemoveError(error)) {
+      throw new Error(
+        `Could not remove sandbox path because Windows still has it locked after ${String(REMOVE_MAX_RETRIES)} retries: ${targetPath}`,
+        { cause: error }
+      );
+    }
+    throw error;
+  }
 }
 
 async function syncSandbox(options: SyncOptions): Promise<void> {
@@ -149,7 +181,7 @@ async function syncSandbox(options: SyncOptions): Promise<void> {
       await clearDirectoryChildren(sandboxPaths.externalRootPath);
       await copyDirectoryChildren(fixtureExternalRootPath, sandboxPaths.externalRootPath);
     }
-    await rm(sandboxReportsPath, { force: true, recursive: true });
+    await removePath(sandboxReportsPath);
 
     console.log(`Fixture sync complete (${options.mode}, ${sandboxPaths.source}).`);
     console.log(`Vault: ${fixtureVaultPath} -> ${sandboxPaths.vaultPath}`);
