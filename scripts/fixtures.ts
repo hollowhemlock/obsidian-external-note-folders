@@ -126,7 +126,7 @@ async function removePath(targetPath: string): Promise<void> {
       retryDelay: REMOVE_RETRY_DELAY_MS
     });
   } catch (error: unknown) {
-    if (isBusyRemoveError(error)) {
+    if (process.platform === 'win32' && isBusyRemoveError(error)) {
       throw new Error(
         `Could not remove sandbox path because Windows still has it locked after ${String(REMOVE_MAX_RETRIES)} retries: ${targetPath}`,
         { cause: error }
