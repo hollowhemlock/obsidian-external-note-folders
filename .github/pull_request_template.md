@@ -17,7 +17,11 @@
 - [ ] Minor (`feat`)
 - [ ] Breaking (`!` or `BREAKING CHANGE`)
 
-If release-relevant, describe user-visible behavior changes:
+Release intent file, required for patch/minor/breaking: <!-- .release-intent/YYYY-MM-DD-short-slug.md -->
+
+Intended merge/squash title, required for patch/minor/breaking: <!-- e.g., fix: skip ignored adoption descendants -->
+
+Proposed changelog entry, required for patch/minor/breaking:
 
 ## ADR / Design References
 
@@ -35,6 +39,8 @@ If release-relevant, describe user-visible behavior changes:
 ## LLM Agent Checklist (if authored/assisted by an agent)
 
 - [ ] Commit messages follow `<type>: <description>` convention
+- [ ] PR title and intended merge/squash title follow conventional commit convention when release-relevant
+- [ ] Release impact matches PR template, release intent file, commits, and changed surface
 - [ ] Scope is limited to task requirements
 - [ ] Tests were added/updated for behavior changes
 - [ ] Any assumptions are explicitly documented in this PR
