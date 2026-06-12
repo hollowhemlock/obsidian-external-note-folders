@@ -20,8 +20,8 @@ import {
   assertCliAvailable,
   assertSandboxPluginInstalled,
   formatCliResult,
+  getSandboxVaultPath,
   readSandboxPluginId,
-  resolveRepoPath,
   runCli,
   waitForPluginCommands
 } from './obsidianCliHarness.ts';
@@ -35,7 +35,7 @@ interface SerializedVaultScan {
 }
 
 describe('vault scanner fidelity integration', () => {
-  const sandboxVaultPath = resolveRepoPath('test/fixtures/sandbox/vault');
+  const sandboxVaultPath = getSandboxVaultPath();
   let pluginId = '';
 
   beforeAll(async () => {

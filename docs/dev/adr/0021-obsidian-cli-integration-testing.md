@@ -1,6 +1,6 @@
 ---
 status: "Accepted"
-date: "2026-03-03"
+date: "2026-06-11"
 decision-makers: "Maintainers"
 ---
 
@@ -41,28 +41,37 @@ Adopt a dedicated **non-required Obsidian CLI integration test lane** with these
 - Integration test files run serially because they share one sandbox vault, one external root, and one
   live Obsidian modal surface
 - Integration tests run via `npm run test:integration`
+- The primary Git checkout owns the integration sandbox and Obsidian runtime; worktrees are limited
+  to headless validation
+- This restriction keeps the GUI integration vault at one stable absolute path. Obsidian's URI
+  handler only opens vault paths present in its global vault registry; each worktree has a different
+  absolute path and would require separate registration. A single registered primary-checkout vault
+  avoids registry mutation, ambiguous runtime targeting, and stale worktree registrations.
 - Integration setup must:
-  - refresh sandbox from committed fixture
   - build plugin artifacts
+  - fully reset the sandbox from committed fixtures
   - install plugin artifacts into sandbox `.obsidian/plugins/<plugin-id>`
+  - open the sandbox vault when no CLI runtime is available
+  - reload Obsidian with the sandbox vault as the CLI target
 - Integration tests must assert CLI command exposure when the CLI runtime responds
 - Integration tests should prefer committed scenario fixtures when directory shape is the behavior
   being validated; runtime-created files are still appropriate for temporary, generated test cases
   where the directory shape itself is not the behavior under test
 - If no Obsidian CLI binary is found, the integration lane fails because the required integration
   dependency is not installed
-- If the CLI binary exists but Obsidian is not running, the command-line interface is disabled, or
-  the runtime times out, `npm run test:integration` fails because the integration runtime was not
-  actually exercised
+- If the CLI binary exists but the command-line interface is disabled, reload fails, or the runtime
+  times out, `npm run test:integration` fails because the integration runtime was not actually
+  exercised
 - On Windows, CLI execution uses `Obsidian.com` (not `Obsidian.exe`) when available
 - CI integration job is `workflow_dispatch` only and runs on `self-hosted` runners labeled `obsidian-cli`
 - Do not make the integration job a required pull request status check unless an online matching runner is available
 
 ## Required Behavior
 
-- `npm run test:integration` refreshes the sandbox vault from committed fixtures.
 - `npm run test:integration` builds plugin artifacts before invoking Obsidian CLI.
+- `npm run test:integration` fully resets the sandbox vault from committed fixtures.
 - `npm run test:integration` installs artifacts into `.obsidian/plugins/<plugin-id>`.
+- `npm run test:integration` reloads Obsidian after plugin installation.
 - `npm run test:integration` verifies that expected plugin commands are exposed through the
   Obsidian CLI command surface.
 - Integration files run serially.
@@ -80,6 +89,8 @@ Adopt a dedicated **non-required Obsidian CLI integration test lane** with these
 
 ### Negative / Trade-offs
 - Requires prepared local or self-hosted environment with Obsidian installed and the CLI enabled
+- GUI integration cannot run directly from linked worktrees; changes must use headless validation
+  there and run Obsidian runtime testing from the primary checkout
 - Manual GitHub runs stay queued until a matching `self-hosted` + `obsidian-cli` runner is online
 - Integration lane is slower than unit-only CI
 - Some Obsidian CLI builds do not expose a stable `version` command, so version assertions are

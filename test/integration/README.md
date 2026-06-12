@@ -26,5 +26,11 @@ Integration tests run with:
 npm run test:integration
 ```
 
-The lane requires Obsidian CLI to be installed and enabled, and a running Obsidian runtime that can
-attach to the sandbox vault.
+The lane requires Obsidian CLI to be installed and enabled. Integration preparation builds the
+plugin, fully resets the sandbox, installs the plugin artifacts, and reloads Obsidian with the
+sandbox vault as the CLI target before tests run. If no CLI runtime is available, preparation opens
+the sandbox vault before retrying reload.
+
+The primary Git checkout owns the integration sandbox and Obsidian runtime. Worktrees may run
+headless validation, but integration fails before build, sandbox mutation, plugin installation, or
+Obsidian control.

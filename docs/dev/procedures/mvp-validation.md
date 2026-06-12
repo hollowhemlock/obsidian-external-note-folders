@@ -34,11 +34,17 @@ If no local Obsidian CLI environment or `self-hosted` + `obsidian-cli` runner is
 
 ## Fixture Setup
 
-- `npm run fixtures:new-sandbox` creates a fresh sandbox vault and external root from committed fixtures.
-- `npm run fixtures:refresh-sandbox` refreshes sandbox content while preserving `sandbox/vault/.obsidian`.
-- `npm run fixtures:open-sandbox` opens the sandbox vault in Obsidian for manual verification.
+- `npm run fixtures:new-sandbox` fully replaces the sandbox vault and external root from committed
+  fixtures, opens the sandbox vault if needed, then reloads Obsidian with that vault as the CLI
+  target.
+- The primary Git checkout owns the repository sandbox and Obsidian runtime. Worktrees may edit and
+  run headless validation, but sandbox reset, development, opening, and CLI integration fail before
+  mutation or Obsidian control.
+- If Windows reports a persistent lock during reset, close Obsidian and rerun the command.
+- `npm run vault:open -- sandbox` opens the sandbox vault in Obsidian for manual verification.
 
-Use a fresh sandbox at the start of a validation pass. Use refresh between scenarios when you want to preserve local Obsidian settings.
+Use a fresh sandbox at the start of each validation pass or scenario. Sandbox-local Obsidian
+settings are disposable and are replaced during reset.
 
 ## Required Scenario Matrix
 

@@ -1,6 +1,6 @@
 ---
 status: "Accepted"
-date: "2026-02-20"
+date: "2026-06-11"
 decision-makers: "Maintainers"
 ---
 
@@ -30,26 +30,31 @@ Store canonical test fixture vaults and external roots in the repository under `
 with this policy:
 
 - Canonical layout:
-  - `test/fixtures/fixture/vault`
+  - `test/fixtures/fixture/plugin-external-note-folders-fixture`
   - `test/fixtures/fixture/external-root`
-  - `test/fixtures/sandbox/vault` (disposable)
+  - `test/fixtures/sandbox/plugin-external-note-folders-sandbox` (disposable)
   - `test/fixtures/sandbox/external-root` (disposable)
 - Sandbox lifecycle is script-driven:
-  - `npm run fixtures:new-sandbox` performs full fixture -> sandbox reset
-  - `npm run fixtures:refresh-sandbox` refreshes content while preserving
-    `sandbox/vault/.obsidian`
+  - the primary Git checkout owns the only repository sandbox
+  - worktrees may edit and run headless validation, but cannot mutate or open the sandbox
+  - [ADR-0021](0021-obsidian-cli-integration-testing.md) records the Obsidian vault-registry
+    rationale for this primary-checkout restriction
+  - `npm run fixtures:new-sandbox` fully replaces the sandbox vault and external root
+  - the command opens the sandbox vault when no CLI runtime is available
+  - the command then runs `obsidian reload` with the sandbox vault as the CLI target
+  - persistent Windows locks fail clearly and require closing Obsidian before retrying
 - Vault opening is script-driven for consistency:
-  - `npm run fixtures:open-fixture`
-  - `npm run fixtures:open-sandbox`
+  - `npm run vault:open -- fixture`
+  - `npm run vault:open -- sandbox`
   - `npm run vault:open -- <path>`
 
 - Fixtures are version-controlled and named by scenario intent, not by ticket number alone
 - Formal semantic fixture scenario paths use behavior-first domain naming:
-  - `test/fixtures/fixture/vault/<domain>/<scenario-slug>`
+  - `test/fixtures/fixture/plugin-external-note-folders-fixture/<domain>/<scenario-slug>`
   - `test/fixtures/fixture/external-root/<domain>/<scenario-slug>`
   - `test/fixtures/fixture/expected/<domain>/<scenario-slug>.json`
 - Workflow fixtures may intentionally place user-visible notes and folders under
-  `test/fixtures/fixture/vault/tests/<domain>/...` and
+  `test/fixtures/fixture/plugin-external-note-folders-fixture/tests/<domain>/...` and
   `test/fixtures/fixture/external-root/tests/<domain>/...` when command behavior should report
   those paths
 - Scenario slugs use lowercase kebab-case and describe the behavior under test, for example

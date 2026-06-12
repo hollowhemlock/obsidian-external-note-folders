@@ -15,6 +15,7 @@ import {
   assertCliAvailable,
   assertSandboxPluginInstalled,
   formatCliResult,
+  getSandboxVaultPath,
   readSandboxPluginId,
   resolveRepoPath,
   runSandboxCli,
@@ -114,7 +115,10 @@ function closeSandboxModals(): void {
 }
 
 async function readAdoptedBinding(expectedAdoption: ExpectedAdoption): Promise<string> {
-  const noteContent = await readFile(path.join(resolveRepoPath('test/fixtures/sandbox/vault'), expectedAdoption.notePath), 'utf8');
+  const noteContent = await readFile(
+    path.join(getSandboxVaultPath(), expectedAdoption.notePath),
+    'utf8'
+  );
   const uuid = parseExnfUuid(noteContent);
   const externalFolderPath = path.join(
     resolveRepoPath('test/fixtures/sandbox/external-root'),

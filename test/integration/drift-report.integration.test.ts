@@ -9,8 +9,8 @@ import {
   assertCliAvailable,
   assertSandboxPluginInstalled,
   formatCliResult,
+  getSandboxVaultPath,
   readSandboxPluginId,
-  resolveRepoPath,
   runCli,
   waitForPluginCommands,
   writeSandboxReport
@@ -19,7 +19,7 @@ import {
 const DRIFT_SCENARIO_PATH = 'drift-report/basic-drift-matrix';
 
 describe('drift report integration', () => {
-  const sandboxVaultPath = resolveRepoPath('test/fixtures/sandbox/vault');
+  const sandboxVaultPath = getSandboxVaultPath();
   let pluginId = '';
 
   beforeAll(async () => {

@@ -10,7 +10,8 @@ import path from 'node:path';
 import { resolvePathFromRoot } from 'obsidian-dev-utils/ScriptUtils/Root';
 
 import {
-  getExistingSandboxPaths,
+  assertPrimaryCheckout,
+  getCurrentSandboxPaths,
   resolveProjectPath
 } from './sandbox-paths.ts';
 
@@ -58,26 +59,27 @@ async function findArtifact(relativePaths: readonly string[]): Promise<string> {
 }
 
 async function main(): Promise<void> {
+  assertPrimaryCheckout('Sandbox plugin installation');
+
   const manifestPath = await findArtifact(CANDIDATE_ARTIFACT_PATHS.manifestJson);
   const mainJsPath = await findArtifact(CANDIDATE_ARTIFACT_PATHS.mainJs);
   const stylesCssPath = await findArtifact(CANDIDATE_ARTIFACT_PATHS.stylesCss);
 
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as unknown as Manifest;
-  for (const sandboxPaths of getExistingSandboxPaths()) {
-    const pluginPath = path.join(sandboxPaths.obsidianConfigPath, 'plugins', manifest.id);
-    await mkdir(pluginPath, { recursive: true });
+  const sandboxPaths = getCurrentSandboxPaths();
+  const pluginPath = path.join(sandboxPaths.obsidianConfigPath, 'plugins', manifest.id);
+  await mkdir(pluginPath, { recursive: true });
 
-    await copyFile(mainJsPath, path.join(pluginPath, 'main.js'));
-    await copyFile(stylesCssPath, path.join(pluginPath, 'styles.css'));
-    await copyFile(manifestPath, path.join(pluginPath, 'manifest.json'));
+  await copyFile(mainJsPath, path.join(pluginPath, 'main.js'));
+  await copyFile(stylesCssPath, path.join(pluginPath, 'styles.css'));
+  await copyFile(manifestPath, path.join(pluginPath, 'manifest.json'));
 
-    await rm(path.join(pluginPath, 'journal'), { force: true, recursive: true });
-    await ensureCommunityPluginEnabled(sandboxPaths.vaultPath, manifest.id);
-    await writeSandboxPluginSettings(pluginPath, sandboxPaths.externalRootPath);
+  await rm(path.join(pluginPath, 'journal'), { force: true, recursive: true });
+  await ensureCommunityPluginEnabled(sandboxPaths.vaultPath, manifest.id);
+  await writeSandboxPluginSettings(pluginPath, sandboxPaths.externalRootPath);
 
-    console.log(`Installed plugin '${manifest.id}' to ${sandboxPaths.source} sandbox: ${pluginPath}`);
-    console.log(`Configured ${sandboxPaths.source} sandbox external root: ${sandboxPaths.externalRootPath}`);
-  }
+  console.log(`Installed plugin '${manifest.id}' to sandbox: ${pluginPath}`);
+  console.log(`Configured sandbox external root: ${sandboxPaths.externalRootPath}`);
 }
 
 function resolvePath(relativePath: string): string {
@@ -93,6 +95,6 @@ async function writeSandboxPluginSettings(pluginPath: string, externalRootPath: 
 
 // eslint-disable-next-line no-void -- script entry point
 void main().catch((error: unknown) => {
-  console.error(error);
+  console.error(error instanceof Error ? error.message : error);
   process.exit(1);
 });

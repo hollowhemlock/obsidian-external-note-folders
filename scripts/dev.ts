@@ -3,10 +3,6 @@
  * dev vault and any additional vaults specified via environment variables:
  *   - OBSIDIAN_CONFIG_FOLDER  — single additional vault path
  *   - OBSIDIAN_CONFIG_FOLDERS — comma-separated additional vault paths
- *
- * When this repository has multiple Git worktrees, existing sibling worktree
- * sandbox vaults are also copy targets so a local sandbox and a linked worktree
- * sandbox can both run the current build.
  */
 
 import {
@@ -22,18 +18,19 @@ import {
 import { resolvePathFromRoot } from 'obsidian-dev-utils/ScriptUtils/Root';
 
 import {
+  assertPrimaryCheckout,
   getAdditionalObsidianConfigFoldersFromEnv,
   getCurrentSandboxPaths,
-  getExistingLinkedWorktreeSandboxPaths,
   isSamePath,
-  SANDBOX_VAULT_RELATIVE_PATH,
-  uniqueResolvedPaths
+  SANDBOX_VAULT_RELATIVE_PATH
 } from './sandbox-paths.ts';
 
 /** Relative path to the dev build output directory. */
 const DEV_DIST_PATH = 'dist/dev';
 
 export async function invoke(): Promise<CliTaskResult> {
+  assertPrimaryCheckout('Sandbox development build');
+
   const currentSandboxPaths = getCurrentSandboxPaths();
   if (!existsSync(currentSandboxPaths.obsidianConfigPath)) {
     throw new Error(
@@ -41,10 +38,8 @@ export async function invoke(): Promise<CliTaskResult> {
     );
   }
   const devVaultConfigDir = currentSandboxPaths.obsidianConfigPath;
-  const additionalObsidianConfigFolders = uniqueResolvedPaths([
-    ...getAdditionalObsidianConfigFoldersFromEnv(),
-    ...getExistingLinkedWorktreeSandboxPaths().map((sandboxPaths) => sandboxPaths.obsidianConfigPath)
-  ]).filter((obsidianConfigFolder) => !isSamePath(obsidianConfigFolder, devVaultConfigDir));
+  const additionalObsidianConfigFolders = getAdditionalObsidianConfigFoldersFromEnv()
+    .filter((obsidianConfigFolder) => !isSamePath(obsidianConfigFolder, devVaultConfigDir));
 
   const manifestPath = resolvePathFromRoot('manifest.json')
     ?? ((): never => {
