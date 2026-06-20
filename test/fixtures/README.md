@@ -118,6 +118,7 @@ npm run test:integration:watch
   backfill that result as the expected shape.
 - If behavior can be tested without Obsidian, prefer a semantic test under `test/semantic`. Use
   Obsidian CLI integration only for runtime behavior.
-- On Windows, CLI tests use `Obsidian.com` (not `Obsidian.exe`). Sandbox reset and integration
-  preparation fail unless an Obsidian CLI binary is installed and the command line interface is
-  enabled in Obsidian Settings -> General.
+- Obsidian CLI testing requires Obsidian 1.12.7 or newer.
+- On Windows, CLI tests use the registered `Obsidian.com` redirector, not `Obsidian.exe`.
+- WSL requires a separate Linux Obsidian GUI and Linux CLI in the WSL environment; it cannot attach
+  to the Windows Obsidian process.

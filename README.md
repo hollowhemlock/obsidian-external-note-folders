@@ -153,8 +153,8 @@ reconciliation.
 - `npm run lint`
 - `npm run format:check`
 - `npm run test`
-- `npm run test:integration` (fails unless Obsidian CLI is installed, enabled, and able to reload
-  the sandbox vault)
+- `npm run test:integration` (requires Obsidian 1.12.7+ with the CLI enabled and able to reload the
+  sandbox vault)
 - `npm run test:watch`
 - `npm run release:update-versions`
 - `npm run release:check-versions`

@@ -25,6 +25,7 @@ workspace.json
 
 dist
 .env
+tmp
 
 # Fixtures
 test/fixtures/fixture/plugin-external-note-folders-fixture/.obsidian/plugins/*/main.js

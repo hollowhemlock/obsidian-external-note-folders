@@ -8,7 +8,10 @@ decision-makers: "Maintainers"
 
 ## Context and Problem Statement
 
-Unit and adapter tests cover internal logic, but they do not verify behavior through the real Obsidian runtime surface. Obsidian CLI enables command-level integration checks against a live vault when an Obsidian 1.12-series installer is present, CLI support is enabled, and the Obsidian app/runtime is available.
+Unit and adapter tests cover internal logic, but they do not verify behavior through the real
+Obsidian runtime surface. Obsidian CLI enables command-level integration checks against a live vault
+when Obsidian 1.12.7 or newer is installed, CLI support is enabled, and the Obsidian app/runtime is
+available.
 
 This project needs an integration requirement that validates plugin behavior with real vault fixtures and real Obsidian command execution, while keeping standard CI fast and deterministic.
 
@@ -51,6 +54,7 @@ Adopt a dedicated **non-required Obsidian CLI integration test lane** with these
   - build plugin artifacts
   - fully reset the sandbox from committed fixtures
   - install plugin artifacts into sandbox `.obsidian/plugins/<plugin-id>`
+  - verify that the CLI reports Obsidian 1.12.7 or newer
   - open the sandbox vault when no CLI runtime is available
   - reload Obsidian with the sandbox vault as the CLI target
 - Integration tests must assert CLI command exposure when the CLI runtime responds
@@ -62,7 +66,14 @@ Adopt a dedicated **non-required Obsidian CLI integration test lane** with these
 - If the CLI binary exists but the command-line interface is disabled, reload fails, or the runtime
   times out, `npm run test:integration` fails because the integration runtime was not actually
   exercised
-- On Windows, CLI execution uses `Obsidian.com` (not `Obsidian.exe`) when available
+- CLI integration requires Obsidian 1.12.7 or newer
+- The CLI and desktop GUI must run in the same operating-system environment because CLI commands
+  use local IPC to the desktop process
+- On Windows, CLI execution uses the `Obsidian.com` redirector installed and registered by the
+  current Obsidian installer, not `Obsidian.exe`
+- WSL cannot use its Linux CLI to control the Windows Obsidian process. Running integration from
+  WSL requires a separate Linux Obsidian 1.12.7+ installation running through WSLg or an X server,
+  with the CLI enabled in that Linux installation.
 - CI integration job is `workflow_dispatch` only and runs on `self-hosted` runners labeled `obsidian-cli`
 - Do not make the integration job a required pull request status check unless an online matching runner is available
 
@@ -71,6 +82,7 @@ Adopt a dedicated **non-required Obsidian CLI integration test lane** with these
 - `npm run test:integration` builds plugin artifacts before invoking Obsidian CLI.
 - `npm run test:integration` fully resets the sandbox vault from committed fixtures.
 - `npm run test:integration` installs artifacts into `.obsidian/plugins/<plugin-id>`.
+- `npm run test:integration` rejects Obsidian versions older than 1.12.7.
 - `npm run test:integration` reloads Obsidian after plugin installation.
 - `npm run test:integration` verifies that expected plugin commands are exposed through the
   Obsidian CLI command surface.
@@ -89,12 +101,13 @@ Adopt a dedicated **non-required Obsidian CLI integration test lane** with these
 
 ### Negative / Trade-offs
 - Requires prepared local or self-hosted environment with Obsidian installed and the CLI enabled
+- WSL runners require a separate Linux GUI installation and cannot reuse a Windows Obsidian runtime
 - GUI integration cannot run directly from linked worktrees; changes must use headless validation
   there and run Obsidian runtime testing from the primary checkout
 - Manual GitHub runs stay queued until a matching `self-hosted` + `obsidian-cli` runner is online
 - Integration lane is slower than unit-only CI
-- Some Obsidian CLI builds do not expose a stable `version` command, so version assertions are
-  weaker than command-surface assertions
+- The version command is a prerequisite check only; command-surface assertions remain the runtime
+  readiness and plugin-wiring invariant
 
 ## Pros and Cons of the Options
 
