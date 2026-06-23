@@ -266,28 +266,28 @@ The plugin does not use `window.DEBUG`.
 
 - Fixture layout lives in `test/fixtures`.
 - Run `npm run fixtures:new-sandbox` to create
-  `sandbox/plugin-external-note-folders-sandbox` and `sandbox/external-root`
+  `sandbox/vault-plugin-external-note-folders-sandbox` and `sandbox/external-root`
   from committed fixture data, open the sandbox vault if needed, then reload Obsidian with that
   vault as the CLI target.
 - Sandbox reset and Obsidian CLI integration commands must run from the primary Git checkout.
   Linked worktrees fail before building, mutating sandbox files, or controlling Obsidian.
 - The reset is always a full replacement, including
-  `sandbox/plugin-external-note-folders-sandbox/.obsidian`. If Windows still holds a lock after
+  `sandbox/vault-plugin-external-note-folders-sandbox/.obsidian`. If Windows still holds a lock after
   retries, close Obsidian and rerun the command.
 - `npm run test:integration` builds the plugin, fully resets the sandbox, installs the plugin
   artifacts, reloads Obsidian, and runs the integration tests. The GitHub integration workflow is
   manual-only and requires an online self-hosted runner labeled `obsidian-cli`.
 - Formal semantic fixture scenarios live under
-  `test/fixtures/fixture/{plugin-external-note-folders-fixture,external-root}/<domain>/<scenario-slug>`
+  `test/fixtures/fixture/{vault-plugin-external-note-folders-fixture,external-root}/<domain>/<scenario-slug>`
   with expected JSON under
   `test/fixtures/fixture/expected/<domain>/<scenario-slug>.json`. Workflow fixtures that
   intentionally assert user-visible command paths may use
-  `test/fixtures/fixture/{plugin-external-note-folders-fixture,external-root}/tests/<domain>/...`.
+  `test/fixtures/fixture/{vault-plugin-external-note-folders-fixture,external-root}/tests/<domain>/...`.
 - Integration tests are split by workflow under `test/integration/<domain>.integration.test.ts`.
 - Run `npm run vault:open -- fixture`, `npm run vault:open -- sandbox`, or
   `npm run vault:open -- <vault-path>` to open a vault directly in Obsidian.
 - `scripts/dev.ts` targets
-  `test/fixtures/sandbox/plugin-external-note-folders-sandbox/.obsidian` as the default dev vault.
+  `test/fixtures/sandbox/vault-plugin-external-note-folders-sandbox/.obsidian` as the default dev vault.
 - Sandbox reset, development, installation, opening, and CLI integration commands run only from
   the primary Git checkout. Worktrees remain suitable for editing and headless validation.
 

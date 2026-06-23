@@ -58,7 +58,7 @@ export function formatCliResult(result: CliResult): string {
 }
 
 export function getSandboxVaultPath(): string {
-  return resolveRepoPath('test/fixtures/sandbox/plugin-external-note-folders-sandbox');
+  return resolveRepoPath('test/fixtures/sandbox/vault-plugin-external-note-folders-sandbox');
 }
 
 export async function readSandboxPluginId(): Promise<string> {

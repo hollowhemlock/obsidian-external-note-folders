@@ -19,7 +19,7 @@ export interface FixtureScenario {
 }
 
 const FIXTURE_ROOT = 'test/fixtures/fixture';
-const FIXTURE_VAULT_NAME = 'plugin-external-note-folders-fixture';
+const FIXTURE_VAULT_NAME = 'vault-plugin-external-note-folders-fixture';
 const SEMANTIC_SANDBOX_ROOT = 'test/fixtures/sandbox/semantic';
 
 export async function prepareSemanticScenario(input: { domain: string; scenario: string }): Promise<FixtureScenario> {

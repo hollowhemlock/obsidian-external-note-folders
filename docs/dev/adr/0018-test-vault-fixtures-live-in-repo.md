@@ -30,9 +30,9 @@ Store canonical test fixture vaults and external roots in the repository under `
 with this policy:
 
 - Canonical layout:
-  - `test/fixtures/fixture/plugin-external-note-folders-fixture`
+  - `test/fixtures/fixture/vault-plugin-external-note-folders-fixture`
   - `test/fixtures/fixture/external-root`
-  - `test/fixtures/sandbox/plugin-external-note-folders-sandbox` (disposable)
+  - `test/fixtures/sandbox/vault-plugin-external-note-folders-sandbox` (disposable)
   - `test/fixtures/sandbox/external-root` (disposable)
 - Sandbox lifecycle is script-driven:
   - the primary Git checkout owns the only repository sandbox
@@ -50,11 +50,11 @@ with this policy:
 
 - Fixtures are version-controlled and named by scenario intent, not by ticket number alone
 - Formal semantic fixture scenario paths use behavior-first domain naming:
-  - `test/fixtures/fixture/plugin-external-note-folders-fixture/<domain>/<scenario-slug>`
+  - `test/fixtures/fixture/vault-plugin-external-note-folders-fixture/<domain>/<scenario-slug>`
   - `test/fixtures/fixture/external-root/<domain>/<scenario-slug>`
   - `test/fixtures/fixture/expected/<domain>/<scenario-slug>.json`
 - Workflow fixtures may intentionally place user-visible notes and folders under
-  `test/fixtures/fixture/plugin-external-note-folders-fixture/tests/<domain>/...` and
+  `test/fixtures/fixture/vault-plugin-external-note-folders-fixture/tests/<domain>/...` and
   `test/fixtures/fixture/external-root/tests/<domain>/...` when command behavior should report
   those paths
 - Scenario slugs use lowercase kebab-case and describe the behavior under test, for example

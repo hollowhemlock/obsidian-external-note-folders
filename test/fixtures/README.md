@@ -1,13 +1,13 @@
 # Test Fixtures
 
 - `fixture`: committed baseline test data.
-  - `fixture/plugin-external-note-folders-fixture`: baseline Obsidian vault.
+  - `fixture/vault-plugin-external-note-folders-fixture`: baseline Obsidian vault.
   - `fixture/external-root`: baseline external root.
   - `fixture/expected`: committed expected semantic definitions for fixture scenarios.
-- `fixture/plugin-external-note-folders-fixture/Smoke Test.md`: concise manual smoke test note copied
+- `fixture/vault-plugin-external-note-folders-fixture/Smoke Test.md`: concise manual smoke test note copied
   into sandbox vaults.
 - `sandbox`: disposable working copy (ignored in git except `.gitkeep`).
-  - `sandbox/plugin-external-note-folders-sandbox`: runtime vault copy.
+  - `sandbox/vault-plugin-external-note-folders-sandbox`: runtime vault copy.
   - `sandbox/external-root`: runtime external-root copy.
 
 ## Scenario Naming
@@ -18,11 +18,11 @@ or implementation detail.
 Use this convention:
 
 - Put formal semantic scenario data under
-  `fixture/plugin-external-note-folders-fixture/<domain>/<scenario-slug>` and
+  `fixture/vault-plugin-external-note-folders-fixture/<domain>/<scenario-slug>` and
   `fixture/external-root/<domain>/<scenario-slug>`, with expected JSON under
   `fixture/expected/<domain>/<scenario-slug>.json`.
 - Workflow fixtures may intentionally place user-visible notes and folders under
-  `fixture/plugin-external-note-folders-fixture/tests/<domain>/...` and
+  `fixture/vault-plugin-external-note-folders-fixture/tests/<domain>/...` and
   `fixture/external-root/tests/<domain>/...` when the
   command behavior should report those paths.
 - Use lowercase kebab-case for `<domain>` and `<scenario-slug>`.
@@ -93,7 +93,7 @@ npm run vault:open -- fixture
 Open any vault path in Obsidian:
 
 ```powershell
-npm run vault:open -- test/fixtures/sandbox/plugin-external-note-folders-sandbox
+npm run vault:open -- test/fixtures/sandbox/vault-plugin-external-note-folders-sandbox
 ```
 
 Prepare and run Obsidian CLI integration tests:

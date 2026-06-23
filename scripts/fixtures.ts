@@ -14,7 +14,7 @@ import {
   SANDBOX_REPORTS_RELATIVE_PATH
 } from './sandbox-paths.ts';
 
-const FIXTURE_VAULT_RELATIVE_PATH = 'test/fixtures/fixture/plugin-external-note-folders-fixture';
+const FIXTURE_VAULT_RELATIVE_PATH = 'test/fixtures/fixture/vault-plugin-external-note-folders-fixture';
 const FIXTURE_EXTERNAL_ROOT_RELATIVE_PATH = 'test/fixtures/fixture/external-root';
 
 const JSON_INDENT = 2;

@@ -28,10 +28,10 @@ dist
 tmp
 
 # Fixtures
-test/fixtures/fixture/plugin-external-note-folders-fixture/.obsidian/plugins/*/main.js
-test/fixtures/fixture/plugin-external-note-folders-fixture/.obsidian/plugins/*/styles.css
-test/fixtures/fixture/plugin-external-note-folders-fixture/.obsidian/plugins/*/manifest.json
-!test/fixtures/fixture/plugin-external-note-folders-fixture/.obsidian/plugins/obsidian42-brat/data.json
+test/fixtures/fixture/vault-plugin-external-note-folders-fixture/.obsidian/plugins/*/main.js
+test/fixtures/fixture/vault-plugin-external-note-folders-fixture/.obsidian/plugins/*/styles.css
+test/fixtures/fixture/vault-plugin-external-note-folders-fixture/.obsidian/plugins/*/manifest.json
+!test/fixtures/fixture/vault-plugin-external-note-folders-fixture/.obsidian/plugins/obsidian42-brat/data.json
 test/fixtures/sandbox/*
 !test/fixtures/sandbox/.gitkeep
 /tsconfig.tsbuildinfo

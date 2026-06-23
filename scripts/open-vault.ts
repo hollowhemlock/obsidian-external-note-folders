@@ -5,8 +5,8 @@ import { resolvePathFromRoot } from 'obsidian-dev-utils/ScriptUtils/Root';
 import { openVaultUri } from './open-vault-uri.ts';
 import { assertPrimaryCheckout } from './sandbox-paths.ts';
 
-const FIXTURE_VAULT_RELATIVE_PATH = 'test/fixtures/fixture/plugin-external-note-folders-fixture';
-const SANDBOX_VAULT_RELATIVE_PATH = 'test/fixtures/sandbox/plugin-external-note-folders-sandbox';
+const FIXTURE_VAULT_RELATIVE_PATH = 'test/fixtures/fixture/vault-plugin-external-note-folders-fixture';
+const SANDBOX_VAULT_RELATIVE_PATH = 'test/fixtures/sandbox/vault-plugin-external-note-folders-sandbox';
 
 type VaultTarget = 'fixture' | 'sandbox';
 

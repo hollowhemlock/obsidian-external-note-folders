@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { resolvePathFromRoot } from 'obsidian-dev-utils/ScriptUtils/Root';
 
-export const SANDBOX_VAULT_RELATIVE_PATH = 'test/fixtures/sandbox/plugin-external-note-folders-sandbox';
+export const SANDBOX_VAULT_RELATIVE_PATH = 'test/fixtures/sandbox/vault-plugin-external-note-folders-sandbox';
 export const SANDBOX_EXTERNAL_ROOT_RELATIVE_PATH = 'test/fixtures/sandbox/external-root';
 export const SANDBOX_REPORTS_RELATIVE_PATH = 'test/fixtures/sandbox/reports';
 
