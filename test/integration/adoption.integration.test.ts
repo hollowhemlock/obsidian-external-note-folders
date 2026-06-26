@@ -14,6 +14,7 @@ import { buildExnfMarkerFileName } from '../../src/core/marker.ts';
 import {
   assertCliAvailable,
   assertSandboxPluginInstalled,
+  enableSandboxConsoleCapture,
   formatCliResult,
   getSandboxVaultPath,
   readSandboxPluginId,
@@ -51,7 +52,7 @@ describe('adoption integration', () => {
     const commandsResult = await waitForPluginCommands(pluginId);
     assertCliAvailable(commandsResult);
 
-    const debugResult = runSandboxCli(['dev:debug', 'on']);
+    const debugResult = enableSandboxConsoleCapture();
     expect(debugResult.status, formatCliResult(debugResult)).toBe(0);
     runSandboxCli(['dev:console', 'clear']);
     runSandboxCli([

@@ -69,7 +69,7 @@ function runReloadWithTimeout(
   sandboxVaultPath: string,
   timeout: number
 ): ObsidianCliResult {
-  return runObsidianCli(['reload'], sandboxVaultPath, timeout);
+  return runObsidianCli(['command', 'id=app:reload'], sandboxVaultPath, timeout);
 }
 
 async function waitForReload(

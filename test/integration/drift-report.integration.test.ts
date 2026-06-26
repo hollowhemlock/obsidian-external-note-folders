@@ -8,6 +8,7 @@ import {
 import {
   assertCliAvailable,
   assertSandboxPluginInstalled,
+  enableSandboxConsoleCapture,
   formatCliResult,
   getSandboxVaultPath,
   readSandboxPluginId,
@@ -32,7 +33,7 @@ describe('drift report integration', () => {
     const commandsResult = await waitForPluginCommands(pluginId, sandboxVaultPath);
     assertCliAvailable(commandsResult);
 
-    const debugResult = runCli(['dev:debug', 'on'], sandboxVaultPath);
+    const debugResult = enableSandboxConsoleCapture(sandboxVaultPath);
     expect(debugResult.status, formatCliResult(debugResult)).toBe(0);
     runCli(['dev:console', 'clear'], sandboxVaultPath);
     runCli([

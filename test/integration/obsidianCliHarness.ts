@@ -82,6 +82,14 @@ export function runSandboxCli(args: readonly string[]): CliResult {
   return runCli(args, getSandboxVaultPath());
 }
 
+export function enableSandboxConsoleCapture(vaultPath = getSandboxVaultPath()): CliResult {
+  // `app:reload` detaches the console debugger but leaves the CLI reporting it as still attached,
+  // so a plain `dev:debug on` is a no-op that captures nothing. Force a clean detach/attach so
+  // console assertions observe fresh output regardless of any prior reload.
+  runCli(['dev:debug', 'off'], vaultPath);
+  return runCli(['dev:debug', 'on'], vaultPath);
+}
+
 export async function waitForPluginCommands(pluginId: string, vaultPath = getSandboxVaultPath()): Promise<CliResult> {
   let latestResult = runCli(['commands'], vaultPath);
 
