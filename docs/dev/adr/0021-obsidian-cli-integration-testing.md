@@ -57,6 +57,7 @@ Adopt a dedicated **non-required Obsidian CLI integration test lane** with these
   - verify that the CLI reports Obsidian 1.12.7 or newer
   - open the sandbox vault when no CLI runtime is available
   - reload Obsidian with the sandbox vault as the CLI target
+  - probe the live runtime and confirm it is serving the sandbox vault before tests run
 - Integration tests must assert CLI command exposure when the CLI runtime responds
 - Integration tests should prefer committed scenario fixtures when directory shape is the behavior
   being validated; runtime-created files are still appropriate for temporary, generated test cases
@@ -84,6 +85,9 @@ Adopt a dedicated **non-required Obsidian CLI integration test lane** with these
 - `npm run test:integration` installs artifacts into `.obsidian/plugins/<plugin-id>`.
 - `npm run test:integration` rejects Obsidian versions older than 1.12.7.
 - `npm run test:integration` reloads Obsidian after plugin installation.
+- `npm run test:integration` preparation probes the live runtime and fails before tests run when the
+  Obsidian runtime is unavailable or when the active vault is not the sandbox vault, so the lane
+  never reports against a missing runtime or the wrong vault.
 - `npm run test:integration` verifies that expected plugin commands are exposed through the
   Obsidian CLI command surface.
 - Integration files run serially.

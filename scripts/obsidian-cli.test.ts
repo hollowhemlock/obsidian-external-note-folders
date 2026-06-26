@@ -4,14 +4,37 @@ import {
   it
 } from 'vitest';
 
+import type { ObsidianCliResult } from './obsidian-cli.ts';
+
 import {
+  isRuntimeUnavailable,
   isSupportedObsidianVersion,
   parseObsidianVersion
 } from './obsidian-cli.ts';
 
+function buildCliResult(overrides: Partial<ObsidianCliResult>): ObsidianCliResult {
+  return {
+    command: 'obsidian eval',
+    errorMessage: '',
+    status: 0,
+    stderr: '',
+    stdout: '',
+    ...overrides
+  };
+}
+
 describe('Obsidian CLI version support', () => {
   it('parses a semantic version from CLI output', () => {
     expect(parseObsidianVersion('Obsidian 1.12.7')).toEqual({
+      major: 1,
+      minor: 12,
+      patch: 7,
+      text: '1.12.7'
+    });
+  });
+
+  it('prefers the Obsidian-labeled version over other reported versions', () => {
+    expect(parseObsidianVersion('Installer 1.16.3\nObsidian 1.12.7')).toEqual({
       major: 1,
       minor: 12,
       patch: 7,
@@ -34,5 +57,25 @@ describe('Obsidian CLI version support', () => {
     expect(isSupportedObsidianVersion(minimumVersion!)).toBe(true);
     expect(isSupportedObsidianVersion(newerMinorVersion!)).toBe(true);
     expect(isSupportedObsidianVersion(newerMajorVersion!)).toBe(true);
+  });
+});
+
+describe('Obsidian CLI runtime availability', () => {
+  it('detects an unavailable runtime from the CLI stderr', () => {
+    expect(isRuntimeUnavailable(buildCliResult({
+      status: 1,
+      stderr: 'Error: unable to find Obsidian'
+    }))).toBe(true);
+  });
+
+  it('detects an unavailable runtime reported through the spawn error', () => {
+    expect(isRuntimeUnavailable(buildCliResult({
+      errorMessage: 'unable to find Obsidian',
+      status: null
+    }))).toBe(true);
+  });
+
+  it('treats a successful runtime response as available', () => {
+    expect(isRuntimeUnavailable(buildCliResult({ stdout: 'plugin:command' }))).toBe(false);
   });
 });

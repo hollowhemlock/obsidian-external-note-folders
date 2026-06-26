@@ -4,6 +4,7 @@ import type { ObsidianCliResult } from './obsidian-cli.ts';
 
 import {
   formatObsidianCliResult,
+  isRuntimeUnavailable,
   runObsidianCli
 } from './obsidian-cli.ts';
 import { openVaultUri } from './open-vault-uri.ts';
@@ -29,14 +30,6 @@ function formatReloadError(
 function isRuntimeStarting(result: ReturnType<typeof runReload>): boolean {
   const isTimedOut = result.errorMessage.includes('ETIMEDOUT');
   return isRuntimeUnavailable(result) || isTimedOut;
-}
-
-function isRuntimeUnavailable(result: ReturnType<typeof runReload>): boolean {
-  return [
-    result.stdout,
-    result.stderr,
-    result.errorMessage
-  ].join('\n').includes('unable to find Obsidian');
 }
 
 async function main(): Promise<void> {

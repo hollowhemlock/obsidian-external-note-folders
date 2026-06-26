@@ -83,12 +83,19 @@ describe('adoption integration', () => {
       await waitForAdoptedBinding(expectedAdoption);
     }
 
+    // Close the just-confirmed plan modal first. Its "Confirm adopt N folder(s)" arm state stays
+    // in the DOM and shares the "Adopt existing external folders" heading with a fresh scan, so
+    // waiting on the heading would re-capture the stale modal instead of the post-adoption rescan.
+    closeSandboxModals();
+
     const rerunResult = runSandboxCli(['command', `id=${pluginId}:adopt-existing-external-folders`]);
     expect(rerunResult.status, formatCliResult(rerunResult)).toBe(0);
-    const rerunModalResult = await waitForSandboxModalText('Adopt existing external folders');
+    const afterApplyMatchesText = `${String(expectedShape.afterApply.adoptableMatches)} adoptable match(es)`;
+    const rerunModalResult = await waitForSandboxModalText(afterApplyMatchesText);
     expect(rerunModalResult.status, formatCliResult(rerunModalResult)).toBe(0);
     await writeSandboxReport('adoption/after-apply-modal.txt', rerunModalResult.stdout);
-    expect(rerunModalResult.stdout).toContain(`${String(expectedShape.afterApply.adoptableMatches)} adoptable match(es)`);
+    expect(rerunModalResult.stdout).toContain('Adopt existing external folders');
+    expect(rerunModalResult.stdout).toContain(afterApplyMatchesText);
 
     closeSandboxModals();
   }, 30_000);

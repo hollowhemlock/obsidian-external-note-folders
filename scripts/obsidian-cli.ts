@@ -19,6 +19,7 @@ export interface ObsidianVersion {
 export const MINIMUM_OBSIDIAN_VERSION = '1.12.7';
 
 const MINIMUM_VERSION_PARTS = [1, 12, 7] as const;
+const RUNTIME_UNAVAILABLE_MARKER = 'unable to find Obsidian';
 const WINDOWS_CLI_CANDIDATES = [
   'Obsidian.com',
   'obsidian.com',
@@ -86,6 +87,14 @@ export function getObsidianCliSetupGuidance(): string {
   ].join(' ');
 }
 
+export function isRuntimeUnavailable(result: ObsidianCliResult): boolean {
+  return [
+    result.stdout,
+    result.stderr,
+    result.errorMessage
+  ].join('\n').includes(RUNTIME_UNAVAILABLE_MARKER);
+}
+
 export function isSupportedObsidianVersion(version: ObsidianVersion): boolean {
   const versionParts = [version.major, version.minor, version.patch];
   for (const [index, minimumPart] of MINIMUM_VERSION_PARTS.entries()) {
@@ -117,16 +126,25 @@ export function isWsl(): boolean {
 }
 
 export function parseObsidianVersion(output: string): null | ObsidianVersion {
-  const match = /\b(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)\b/u.exec(output);
+  /*
+   * Prefer a version explicitly labeled "Obsidian x.y.z" so noisy CLI output that also reports an
+   * installer/Electron version cannot be mistaken for the app version. Fall back to the first bare
+   * semver when no labeled version is present.
+   */
+  const match = /Obsidian\s+v?(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)\b/iu.exec(output)
+    ?? /\b(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)\b/u.exec(output);
   if (!match?.groups) {
     return null;
   }
 
+  const major = Number(match.groups['major']);
+  const minor = Number(match.groups['minor']);
+  const patch = Number(match.groups['patch']);
   return {
-    major: Number(match.groups['major']),
-    minor: Number(match.groups['minor']),
-    patch: Number(match.groups['patch']),
-    text: match[0]
+    major,
+    minor,
+    patch,
+    text: `${String(major)}.${String(minor)}.${String(patch)}`
   };
 }
 
