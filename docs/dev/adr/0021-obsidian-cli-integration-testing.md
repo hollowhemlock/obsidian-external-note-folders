@@ -1,6 +1,6 @@
 ---
 status: "Accepted"
-date: "2026-03-03"
+date: "2026-06-11"
 decision-makers: "Maintainers"
 ---
 
@@ -8,7 +8,10 @@ decision-makers: "Maintainers"
 
 ## Context and Problem Statement
 
-Unit and adapter tests cover internal logic, but they do not verify behavior through the real Obsidian runtime surface. Obsidian CLI enables command-level integration checks against a live vault when an Obsidian 1.12-series installer is present, CLI support is enabled, and the Obsidian app/runtime is available.
+Unit and adapter tests cover internal logic, but they do not verify behavior through the real
+Obsidian runtime surface. Obsidian CLI enables command-level integration checks against a live vault
+when Obsidian 1.12.7 or newer is installed, CLI support is enabled, and the Obsidian app/runtime is
+available.
 
 This project needs an integration requirement that validates plugin behavior with real vault fixtures and real Obsidian command execution, while keeping standard CI fast and deterministic.
 
@@ -41,28 +44,50 @@ Adopt a dedicated **non-required Obsidian CLI integration test lane** with these
 - Integration test files run serially because they share one sandbox vault, one external root, and one
   live Obsidian modal surface
 - Integration tests run via `npm run test:integration`
+- The primary Git checkout owns the integration sandbox and Obsidian runtime; worktrees are limited
+  to headless validation
+- This restriction keeps the GUI integration vault at one stable absolute path. Obsidian's URI
+  handler only opens vault paths present in its global vault registry; each worktree has a different
+  absolute path and would require separate registration. A single registered primary-checkout vault
+  avoids registry mutation, ambiguous runtime targeting, and stale worktree registrations.
 - Integration setup must:
-  - refresh sandbox from committed fixture
   - build plugin artifacts
+  - fully reset the sandbox from committed fixtures
   - install plugin artifacts into sandbox `.obsidian/plugins/<plugin-id>`
+  - verify that the CLI reports Obsidian 1.12.7 or newer
+  - open the sandbox vault when no CLI runtime is available
+  - reload Obsidian with the sandbox vault as the CLI target
+  - probe the live runtime and confirm it is serving the sandbox vault before tests run
 - Integration tests must assert CLI command exposure when the CLI runtime responds
 - Integration tests should prefer committed scenario fixtures when directory shape is the behavior
   being validated; runtime-created files are still appropriate for temporary, generated test cases
   where the directory shape itself is not the behavior under test
 - If no Obsidian CLI binary is found, the integration lane fails because the required integration
   dependency is not installed
-- If the CLI binary exists but Obsidian is not running, the command-line interface is disabled, or
-  the runtime times out, `npm run test:integration` fails because the integration runtime was not
-  actually exercised
-- On Windows, CLI execution uses `Obsidian.com` (not `Obsidian.exe`) when available
+- If the CLI binary exists but the command-line interface is disabled, reload fails, or the runtime
+  times out, `npm run test:integration` fails because the integration runtime was not actually
+  exercised
+- CLI integration requires Obsidian 1.12.7 or newer
+- The CLI and desktop GUI must run in the same operating-system environment because CLI commands
+  use local IPC to the desktop process
+- On Windows, CLI execution uses the `Obsidian.com` redirector installed and registered by the
+  current Obsidian installer, not `Obsidian.exe`
+- WSL cannot use its Linux CLI to control the Windows Obsidian process. Running integration from
+  WSL requires a separate Linux Obsidian 1.12.7+ installation running through WSLg or an X server,
+  with the CLI enabled in that Linux installation.
 - CI integration job is `workflow_dispatch` only and runs on `self-hosted` runners labeled `obsidian-cli`
 - Do not make the integration job a required pull request status check unless an online matching runner is available
 
 ## Required Behavior
 
-- `npm run test:integration` refreshes the sandbox vault from committed fixtures.
 - `npm run test:integration` builds plugin artifacts before invoking Obsidian CLI.
+- `npm run test:integration` fully resets the sandbox vault from committed fixtures.
 - `npm run test:integration` installs artifacts into `.obsidian/plugins/<plugin-id>`.
+- `npm run test:integration` rejects Obsidian versions older than 1.12.7.
+- `npm run test:integration` reloads Obsidian after plugin installation.
+- `npm run test:integration` preparation probes the live runtime and fails before tests run when the
+  Obsidian runtime is unavailable or when the active vault is not the sandbox vault, so the lane
+  never reports against a missing runtime or the wrong vault.
 - `npm run test:integration` verifies that expected plugin commands are exposed through the
   Obsidian CLI command surface.
 - Integration files run serially.
@@ -80,10 +105,13 @@ Adopt a dedicated **non-required Obsidian CLI integration test lane** with these
 
 ### Negative / Trade-offs
 - Requires prepared local or self-hosted environment with Obsidian installed and the CLI enabled
+- WSL runners require a separate Linux GUI installation and cannot reuse a Windows Obsidian runtime
+- GUI integration cannot run directly from linked worktrees; changes must use headless validation
+  there and run Obsidian runtime testing from the primary checkout
 - Manual GitHub runs stay queued until a matching `self-hosted` + `obsidian-cli` runner is online
 - Integration lane is slower than unit-only CI
-- Some Obsidian CLI builds do not expose a stable `version` command, so version assertions are
-  weaker than command-surface assertions
+- The version command is a prerequisite check only; command-surface assertions remain the runtime
+  readiness and plugin-wiring invariant
 
 ## Pros and Cons of the Options
 

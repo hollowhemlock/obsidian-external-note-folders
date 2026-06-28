@@ -1,28 +1,17 @@
-import { exec } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import { resolvePathFromRoot } from 'obsidian-dev-utils/ScriptUtils/Root';
 
-const execAsync = promisify(exec);
+import { openVaultUri } from './open-vault-uri.ts';
+import { assertPrimaryCheckout } from './sandbox-paths.ts';
 
-const FIXTURE_VAULT_RELATIVE_PATH = 'test/fixtures/fixture/vault';
-const SANDBOX_VAULT_RELATIVE_PATH = 'test/fixtures/sandbox/vault';
+const FIXTURE_VAULT_RELATIVE_PATH = 'test/fixtures/fixture/vault-plugin-external-note-folders-fixture';
+const SANDBOX_VAULT_RELATIVE_PATH = 'test/fixtures/sandbox/vault-plugin-external-note-folders-sandbox';
 
 type VaultTarget = 'fixture' | 'sandbox';
 
 async function assertDirectoryExists(targetPath: string): Promise<void> {
   await access(targetPath);
-}
-
-function buildOpenCommand(uri: string): string {
-  if (process.platform === 'win32') {
-    return `start "" "${uri}"`;
-  }
-  if (process.platform === 'darwin') {
-    return `open "${uri}"`;
-  }
-  return `xdg-open "${uri}"`;
 }
 
 async function main(): Promise<void> {
@@ -32,14 +21,13 @@ async function main(): Promise<void> {
     return;
   }
 
+  assertPrimaryCheckout('Obsidian vault opening');
+
   const vaultPath = resolveVaultPath(input as undefined | VaultTarget);
   await assertDirectoryExists(vaultPath);
 
-  const uri = `obsidian://open?path=${encodeURIComponent(vaultPath)}`;
-  const command = buildOpenCommand(uri);
-
   console.log(`Opening vault: ${vaultPath}`);
-  await execAsync(command);
+  await openVaultUri(vaultPath);
 }
 
 function printUsage(): void {
@@ -62,6 +50,6 @@ function resolveVaultPath(input?: string): string {
 
 // eslint-disable-next-line no-void -- top-level entry point
 void main().catch((error: unknown) => {
-  console.error('Failed to open vault:', error);
+  console.error(error instanceof Error ? error.message : error);
   process.exit(1);
 });

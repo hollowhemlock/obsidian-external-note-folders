@@ -153,14 +153,13 @@ reconciliation.
 - `npm run lint`
 - `npm run format:check`
 - `npm run test`
-- `npm run test:integration` (fails unless Obsidian CLI is installed, enabled, and connected to a
-  running Obsidian runtime)
+- `npm run test:integration` (requires Obsidian 1.12.7+ with the CLI enabled and able to reload the
+  sandbox vault)
 - `npm run test:watch`
 - `npm run release:update-versions`
 - `npm run release:check-versions`
 - `npm run release:check-assets`
 - `npm run fixtures:new-sandbox`
-- `npm run fixtures:refresh-sandbox`
 
 ### Commit conventions
 
@@ -266,30 +265,31 @@ The plugin does not use `window.DEBUG`.
 ## Development Fixtures
 
 - Fixture layout lives in `test/fixtures`.
-- Run `npm run fixtures:new-sandbox` to create `sandbox/vault` and `sandbox/external-root`
-  from committed fixture data.
-- Run `npm run fixtures:new-sandboxes` to create the current sandbox plus any linked Git worktree
-  sandboxes from the same committed fixture data.
-- Run `npm run fixtures:refresh-sandbox` to refresh note/external-root content while preserving
-  `sandbox/vault/.obsidian`.
-- Run `npm run fixtures:refresh-sandboxes` to refresh the current and linked worktree sandbox
-  content while preserving each sandbox vault's `.obsidian`.
-- `npm run test:integration` uses `fixtures:refresh-sandbox` so it can run while the sandbox vault
-  is open in Obsidian. The GitHub integration workflow is manual-only and requires an online
-  self-hosted runner labeled `obsidian-cli`.
+- Run `npm run fixtures:new-sandbox` to create
+  `sandbox/vault-plugin-external-note-folders-sandbox` and `sandbox/external-root`
+  from committed fixture data, open the sandbox vault if needed, then reload Obsidian with that
+  vault as the CLI target.
+- Sandbox reset and Obsidian CLI integration commands must run from the primary Git checkout.
+  Linked worktrees fail before building, mutating sandbox files, or controlling Obsidian.
+- The reset is always a full replacement, including
+  `sandbox/vault-plugin-external-note-folders-sandbox/.obsidian`. If Windows still holds a lock after
+  retries, close Obsidian and rerun the command.
+- `npm run test:integration` builds the plugin, fully resets the sandbox, installs the plugin
+  artifacts, reloads Obsidian, and runs the integration tests. The GitHub integration workflow is
+  manual-only and requires an online self-hosted runner labeled `obsidian-cli`.
 - Formal semantic fixture scenarios live under
-  `test/fixtures/fixture/{vault,external-root}/<domain>/<scenario-slug>` with expected JSON under
+  `test/fixtures/fixture/{vault-plugin-external-note-folders-fixture,external-root}/<domain>/<scenario-slug>`
+  with expected JSON under
   `test/fixtures/fixture/expected/<domain>/<scenario-slug>.json`. Workflow fixtures that
   intentionally assert user-visible command paths may use
-  `test/fixtures/fixture/{vault,external-root}/tests/<domain>/...`.
+  `test/fixtures/fixture/{vault-plugin-external-note-folders-fixture,external-root}/tests/<domain>/...`.
 - Integration tests are split by workflow under `test/integration/<domain>.integration.test.ts`.
-- Run `npm run fixtures:open-fixture` or `npm run fixtures:open-sandbox` to open either test vault
-  directly in Obsidian.
-- Run `npm run vault:open -- <vault-path>` to open a specific vault path.
-- `scripts/dev.ts` targets `test/fixtures/sandbox/vault/.obsidian` as the default dev vault.
-- When multiple Git worktrees exist, `scripts/dev.ts` and `scripts/install-plugin-to-sandbox.ts`
-  also update existing sibling worktree sandboxes. This lets the normal checkout sandbox and a
-  linked worktree sandbox both run the current build without manually changing paths.
+- Run `npm run vault:open -- fixture`, `npm run vault:open -- sandbox`, or
+  `npm run vault:open -- <vault-path>` to open a vault directly in Obsidian.
+- `scripts/dev.ts` targets
+  `test/fixtures/sandbox/vault-plugin-external-note-folders-sandbox/.obsidian` as the default dev vault.
+- Sandbox reset, development, installation, opening, and CLI integration commands run only from
+  the primary Git checkout. Worktrees remain suitable for editing and headless validation.
 
 Environment support for additional Obsidian config folders is available in `scripts/dev.ts`:
 

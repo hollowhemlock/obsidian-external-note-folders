@@ -8,18 +8,20 @@ import {
 import {
   assertCliAvailable,
   assertSandboxPluginInstalled,
+  enableSandboxConsoleCapture,
   formatCliResult,
+  getSandboxVaultPath,
   readSandboxPluginId,
-  resolveRepoPath,
   runCli,
   waitForPluginCommands,
+  waitForSandboxModalText,
   writeSandboxReport
 } from './obsidianCliHarness.ts';
 
 const DRIFT_SCENARIO_PATH = 'drift-report/basic-drift-matrix';
 
 describe('drift report integration', () => {
-  const sandboxVaultPath = resolveRepoPath('test/fixtures/sandbox/vault');
+  const sandboxVaultPath = getSandboxVaultPath();
   let pluginId = '';
 
   beforeAll(async () => {
@@ -31,7 +33,7 @@ describe('drift report integration', () => {
     const commandsResult = await waitForPluginCommands(pluginId, sandboxVaultPath);
     assertCliAvailable(commandsResult);
 
-    const debugResult = runCli(['dev:debug', 'on'], sandboxVaultPath);
+    const debugResult = enableSandboxConsoleCapture(sandboxVaultPath);
     expect(debugResult.status, formatCliResult(debugResult)).toBe(0);
     runCli(['dev:console', 'clear'], sandboxVaultPath);
     runCli([
@@ -42,7 +44,10 @@ describe('drift report integration', () => {
     const commandResult = runCli(['command', `id=${pluginId}:report-external-folder-drift`], sandboxVaultPath);
     expect(commandResult.status, formatCliResult(commandResult)).toBe(0);
 
-    const modalResult = runCli(['dev:dom', 'selector=.modal', 'text'], sandboxVaultPath);
+    // The command opens a progress modal first, then swaps in the report modal once the
+    // scan completes. Wait for content unique to the finished report ("Copyable report" is
+    // absent from the progress modal) rather than reading the DOM before it renders.
+    const modalResult = await waitForSandboxModalText('Copyable report');
     expect(modalResult.status, formatCliResult(modalResult)).toBe(0);
     await writeSandboxReport('drift-report/basic-drift-matrix/modal.md', modalResult.stdout);
     expect(modalResult.stdout).toContain('External folder drift report');

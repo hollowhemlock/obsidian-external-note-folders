@@ -5,7 +5,7 @@ Use this note for a quick manual pass in the sandbox vault.
 ## Setup
 
 - Run `npm run integration:prepare`.
-- Run `npm run fixtures:open-sandbox`.
+- If needed, run `npm run vault:open -- sandbox`.
 - Confirm the plugin setting is prefilled with the full path variant of `test/fixtures/sandbox/external-root`.
 
 ## Commands

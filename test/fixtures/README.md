@@ -1,12 +1,13 @@
 # Test Fixtures
 
 - `fixture`: committed baseline test data.
-  - `fixture/vault`: baseline Obsidian vault.
+  - `fixture/vault-plugin-external-note-folders-fixture`: baseline Obsidian vault.
   - `fixture/external-root`: baseline external root.
   - `fixture/expected`: committed expected semantic definitions for fixture scenarios.
-- `fixture/vault/Smoke Test.md`: concise manual smoke test note copied into sandbox vaults.
+- `fixture/vault-plugin-external-note-folders-fixture/Smoke Test.md`: concise manual smoke test note copied
+  into sandbox vaults.
 - `sandbox`: disposable working copy (ignored in git except `.gitkeep`).
-  - `sandbox/vault`: runtime vault copy.
+  - `sandbox/vault-plugin-external-note-folders-sandbox`: runtime vault copy.
   - `sandbox/external-root`: runtime external-root copy.
 
 ## Scenario Naming
@@ -16,11 +17,13 @@ or implementation detail.
 
 Use this convention:
 
-- Put formal semantic scenario data under `fixture/vault/<domain>/<scenario-slug>` and
+- Put formal semantic scenario data under
+  `fixture/vault-plugin-external-note-folders-fixture/<domain>/<scenario-slug>` and
   `fixture/external-root/<domain>/<scenario-slug>`, with expected JSON under
   `fixture/expected/<domain>/<scenario-slug>.json`.
 - Workflow fixtures may intentionally place user-visible notes and folders under
-  `fixture/vault/tests/<domain>/...` and `fixture/external-root/tests/<domain>/...` when the
+  `fixture/vault-plugin-external-note-folders-fixture/tests/<domain>/...` and
+  `fixture/external-root/tests/<domain>/...` when the
   command behavior should report those paths.
 - Use lowercase kebab-case for `<domain>` and `<scenario-slug>`.
 - Prefer action-oriented slugs such as `adopt-exnf-from-plain-note` or
@@ -47,7 +50,7 @@ Integration tests should follow the same domain naming. Put shared Obsidian CLI 
 and workflow tests in `test/integration/<domain>.integration.test.ts`.
 
 Integration tests may write observed command reports to `sandbox/reports/<domain>/`. These files are
-runtime artifacts for debugging and are cleared by fixture refresh. They are not golden snapshots
+runtime artifacts for debugging and are cleared by sandbox reset. They are not golden snapshots
 or the canonical semantic oracle.
 
 ## Expected JSON
@@ -73,50 +76,24 @@ Create a fresh sandbox from fixture:
 npm run fixtures:new-sandbox
 ```
 
-Create fresh sandboxes for the current checkout and linked Git worktrees:
+This fully replaces the sandbox vault and external root, opens the sandbox vault if no CLI runtime
+is available, then runs `obsidian reload` with the sandbox vault as the working directory. If
+Windows reports a persistent lock, close Obsidian and run the command again.
+
+Run all sandbox and integration commands from the primary Git checkout. Linked worktrees fail before
+sandbox access or Obsidian control.
+
+Open the sandbox or fixture vault in Obsidian:
 
 ```powershell
-npm run fixtures:new-sandboxes
-```
-
-Refresh sandbox content from fixture while preserving `sandbox/vault/.obsidian`:
-
-```powershell
-npm run fixtures:refresh-sandbox
-```
-
-Refresh sandbox content for the current checkout and linked Git worktrees:
-
-```powershell
-npm run fixtures:refresh-sandboxes
-```
-
-Print resolved fixture/sandbox absolute paths:
-
-```powershell
-npm run fixtures:paths
-```
-
-When the repository has multiple Git worktrees, this also lists any existing sibling worktree
-sandbox vaults. Dev build/install scripts update those sandboxes in addition to the current
-checkout's sandbox.
-
-Open fixture vault in Obsidian:
-
-```powershell
-npm run fixtures:open-fixture
-```
-
-Open sandbox vault in Obsidian:
-
-```powershell
-npm run fixtures:open-sandbox
+npm run vault:open -- sandbox
+npm run vault:open -- fixture
 ```
 
 Open any vault path in Obsidian:
 
 ```powershell
-npm run vault:open -- test/fixtures/sandbox/vault
+npm run vault:open -- test/fixtures/sandbox/vault-plugin-external-note-folders-sandbox
 ```
 
 Prepare and run Obsidian CLI integration tests:
@@ -133,13 +110,15 @@ npm run test:integration:watch
 
 ## Notes
 
-- `fixtures:refresh-sandbox` is useful during hot-reload sessions because it keeps the sandbox
-  `.obsidian` state while restoring vault content and external-root content from fixture.
+- `scripts/fixtures.ts` retains `--content-only` and `--print-paths` for maintenance and
+  diagnostics from the primary checkout. These flags are intentionally not exposed as routine npm
+  commands.
 - Tests/scripts should mutate sandbox paths, not fixture paths.
 - Tests should assert against fixture-defined expected state, not accept a mutation result and then
   backfill that result as the expected shape.
 - If behavior can be tested without Obsidian, prefer a semantic test under `test/semantic`. Use
   Obsidian CLI integration only for runtime behavior.
-- On Windows, CLI tests use `Obsidian.com` (not `Obsidian.exe`). The integration lane fails unless
-  an Obsidian CLI binary is installed, Obsidian is running, and the command line interface is enabled
-  in Obsidian Settings -> General.
+- Obsidian CLI testing requires Obsidian 1.12.7 or newer.
+- On Windows, CLI tests use the registered `Obsidian.com` redirector, not `Obsidian.exe`.
+- WSL requires a separate Linux Obsidian GUI and Linux CLI in the WSL environment; it cannot attach
+  to the Windows Obsidian process.

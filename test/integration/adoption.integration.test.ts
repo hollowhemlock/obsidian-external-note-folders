@@ -14,7 +14,9 @@ import { buildExnfMarkerFileName } from '../../src/core/marker.ts';
 import {
   assertCliAvailable,
   assertSandboxPluginInstalled,
+  enableSandboxConsoleCapture,
   formatCliResult,
+  getSandboxVaultPath,
   readSandboxPluginId,
   resolveRepoPath,
   runSandboxCli,
@@ -50,7 +52,7 @@ describe('adoption integration', () => {
     const commandsResult = await waitForPluginCommands(pluginId);
     assertCliAvailable(commandsResult);
 
-    const debugResult = runSandboxCli(['dev:debug', 'on']);
+    const debugResult = enableSandboxConsoleCapture();
     expect(debugResult.status, formatCliResult(debugResult)).toBe(0);
     runSandboxCli(['dev:console', 'clear']);
     runSandboxCli([
@@ -82,12 +84,19 @@ describe('adoption integration', () => {
       await waitForAdoptedBinding(expectedAdoption);
     }
 
+    // Close the just-confirmed plan modal first. Its "Confirm adopt N folder(s)" arm state stays
+    // in the DOM and shares the "Adopt existing external folders" heading with a fresh scan, so
+    // waiting on the heading would re-capture the stale modal instead of the post-adoption rescan.
+    closeSandboxModals();
+
     const rerunResult = runSandboxCli(['command', `id=${pluginId}:adopt-existing-external-folders`]);
     expect(rerunResult.status, formatCliResult(rerunResult)).toBe(0);
-    const rerunModalResult = await waitForSandboxModalText('Adopt existing external folders');
+    const afterApplyMatchesText = `${String(expectedShape.afterApply.adoptableMatches)} adoptable match(es)`;
+    const rerunModalResult = await waitForSandboxModalText(afterApplyMatchesText);
     expect(rerunModalResult.status, formatCliResult(rerunModalResult)).toBe(0);
     await writeSandboxReport('adoption/after-apply-modal.txt', rerunModalResult.stdout);
-    expect(rerunModalResult.stdout).toContain(`${String(expectedShape.afterApply.adoptableMatches)} adoptable match(es)`);
+    expect(rerunModalResult.stdout).toContain('Adopt existing external folders');
+    expect(rerunModalResult.stdout).toContain(afterApplyMatchesText);
 
     closeSandboxModals();
   }, 30_000);
@@ -114,7 +123,10 @@ function closeSandboxModals(): void {
 }
 
 async function readAdoptedBinding(expectedAdoption: ExpectedAdoption): Promise<string> {
-  const noteContent = await readFile(path.join(resolveRepoPath('test/fixtures/sandbox/vault'), expectedAdoption.notePath), 'utf8');
+  const noteContent = await readFile(
+    path.join(getSandboxVaultPath(), expectedAdoption.notePath),
+    'utf8'
+  );
   const uuid = parseExnfUuid(noteContent);
   const externalFolderPath = path.join(
     resolveRepoPath('test/fixtures/sandbox/external-root'),

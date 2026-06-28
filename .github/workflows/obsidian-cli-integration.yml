@@ -21,5 +21,5 @@ jobs:
 
       - name: Run Obsidian CLI integration tests
         env:
-          OBSIDIAN_CLI_BIN: ${{ vars.OBSIDIAN_CLI_BIN || 'obsidian' }}
+          OBSIDIAN_CLI_BIN: ${{ vars.OBSIDIAN_CLI_BIN }}
         run: npm run test:integration

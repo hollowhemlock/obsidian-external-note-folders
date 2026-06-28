@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import {
   access,
   mkdir,
@@ -9,16 +8,16 @@ import path from 'node:path';
 import { resolvePathFromRoot } from 'obsidian-dev-utils/ScriptUtils/Root';
 import { expect } from 'vitest';
 
+import type { ObsidianCliResult as CliResult } from '../../scripts/obsidian-cli.ts';
+
+import {
+  formatObsidianCliResult,
+  runObsidianCli
+} from '../../scripts/obsidian-cli.ts';
 import { buildExnfMarkerFileName } from '../../src/core/marker.ts';
 export { writeSandboxReport } from '../support/integration/reportCapture.ts';
 
-export interface CliResult {
-  command: string;
-  errorMessage: string;
-  status: null | number;
-  stderr: string;
-  stdout: string;
-}
+export type { ObsidianCliResult as CliResult } from '../../scripts/obsidian-cli.ts';
 
 interface Manifest {
   id: string;
@@ -29,13 +28,6 @@ const COMMAND_REGISTRATION_ATTEMPTS = 5;
 const COMMAND_REGISTRATION_RETRY_DELAY_MILLISECONDS = 500;
 const MODAL_TEXT_ATTEMPTS = 20;
 const MODAL_TEXT_RETRY_DELAY_MILLISECONDS = 500;
-const WINDOWS_CLI_CANDIDATES = [
-  'Obsidian.com',
-  'obsidian.com',
-  String.raw`${process.env['LOCALAPPDATA'] ?? ''}\Obsidian\Obsidian.com`,
-  String.raw`${process.env['USERPROFILE'] ?? ''}\scoop\apps\obsidian\current\Obsidian.com`
-].filter((candidate) => candidate.length > 0);
-
 export async function assertSandboxPluginInstalled(pluginId: string): Promise<void> {
   await access(path.join(
     getSandboxVaultPath(),
@@ -62,17 +54,11 @@ export async function createCliNote(notePath: string, uuid: string): Promise<voi
 }
 
 export function formatCliResult(result: CliResult): string {
-  return [
-    `command: ${result.command}`,
-    `status: ${String(result.status)}`,
-    `stdout: ${result.stdout || '<empty>'}`,
-    `stderr: ${result.stderr || '<empty>'}`,
-    `error: ${result.errorMessage || '<none>'}`
-  ].join('\n');
+  return formatObsidianCliResult(result);
 }
 
 export function getSandboxVaultPath(): string {
-  return resolveRepoPath('test/fixtures/sandbox/vault');
+  return resolveRepoPath('test/fixtures/sandbox/vault-plugin-external-note-folders-sandbox');
 }
 
 export async function readSandboxPluginId(): Promise<string> {
@@ -89,40 +75,19 @@ export function resolveRepoPath(relativePath: string): string {
 }
 
 export function runCli(args: readonly string[], vaultPath: string): CliResult {
-  const candidates = getCliCandidates();
-
-  for (const candidate of candidates) {
-    const result = spawnSync(candidate, args, {
-      cwd: vaultPath,
-      encoding: 'utf8',
-      timeout: CLI_TIMEOUT_MILLISECONDS
-    });
-
-    const errorMessage = result.error ? String(result.error.message) : '';
-    const output: CliResult = {
-      command: `${candidate} ${args.join(' ')}`.trim(),
-      errorMessage,
-      status: result.status,
-      stderr: (result.stderr ?? '').trim(),
-      stdout: (result.stdout ?? '').trim()
-    };
-
-    if (!result.error || !`${result.error}`.includes('ENOENT')) {
-      return output;
-    }
-  }
-
-  return {
-    command: `${candidates.join(' OR ')} ${args.join(' ')}`.trim(),
-    errorMessage: 'No Obsidian CLI binary found in configured/default locations.',
-    status: null,
-    stderr: '',
-    stdout: ''
-  };
+  return runObsidianCli(args, vaultPath, CLI_TIMEOUT_MILLISECONDS);
 }
 
 export function runSandboxCli(args: readonly string[]): CliResult {
   return runCli(args, getSandboxVaultPath());
+}
+
+export function enableSandboxConsoleCapture(vaultPath = getSandboxVaultPath()): CliResult {
+  // `app:reload` detaches the console debugger but leaves the CLI reporting it as still attached,
+  // so a plain `dev:debug on` is a no-op that captures nothing. Force a clean detach/attach so
+  // console assertions observe fresh output regardless of any prior reload.
+  runCli(['dev:debug', 'off'], vaultPath);
+  return runCli(['dev:debug', 'on'], vaultPath);
 }
 
 export async function waitForPluginCommands(pluginId: string, vaultPath = getSandboxVaultPath()): Promise<CliResult> {
@@ -166,19 +131,6 @@ async function delay(milliseconds: number): Promise<void> {
   await new Promise<void>((resolve) => {
     setTimeout(resolve, milliseconds);
   });
-}
-
-function getCliCandidates(): string[] {
-  const configured = process.env['OBSIDIAN_CLI_BIN'];
-  if (configured) {
-    return [configured];
-  }
-
-  if (process.platform === 'win32') {
-    return WINDOWS_CLI_CANDIDATES;
-  }
-
-  return ['obsidian'];
 }
 
 function isManifest(input: unknown): input is Manifest {
