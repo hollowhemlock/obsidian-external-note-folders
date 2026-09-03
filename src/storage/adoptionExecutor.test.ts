@@ -355,6 +355,7 @@ function buildPlan(): AdoptionPlan {
     hasGlobalErrors: false,
     markdownReport: '',
     mutationSequence: 0,
+    residualGroups: [],
     rows: [
       {
         externalFolder: 'Projects/Alpha',
@@ -363,6 +364,15 @@ function buildPlan(): AdoptionPlan {
         notePath: 'Projects/Alpha.md'
       }
     ],
+    summary: {
+      adoptableLeafMatches: 1,
+      blockedCandidates: 0,
+      errorCount: 0,
+      prunedExistingBindings: 0,
+      residualDirectories: 0,
+      suppressedAncestorCandidates: 0,
+      warningCount: 0
+    },
     summaryText: '',
     warnings: []
   };

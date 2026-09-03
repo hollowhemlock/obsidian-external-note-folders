@@ -35,19 +35,28 @@ for mixed external roots.
 - Notes that already appear in the vault identity scan, including duplicate UUID
   note paths, are not adoption candidates.
 - Blocked rows still show cleanup details; safe unrelated rows can execute.
+- Candidate selection is leaf-first across the complete scan. If exact
+  candidates overlap, only candidates without candidate descendants are
+  eligible; blocked descendants still suppress ancestors, while deepest
+  siblings may execute together.
 - Adoptable rows are exact one-to-one matches between note-derived external
   paths and existing external directories. Folder-note collapse applies, so
   `A/B/B.md` matches external folder `A/B`.
 - No suffix, basename, or fuzzy tree-tail inference is used.
-- Collisions, duplicate normalized folder identities, and unmatched folders are
-  reported but not adopted.
+- Collisions and duplicate normalized folder identities are reported but not
+  adopted.
 - Adoption reports are external-root driven. Unbound vault notes whose derived
   folder is absent from the scanned, ignored, or skipped external-root tree are
   omitted instead of producing broad unmatched-note noise. If an external branch
   matches duplicate note forms, such as sibling `A/B.md` and folder note
   `A/B/B.md`, both notes are reported as blocked duplicate candidates.
-- Parent folders that only contain bound, blocked, or adoptable external folders
-  are structural containers and are omitted from unmatched folder rows.
+- Existing bound and planned adoptable subtrees, plus their structural
+  ancestors, are omitted from the residual tree. Remaining directories are
+  counted by their first root-relative segment with five stable samples per
+  group instead of individual unmatched-folder rows.
+- Existing valid identities and markers are summarized instead of emitted as
+  individual warnings. Malformed, duplicate, skipped, and ignored evidence
+  remains visible.
 - Candidate targets are blocked when they are ignored, inside skipped
   directories, marked, malformed, already bound, overlapped by ancestor or
   descendant marker evidence, or duplicated by normalized path identity.

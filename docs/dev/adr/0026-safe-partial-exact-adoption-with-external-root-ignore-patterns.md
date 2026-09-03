@@ -51,6 +51,19 @@ or blocked rows but does not suppress safe rows.
 The old invariant was whole-root pristine/coherent. The new invariant is
 row-local coherence for each adopted exact match.
 
+Candidate selection is leaf-first across the complete scan. When exact
+candidates have an ancestor/descendant relationship, only candidates with no
+candidate descendants are eligible. An ancestor remains suppressed even when
+its descendant is blocked, so a broader folder is never adopted as fallback.
+Multiple deepest sibling candidates remain independently eligible. This
+prevents one adoption run from creating nested bound folders.
+
+Existing valid vault identities also reserve their current note-derived target
+topology, even when the corresponding external marker is missing or drifted.
+New candidates whose targets equal, contain, or fall inside one of those
+reserved targets are blocked. Adoption therefore cannot introduce UUID
+identity at two levels of the same vault/external path branch.
+
 Only root-level scan failures and invalid ignore settings remain global blockers.
 Existing unrelated vault identities, external markers, malformed markers,
 skipped descendant directories, and ignored directories are reported but do not
@@ -101,13 +114,23 @@ does not expose that information directly.
 - Ignored target paths block the affected note with an ignored-target message.
 - Duplicate normalized derived targets block the affected notes.
 - Duplicate normalized target directories block the affected notes.
-- Ancestor directories of bound, blocked, or adoptable external folders are
-  structural containers and are omitted from unmatched external folder rows.
+- Ancestor directories of existing bound or planned adoptable external folders
+  are structural containers and are omitted from residual-directory counts.
 - Adoption reports are external-root driven. Unbound vault notes whose derived
   external folder is absent from the scanned, ignored, or skipped external-root
   tree are omitted instead of reported as unmatched notes. When a real external
   branch matches duplicate note forms, such as sibling `A/B.md` and folder note
   `A/B/B.md`, both notes are reported as blocked duplicate candidates.
+- Existing bound folders and planned adoptable folders are conceptually pruned
+  with their descendants. Their structural ancestors are also omitted. The
+  remaining external directories are reported as exact counts grouped by their
+  first root-relative segment, with at most five deterministic sample paths per
+  group; individual residual rows are not materialized.
+- Existing valid vault identities and external markers are summarized as
+  pruned binding counts instead of one warning per identity. Malformed,
+  duplicate, skipped, and ignored evidence remains visible.
+- Depth-limited adoption stages are not allowed because a partial scan cannot
+  prove that a shallower candidate has no descendant candidate or marker.
 - No fuzzy, suffix, tree-tail, or basename-only adoption is allowed.
 
 Execution remains marker-first, frontmatter-second, journaled, and preflighted
@@ -132,6 +155,8 @@ immediately before apply.
 - The ignore pattern subset is less powerful than full `.gitignore` behavior
   because v1 rejects `!` negation
 - Reports need an additional ignored/unchecked state
+- Ancestor notes with exact external folders remain unassigned when a deeper
+  exact candidate exists; users must change the topology before adopting them
 
 ## Pros and Cons of the Options
 

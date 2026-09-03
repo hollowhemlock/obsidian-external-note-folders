@@ -124,8 +124,8 @@ integrity state.
 | R16 | Exact-name candidate folder marked active UUID | Recovery match |
 | R17 | Exact-name candidate folder marked other UUID | Display-only candidate |
 | R18 | Multiple exact-name candidates | Modal list; no ambiguous auto-adopt |
-| R19 | Ancestor container directories of matched folders | Not unmatched external folders |
-| R20 | Descendant directories under marked folders | Not unmatched external folders |
+| R19 | Ancestor container directories of matched folders | Omitted from residual-directory counts |
+| R20 | Descendant directories under marked folders | Omitted from residual-directory counts |
 | R21 | Case or Unicode duplicate external targets | Collision |
 | R22 | External folder contains important payload files | Mutation must preserve |
 
@@ -216,15 +216,19 @@ integrity state.
 | --- | --- |
 | V2 + exact T2/T3 + unique target | `adopt` |
 | V2 + T0 | No row; adoption reports are external-root driven and do not enumerate unbound vault notes whose derived folders are absent |
+| V2 exact ancestor + V2 exact descendant | Deepest candidate is `adopt`; ancestor is suppressed even if the descendant is blocked |
+| Multiple deepest exact siblings | Each safe sibling is `adopt` |
 | V2 + target ignored T17 | `blocked-note`: `ignored-target` |
 | V2 + target skipped T18 | `blocked-note`: `target-skipped` |
 | V2 + T4/T5/T8 | `blocked-note`: `target-already-bound` |
 | V2 + T9/T10/T14 | `blocked-note`: `target-has-malformed-marker` |
 | V2 + T23/T24 | Blocked overlap/conflict |
+| V2 target overlaps V3 note-derived target | Blocked identified-note topology conflict, even when the V3 marker is missing or drifted |
 | V2 + duplicate derived target V11 | Blocked duplicate-note-target |
 | V2 + duplicate matching external directories via case/Unicode | Blocked duplicate-target-directory |
-| V3/V4/V5/V6 | Existing/invalid vault identity warning; not adoptable |
-| R10/R11 unrelated | Warning only; safe rows still adopt |
+| V3 | Existing valid identity summarized; not adoptable |
+| V4/V5/V6 | Invalid vault identity warning; not adoptable |
+| R10/R11 unrelated | Existing valid marker summarized; safe rows still adopt |
 | R6 unrelated malformed | Warning only; safe rows still adopt |
 | G7 unrelated skipped | Warning only; safe rows still adopt |
 | G11/G12/root access failure | Global blocker |
@@ -234,6 +238,7 @@ integrity state.
 | Apply: marker write succeeds then frontmatter fails | Journal incomplete; resume supported |
 | Apply: frontmatter write attempted with marker changed | Stops on first failure |
 | Rerun after success | 0 adoptable for adopted rows; payload preserved |
+| Residual external directories | Group by first root-relative segment with exact counts and at most five stable samples; no per-directory plan rows |
 
 ### Reconcile External Folders
 

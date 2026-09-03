@@ -65,7 +65,107 @@ describe('adoption plan', () => {
     ]);
   });
 
-  it('keeps unrelated existing identities and markers as warnings', () => {
+  it('selects the deepest exact candidate and suppresses its ancestor', () => {
+    const parentFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
+    const childFolderPath = path.join(parentFolderPath, 'Research');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        directories: [
+          path.join(EXTERNAL_ROOT, 'Projects'),
+          parentFolderPath,
+          childFolderPath
+        ]
+      }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md', 'Projects/Alpha/Research.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(getAdoptionRows(plan)).toEqual([
+      {
+        externalFolder: 'Projects/Alpha/Research',
+        folderPath: childFolderPath,
+        kind: 'adopt',
+        notePath: 'Projects/Alpha/Research.md'
+      }
+    ]);
+    expect(plan.summary.suppressedAncestorCandidates).toBe(1);
+    expect(plan.residualGroups).toEqual([]);
+  });
+
+  it('selects only the deepest candidate in a three-level chain', () => {
+    const deepestFolderPath = path.join(EXTERNAL_ROOT, 'A', 'B', 'C');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        directories: [
+          path.join(EXTERNAL_ROOT, 'A'),
+          path.join(EXTERNAL_ROOT, 'A', 'B'),
+          deepestFolderPath
+        ]
+      }),
+      mutationSequence: 0,
+      notePaths: ['A.md', 'A/B.md', 'A/B/C.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(getAdoptionRows(plan).map((row) => row.folderPath)).toEqual([deepestFolderPath]);
+    expect(plan.summary.suppressedAncestorCandidates).toBe(2);
+  });
+
+  it('selects multiple deepest sibling candidates', () => {
+    const alphaFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
+    const betaFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Beta');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        directories: [
+          path.join(EXTERNAL_ROOT, 'Projects'),
+          alphaFolderPath,
+          betaFolderPath
+        ]
+      }),
+      mutationSequence: 0,
+      notePaths: ['Projects.md', 'Projects/Alpha.md', 'Projects/Beta.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(getAdoptionRows(plan).map((row) => row.folderPath)).toEqual([
+      alphaFolderPath,
+      betaFolderPath
+    ]);
+    expect(plan.summary.suppressedAncestorCandidates).toBe(1);
+  });
+
+  it('suppresses an ancestor even when the deepest candidate is blocked', () => {
+    const parentFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
+    const childFolderPath = path.join(parentFolderPath, 'Research');
+    const malformedMarkerPath = path.join(childFolderPath, buildExnfMarkerFileName(EXISTING_UUID));
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        directories: [parentFolderPath, childFolderPath],
+        malformedMarkers: [{
+          location: malformedMarkerPath,
+          message: 'Invalid marker'
+        }]
+      }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md', 'Projects/Alpha/Research.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(getAdoptionRows(plan)).toEqual([]);
+    expect(plan.rows).toEqual([
+      {
+        externalFolder: 'Projects/Alpha/Research',
+        kind: 'blocked-note',
+        message: 'Derived external folder path contains a malformed marker.',
+        notePath: 'Projects/Alpha/Research.md',
+        reason: 'target-has-malformed-marker'
+      }
+    ]);
+    expect(plan.summary.suppressedAncestorCandidates).toBe(1);
+  });
+
+  it('summarizes unrelated existing identities and markers without warning rows', () => {
     const plan = buildAdoptionPlan({
       externalScan: buildExternalScan({
         bindings: new Map([[EXISTING_UUID, path.join(EXTERNAL_ROOT, 'Projects', 'Alpha')]]),
@@ -80,8 +180,8 @@ describe('adoption plan', () => {
 
     expect(plan.hasGlobalErrors).toBe(false);
     expect(plan.errors).toEqual([]);
-    expect(plan.warnings).toContain(`Existing vault identity at Projects/Alpha.md: ${EXISTING_UUID}`);
-    expect(plan.warnings).toContain(`Existing external marker at Projects/Alpha: ${EXISTING_UUID}`);
+    expect(plan.warnings).toEqual([]);
+    expect(plan.summary.prunedExistingBindings).toBe(1);
     expect(getAdoptionRows(plan)).toEqual([
       {
         externalFolder: 'Projects/Beta',
@@ -221,6 +321,38 @@ describe('adoption plan', () => {
       notePath: 'Projects/Alpha.md',
       reason: 'ancestor-bound-folder'
     });
+  });
+
+  it('blocks candidates that overlap existing identified note targets', () => {
+    const parentFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
+    const childFolderPath = path.join(parentFolderPath, 'Research');
+    const descendantCandidatePlan = buildAdoptionPlan({
+      externalScan: buildExternalScan({ directories: [parentFolderPath, childFolderPath] }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md', 'Projects/Alpha/Research.md'],
+      vaultScan: buildVaultScan({
+        bindings: new Map([[EXISTING_UUID, 'Projects/Alpha.md']])
+      })
+    });
+    const ancestorCandidatePlan = buildAdoptionPlan({
+      externalScan: buildExternalScan({ directories: [parentFolderPath, childFolderPath] }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md', 'Projects/Alpha/Research.md'],
+      vaultScan: buildVaultScan({
+        bindings: new Map([[EXISTING_UUID, 'Projects/Alpha/Research.md']])
+      })
+    });
+
+    expect(descendantCandidatePlan.rows).toContainEqual(expect.objectContaining({
+      notePath: 'Projects/Alpha/Research.md',
+      reason: 'ancestor-identified-note'
+    }));
+    expect(ancestorCandidatePlan.rows).toContainEqual(expect.objectContaining({
+      notePath: 'Projects/Alpha.md',
+      reason: 'descendant-identified-note'
+    }));
+    expect(getAdoptionRows(descendantCandidatePlan)).toEqual([]);
+    expect(getAdoptionRows(ancestorCandidatePlan)).toEqual([]);
   });
 
   it('blocks only the note whose target contains a descendant marker', () => {
@@ -453,7 +585,7 @@ describe('adoption plan', () => {
     });
 
     expect(plan.rows).toEqual([]);
-    expect(plan.summaryText).toContain('0 unmatched note(s)');
+    expect(plan.summaryText).not.toContain('unmatched note');
   });
 
   it('does not report duplicate note targets when no matching external branch exists', () => {
@@ -491,7 +623,7 @@ describe('adoption plan', () => {
     ]);
   });
 
-  it('does not also report candidate directories as unmatched when notes are blocked', () => {
+  it('keeps blocked candidate directories in the residual summary', () => {
     const folderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
     const plan = buildAdoptionPlan({
       externalScan: buildExternalScan({ directories: [folderPath] }),
@@ -500,10 +632,16 @@ describe('adoption plan', () => {
       vaultScan: buildVaultScan()
     });
 
-    expect(plan.rows.filter((row) => row.kind === 'unmatched-external-folder')).toEqual([]);
+    expect(plan.residualGroups).toEqual([
+      {
+        directoryCount: 1,
+        groupPath: 'Projects',
+        samplePaths: ['Projects/Alpha']
+      }
+    ]);
   });
 
-  it('does not report ancestor directories of adoptable folders as unmatched', () => {
+  it('groups residual directories after pruning adoptable folders and structural ancestors', () => {
     const parentFolderPath = path.join(EXTERNAL_ROOT, 'tests');
     const adoptionRootPath = path.join(parentFolderPath, 'exnf-adoption');
     const folderNotePath = path.join(adoptionRootPath, 'adopt-exnf-from-folder-note');
@@ -528,16 +666,16 @@ describe('adoption plan', () => {
     });
 
     expect(getAdoptionRows(plan)).toHaveLength(2);
-    expect(plan.rows.filter((row) => row.kind === 'unmatched-external-folder')).toEqual([
+    expect(plan.residualGroups).toEqual([
       {
-        externalFolder: 'tests/unrelated-folder',
-        folderPath: unrelatedLeafPath,
-        kind: 'unmatched-external-folder'
+        directoryCount: 1,
+        groupPath: 'tests',
+        samplePaths: ['tests/unrelated-folder']
       }
     ]);
   });
 
-  it('does not report descendants of marked folders as unmatched', () => {
+  it('groups residual directories after pruning descendants of marked folders', () => {
     const markedFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
     const childFolderPath = path.join(markedFolderPath, 'Research');
     const unrelatedFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Beta');
@@ -557,13 +695,56 @@ describe('adoption plan', () => {
       vaultScan: buildVaultScan()
     });
 
-    expect(plan.rows.filter((row) => row.kind === 'unmatched-external-folder')).toEqual([
+    expect(plan.residualGroups).toEqual([
       {
-        externalFolder: 'Projects/Beta',
-        folderPath: unrelatedFolderPath,
-        kind: 'unmatched-external-folder'
+        directoryCount: 1,
+        groupPath: 'Projects',
+        samplePaths: ['Projects/Beta']
       }
     ]);
+  });
+
+  it('caps deterministic residual samples without materializing plan rows', () => {
+    const residualFolderPaths = Array.from({ length: 1_000 }, (_, index) => path.join(EXTERNAL_ROOT, 'Archive', `Folder-${String(index).padStart(4, '0')}`));
+    const absentNotePaths = Array.from({ length: 1_000 }, (_, index) => `Notes/Absent-${String(index).padStart(4, '0')}.md`);
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        directories: [path.join(EXTERNAL_ROOT, 'Archive'), ...residualFolderPaths.reverse()]
+      }),
+      mutationSequence: 0,
+      notePaths: absentNotePaths,
+      vaultScan: buildVaultScan()
+    });
+
+    expect(plan.rows).toEqual([]);
+    expect(plan.residualGroups).toEqual([
+      {
+        directoryCount: 1_001,
+        groupPath: 'Archive',
+        samplePaths: [
+          'Archive',
+          'Archive/Folder-0000',
+          'Archive/Folder-0001',
+          'Archive/Folder-0002',
+          'Archive/Folder-0003'
+        ]
+      }
+    ]);
+    expect(plan.markdownReport).not.toContain('Folder-0999');
+  });
+
+  it('documents leaf-first confirmation and prospective marker paths', () => {
+    const folderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({ directories: [folderPath] }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(plan.markdownReport).toContain('Leaf-first policy');
+    expect(plan.markdownReport).toContain('Confirmation applies to the entire plan');
+    expect(plan.markdownReport).toContain('Projects/Alpha/<new-uuid>.exnf');
   });
 
   it('reports notes that cannot derive an external path as blocked rows', () => {

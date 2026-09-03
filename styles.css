@@ -34,6 +34,12 @@
   font-size: var(--font-ui-small);
 }
 
+.external-note-folders-adoption-guidance {
+  padding: 8px 10px;
+  border-left: 3px solid var(--interactive-accent);
+  background: var(--background-secondary);
+}
+
 .external-note-folders-modal-actions {
   display: flex;
   gap: 8px;

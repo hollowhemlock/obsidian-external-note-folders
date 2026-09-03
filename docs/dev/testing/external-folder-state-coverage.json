@@ -86,12 +86,12 @@
     {
       "kind": "unit-test",
       "domain": "adoption-plan",
-      "scenario": "broad-root-structural-containers",
+      "scenario": "broad-root-residual-groups",
       "testPath": "src/core/adoptionPlan.test.ts",
       "stateIds": [
         "G14"
       ],
-      "notes": "Covers broad-root noise by treating root container paths such as test fixture ancestors as structural folders rather than unmatched external folders."
+      "notes": "Covers broad-root noise by pruning structural containers and returning exact residual counts with bounded deterministic samples instead of per-directory rows."
     },
     {
       "kind": "unit-test",
@@ -237,13 +237,13 @@
     {
       "kind": "unit-test",
       "domain": "adoption-plan",
-      "scenario": "unrelated-existing-identities",
+      "scenario": "summarized-existing-identities",
       "testPath": "src/core/adoptionPlan.test.ts",
       "stateIds": [
         "R10",
         "R11"
       ],
-      "notes": "Covers unrelated existing vault identities and unrelated external markers as adoption warnings instead of global blockers."
+      "notes": "Covers unrelated valid vault identities and external markers as summarized pruned bindings instead of warning rows or global blockers."
     },
     {
       "kind": "unit-test",
@@ -260,13 +260,13 @@
     {
       "kind": "unit-test",
       "domain": "adoption-plan",
-      "scenario": "structural-container-filtering",
+      "scenario": "leaf-first-topology-and-residual-filtering",
       "testPath": "src/core/adoptionPlan.test.ts",
       "stateIds": [
         "R19",
         "R20"
       ],
-      "notes": "Covers ancestor container directories and descendants under marked folders being excluded from unmatched external folder rows."
+      "notes": "Covers deepest-candidate selection plus ancestor containers and marked descendants being excluded from grouped residual-directory counts."
     },
     {
       "kind": "unit-test",

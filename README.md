@@ -24,7 +24,7 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 
 - `Assign external folder identifier`: Adds an `exnf` UUID to the active markdown note if one is missing. It never creates or changes external folders.
 - `Open external folder`: Requires an existing valid `exnf` UUID and never assigns note identity. It opens the expected folder immediately when its marker matches; otherwise it runs an active-note recovery scan for fallback cases where the expected folder is missing, unmarked, malformed, or bound to another UUID.
-- `Adopt existing external folders`: Builds a dry-run plan for exact one-to-one derived-path matches from notes that do not already have `exnf` identity and, after confirmation, writes `<uuid>.exnf` markers first and note frontmatter second. Unrelated existing identities and markers are warnings; only unsafe rows or root-level scan problems block execution.
+- `Adopt existing external folders`: Builds a leaf-first dry-run plan for exact derived-path matches from notes that do not already have `exnf` identity. When exact candidates overlap, only the deepest candidates are eligible, and targets overlapping an already-identified note or marked folder are blocked, so adoption never creates nested identities or bound folders. After confirmation, the command writes `<uuid>.exnf` markers first and note frontmatter second.
 - `Report external folder drift`: Read-only report that compares current note-derived external folder paths against existing external folders, highlights integrity errors, missing/orphaned/unexpected/occupied paths, and suggests likely matches.
 - `Reconcile external folders`: Builds a dry-run move plan and, only after explicit confirmation, moves existing bound external folders to their current note-derived paths. It never deletes folders or marker files and stops on first failure.
 - `Migrate legacy marker files`: Builds a dry-run plan that renames legacy fixed `.exnf` markers to `<uuid>.exnf` and executes only after explicit confirmation.
@@ -126,7 +126,7 @@ reconciliation.
 ## Known Limitations
 
 - Reconcile only moves already-bound external folders to note-derived paths. It does not infer new bindings, repair invalid markers, relink folders, delete folders, or resolve conflicts automatically.
-- Bulk adoption is strict but partial: it only adopts exact derived-path matches whose individual target row is safe. Unrelated identities, markers, skipped directories, and ignored directories are reported without suppressing unrelated safe rows.
+- Bulk adoption is strict, partial, and leaf-first: it only adopts deepest exact derived-path matches whose individual target row is safe. Existing bindings and planned leaves are pruned from a compact residual-tree summary; malformed, duplicate, skipped, and ignored evidence remains visible without suppressing unrelated safe rows.
 - `Report external folder drift` is read-only and can be used before reconcile to inspect missing, orphaned, unexpected, occupied, and likely moved folders without changing the vault or external root.
 - `Open external folder` does not assign note identity. Run `Assign external folder identifier` first for notes without `exnf`.
 - ADR-0025 recovery scans are active-note scoped, not a substitute for full drift reporting. Long-running commands show a start/progress modal, but scan caps, cancellation, and cached indexes are intentionally out of scope until performance requires them.

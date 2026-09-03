@@ -13,6 +13,8 @@ import {
   normalizePathForIdentity
 } from './pathPolicy.ts';
 
+const RESIDUAL_SAMPLE_LIMIT = 5;
+
 export interface AdoptionAdoptRow {
   externalFolder: string;
   folderPath: string;
@@ -22,12 +24,15 @@ export interface AdoptionAdoptRow {
 
 export type AdoptionBlockedNoteReason =
   | 'ancestor-bound-folder'
+  | 'ancestor-identified-note'
   | 'derived-path-error'
   | 'descendant-bound-folder'
+  | 'descendant-identified-note'
   | 'duplicate-note-target'
   | 'duplicate-target-directory'
   | 'ignored-target'
   | 'target-already-bound'
+  | 'target-already-identified'
   | 'target-has-malformed-marker'
   | 'target-skipped';
 
@@ -45,32 +50,48 @@ export interface AdoptionPlan {
   hasGlobalErrors: boolean;
   markdownReport: string;
   mutationSequence: number;
+  residualGroups: AdoptionResidualGroup[];
   rows: AdoptionPlanRow[];
+  summary: AdoptionPlanSummary;
   summaryText: string;
   warnings: string[];
 }
 
 export type AdoptionPlanRow =
   | AdoptionAdoptRow
-  | AdoptionBlockedNoteRow
-  | AdoptionUnmatchedExternalFolderRow
-  | AdoptionUnmatchedNoteRow;
+  | AdoptionBlockedNoteRow;
 
-export interface AdoptionUnmatchedExternalFolderRow {
-  externalFolder: string;
-  folderPath: string;
-  kind: 'unmatched-external-folder';
+export interface AdoptionPlanSummary {
+  adoptableLeafMatches: number;
+  blockedCandidates: number;
+  errorCount: number;
+  prunedExistingBindings: number;
+  residualDirectories: number;
+  suppressedAncestorCandidates: number;
+  warningCount: number;
 }
 
-export interface AdoptionUnmatchedNoteRow {
-  externalFolder: string;
-  kind: 'unmatched-note';
-  notePath: string;
+export interface AdoptionResidualGroup {
+  directoryCount: number;
+  groupPath: string;
+  samplePaths: string[];
+}
+
+interface AdoptionPlanningResult {
+  prunedExistingBindings: number;
+  residualGroups: AdoptionResidualGroup[];
+  rows: AdoptionPlanRow[];
+  suppressedAncestorCandidates: number;
 }
 
 interface DirectoryCandidate {
   folderPath: string;
   identity: string;
+}
+
+interface IdentifiedNoteTarget {
+  identity: string;
+  message: string;
 }
 
 interface MarkerIdentity {
@@ -94,6 +115,7 @@ interface NoteCandidateBuildResult {
 interface PlannerContext {
   directoryCandidatesByIdentity: Map<string, DirectoryCandidate[]>;
   externalScan: ExternalScanResult;
+  identifiedNoteTargets: IdentifiedNoteTarget[];
   ignoredDirectoryIdentities: ReadonlySet<string>;
   markerIdentities: MarkerIdentity[];
   skippedDirectoryIdentities: string[];
@@ -112,26 +134,28 @@ export function buildAdoptionPlan(input: {
 }): AdoptionPlan {
   const errors = buildGlobalErrors(input.externalScan);
   const warnings = buildWarnings(input.vaultScan, input.externalScan);
-  const rows: AdoptionPlanRow[] = [];
-
-  if (errors.length === 0) {
-    rows.push(...buildAdoptionRows(input.notePaths, input.vaultScan, input.externalScan));
-  }
-
-  const sortedRows = sortRows(rows);
-  const summaryText = buildSummaryText(errors, warnings, sortedRows);
+  const planningResult = errors.length === 0
+    ? buildAdoptionRows(input.notePaths, input.vaultScan, input.externalScan)
+    : buildEmptyPlanningResult();
+  const sortedRows = sortRows(planningResult.rows);
+  const summary = buildSummary(errors, warnings, sortedRows, planningResult);
+  const summaryText = buildSummaryText(summary);
   return {
     errors: errors.sort(),
     externalRootPath: input.externalScan.rootPath,
     hasGlobalErrors: errors.length > 0,
     markdownReport: buildMarkdownReport({
       errors: errors.sort(),
+      residualGroups: planningResult.residualGroups,
       rows: sortedRows,
+      summary,
       summaryText,
       warnings
     }),
     mutationSequence: input.mutationSequence,
+    residualGroups: planningResult.residualGroups,
     rows: sortedRows,
+    summary,
     summaryText,
     warnings
   };
@@ -159,7 +183,7 @@ function buildAdoptionRows(
   notePaths: readonly string[],
   vaultScan: VaultScanResult,
   externalScan: ExternalScanResult
-): AdoptionPlanRow[] {
+): AdoptionPlanningResult {
   const {
     blockedRows,
     noteCandidates
@@ -172,28 +196,26 @@ function buildAdoptionRows(
   const context: PlannerContext = {
     directoryCandidatesByIdentity: groupByIdentity(directoryCandidates),
     externalScan,
+    identifiedNoteTargets: buildExistingIdentifiedNoteTargets(vaultScan, externalScan.rootPath),
     ignoredDirectoryIdentities: new Set(externalScan.ignoredDirectories.map((directory) => normalizePathForIdentity(directory.folderPath))),
     markerIdentities: buildMarkerIdentities(externalScan),
     skippedDirectoryIdentities: externalScan.skippedDirectories.map((issue) => normalizePathForIdentity(issue.location))
   };
-  const relevantCandidateIdentities = new Set<string>();
+  const relevantCandidates = noteCandidates.filter((noteCandidate) => hasMatchingExternalBranch(noteCandidate, context));
+  const suppressedCandidateIdentities = findSuppressedCandidateIdentities(relevantCandidates);
   const rows: AdoptionPlanRow[] = [...blockedRows];
 
-  for (const noteCandidate of noteCandidates) {
+  for (const noteCandidate of relevantCandidates) {
+    if (suppressedCandidateIdentities.has(noteCandidate.identity)) {
+      continue;
+    }
+
     const noteCandidateSiblings = noteCandidatesByIdentity.get(noteCandidate.identity) ?? [];
     const directoryCandidateSiblings = context.directoryCandidatesByIdentity.get(noteCandidate.identity) ?? [];
     const ignoredDirectory = [...context.ignoredDirectoryIdentities]
       .find((ignoredIdentity) => isPathInsideOrEqualIdentity(noteCandidate.identity, ignoredIdentity));
     const skippedDirectory = context.skippedDirectoryIdentities
       .find((skippedIdentity) => isPathInsideOrEqualIdentity(noteCandidate.identity, skippedIdentity));
-    const hasMatchingExternalBranch = directoryCandidateSiblings.length > 0
-      || Boolean(ignoredDirectory)
-      || Boolean(skippedDirectory);
-    if (!hasMatchingExternalBranch) {
-      continue;
-    }
-
-    relevantCandidateIdentities.add(noteCandidate.identity);
 
     if (noteCandidateSiblings.length > 1) {
       rows.push({
@@ -224,6 +246,42 @@ function buildAdoptionRows(
         message: 'Derived external folder path is inside a skipped external directory.',
         notePath: noteCandidate.notePath,
         reason: 'target-skipped'
+      });
+      continue;
+    }
+
+    const exactIdentifiedNoteConflict = findExactIdentifiedNoteConflict(context.identifiedNoteTargets, noteCandidate.identity);
+    if (exactIdentifiedNoteConflict) {
+      rows.push({
+        externalFolder: noteCandidate.externalFolder,
+        kind: 'blocked-note',
+        message: `Derived external folder path is already reserved by ${exactIdentifiedNoteConflict.message}.`,
+        notePath: noteCandidate.notePath,
+        reason: 'target-already-identified'
+      });
+      continue;
+    }
+
+    const ancestorIdentifiedNoteConflict = findAncestorIdentifiedNoteConflict(context.identifiedNoteTargets, noteCandidate.identity);
+    if (ancestorIdentifiedNoteConflict) {
+      rows.push({
+        externalFolder: noteCandidate.externalFolder,
+        kind: 'blocked-note',
+        message: `Identified ancestor note reserves a folder containing this target: ${ancestorIdentifiedNoteConflict.message}`,
+        notePath: noteCandidate.notePath,
+        reason: 'ancestor-identified-note'
+      });
+      continue;
+    }
+
+    const descendantIdentifiedNoteConflict = findDescendantIdentifiedNoteConflict(context.identifiedNoteTargets, noteCandidate.identity);
+    if (descendantIdentifiedNoteConflict) {
+      rows.push({
+        externalFolder: noteCandidate.externalFolder,
+        kind: 'blocked-note',
+        message: `Identified descendant note reserves a folder inside this target: ${descendantIdentifiedNoteConflict.message}`,
+        notePath: noteCandidate.notePath,
+        reason: 'descendant-identified-note'
       });
       continue;
     }
@@ -290,20 +348,70 @@ function buildAdoptionRows(
     });
   }
 
-  const relevantFolderIndex = buildRelevantFolderIndex(relevantCandidateIdentities, context.markerIdentities);
-  for (const directoryCandidate of directoryCandidates) {
-    if (isRelatedToRelevantFolder(directoryCandidate.identity, relevantFolderIndex)) {
-      continue;
-    }
+  const adoptableFolderIdentities = new Set(
+    rows
+      .filter((row): row is AdoptionAdoptRow => row.kind === 'adopt')
+      .map((row) => normalizePathForIdentity(row.folderPath))
+  );
+  const validMarkerIdentities = context.markerIdentities
+    .filter((markerIdentity) => markerIdentity.kind === 'valid')
+    .map((markerIdentity) => markerIdentity.identity);
+  const existingBindingIdentities = new Set([
+    ...context.identifiedNoteTargets.map((target) => target.identity),
+    ...validMarkerIdentities
+  ]);
+  const prunedFolderIndex = buildRelevantFolderIndex(
+    new Set([
+      ...adoptableFolderIdentities,
+      ...existingBindingIdentities
+    ])
+  );
 
-    rows.push({
-      externalFolder: toExternalRelativeDisplayPath(externalScan.rootPath, directoryCandidate.folderPath),
-      folderPath: directoryCandidate.folderPath,
-      kind: 'unmatched-external-folder'
-    });
+  return {
+    prunedExistingBindings: existingBindingIdentities.size,
+    residualGroups: buildResidualGroups(directoryCandidates, externalScan.rootPath, prunedFolderIndex),
+    rows,
+    suppressedAncestorCandidates: suppressedCandidateIdentities.size
+  };
+}
+
+function buildEmptyPlanningResult(): AdoptionPlanningResult {
+  return {
+    prunedExistingBindings: 0,
+    residualGroups: [],
+    rows: [],
+    suppressedAncestorCandidates: 0
+  };
+}
+
+function buildExistingIdentifiedNoteTargets(
+  vaultScan: VaultScanResult,
+  externalRootPath: string
+): IdentifiedNoteTarget[] {
+  const uuidByNotePath = new Map<string, string>();
+  for (const [uuid, notePath] of vaultScan.bindings) {
+    uuidByNotePath.set(notePath, uuid);
   }
 
-  return rows;
+  for (const [uuid, notePaths] of vaultScan.duplicatePaths) {
+    for (const notePath of notePaths) {
+      uuidByNotePath.set(notePath, uuid);
+    }
+  }
+
+  const targets: IdentifiedNoteTarget[] = [];
+  for (const [notePath, uuid] of sortEntries(uuidByNotePath)) {
+    try {
+      targets.push({
+        identity: normalizePathForIdentity(deriveExternalFolderPath(notePath, externalRootPath)),
+        message: `note ${notePath} (${uuid})`
+      });
+    } catch {
+      // Invalid identified note paths are reported by vault verification and cannot reserve a derived target.
+    }
+  }
+
+  return targets;
 }
 
 function buildExistingIdentityNotePaths(vaultScan: VaultScanResult): Set<string> {
@@ -328,7 +436,9 @@ function buildGlobalErrors(externalScan: ExternalScanResult): string[] {
 
 function buildMarkdownReport(input: {
   errors: string[];
+  residualGroups: AdoptionResidualGroup[];
   rows: AdoptionPlanRow[];
+  summary: AdoptionPlanSummary;
   summaryText: string;
   warnings: string[];
 }): string {
@@ -337,12 +447,19 @@ function buildMarkdownReport(input: {
     '',
     input.summaryText,
     '',
+    'Leaf-first policy: only deepest exact matches are selected. A folder cannot be bound when another candidate or existing binding is below it.',
+    '',
+    'Confirmation applies to the entire plan. If any selected match looks wrong, close the plan, resolve or ignore that path, and run adoption again.',
+    '',
     formatMarkdownList('Errors', input.errors),
     formatMarkdownList('Warnings', input.warnings),
-    formatRows('Adoptable Matches', input.rows.filter((row): row is AdoptionAdoptRow => row.kind === 'adopt')),
+    formatAdoptionRows(input.rows.filter((row): row is AdoptionAdoptRow => row.kind === 'adopt')),
     formatRows('Blocked Notes', input.rows.filter((row): row is AdoptionBlockedNoteRow => row.kind === 'blocked-note')),
-    formatRows('Unmatched Notes', input.rows.filter((row): row is AdoptionUnmatchedNoteRow => row.kind === 'unmatched-note')),
-    formatRows('Unmatched External Folders', input.rows.filter((row): row is AdoptionUnmatchedExternalFolderRow => row.kind === 'unmatched-external-folder'))
+    formatResidualGroups(input.residualGroups),
+    '## Topology Summary',
+    '',
+    `- Suppressed ancestor candidates: ${String(input.summary.suppressedAncestorCandidates)}`,
+    `- Existing bound folders pruned: ${String(input.summary.prunedExistingBindings)}`
   ].join('\n');
 }
 
@@ -412,13 +529,11 @@ function buildNoteCandidates(
 }
 
 function buildRelevantFolderIndex(
-  noteCandidateIdentities: ReadonlySet<string>,
-  markerIdentities: readonly MarkerIdentity[]
+  relevantFolderIdentities: ReadonlySet<string>
 ): RelevantFolderIndex {
-  const relevantIdentities = new Set([
-    ...[...noteCandidateIdentities].map((identity) => normalizeDisplayPath(identity)),
-    ...markerIdentities.map((markerIdentity) => normalizeDisplayPath(markerIdentity.identity))
-  ]);
+  const relevantIdentities = new Set(
+    [...relevantFolderIdentities].map((identity) => normalizeDisplayPath(identity))
+  );
   const ancestorOrSelfIdentities = new Set<string>();
   for (const relevantIdentity of relevantIdentities) {
     for (const ancestorIdentity of getAncestorOrSelfIdentities(relevantIdentity)) {
@@ -432,14 +547,62 @@ function buildRelevantFolderIndex(
   };
 }
 
-function buildSummaryText(errors: readonly string[], warnings: readonly string[], rows: readonly AdoptionPlanRow[]): string {
+function buildResidualGroups(
+  directoryCandidates: readonly DirectoryCandidate[],
+  externalRootPath: string,
+  prunedFolderIndex: RelevantFolderIndex
+): AdoptionResidualGroup[] {
+  const residualGroupsByPath = new Map<string, AdoptionResidualGroup>();
+  for (const directoryCandidate of directoryCandidates) {
+    if (isRelatedToRelevantFolder(directoryCandidate.identity, prunedFolderIndex)) {
+      continue;
+    }
+
+    const relativePath = toExternalRelativeDisplayPath(externalRootPath, directoryCandidate.folderPath);
+    const groupPath = normalizeDisplayPath(relativePath).split('/')[0] ?? relativePath;
+    const group = residualGroupsByPath.get(groupPath) ?? {
+      directoryCount: 0,
+      groupPath,
+      samplePaths: []
+    };
+    group.directoryCount += 1;
+    group.samplePaths.push(relativePath);
+    group.samplePaths.sort();
+    if (group.samplePaths.length > RESIDUAL_SAMPLE_LIMIT) {
+      group.samplePaths.pop();
+    }
+    residualGroupsByPath.set(groupPath, group);
+  }
+
+  return sortEntries(residualGroupsByPath).map(([, group]) => group);
+}
+
+function buildSummary(
+  errors: readonly string[],
+  warnings: readonly string[],
+  rows: readonly AdoptionPlanRow[],
+  planningResult: AdoptionPlanningResult
+): AdoptionPlanSummary {
+  return {
+    adoptableLeafMatches: rows.filter((row) => row.kind === 'adopt').length,
+    blockedCandidates: rows.filter((row) => row.kind === 'blocked-note').length,
+    errorCount: errors.length,
+    prunedExistingBindings: planningResult.prunedExistingBindings,
+    residualDirectories: planningResult.residualGroups.reduce((total, group) => total + group.directoryCount, 0),
+    suppressedAncestorCandidates: planningResult.suppressedAncestorCandidates,
+    warningCount: warnings.length
+  };
+}
+
+function buildSummaryText(summary: AdoptionPlanSummary): string {
   return [
-    `${String(errors.length)} error(s)`,
-    `${String(warnings.length)} warning(s)`,
-    `${String(rows.filter((row) => row.kind === 'adopt').length)} adoptable match(es)`,
-    `${String(rows.filter((row) => row.kind === 'blocked-note').length)} blocked note(s)`,
-    `${String(rows.filter((row) => row.kind === 'unmatched-note').length)} unmatched note(s)`,
-    `${String(rows.filter((row) => row.kind === 'unmatched-external-folder').length)} unmatched external folder(s)`
+    `${String(summary.errorCount)} error(s)`,
+    `${String(summary.warningCount)} warning(s)`,
+    `${String(summary.adoptableLeafMatches)} adoptable match(es) (leaf-first)`,
+    `${String(summary.suppressedAncestorCandidates)} suppressed ancestor candidate(s)`,
+    `${String(summary.blockedCandidates)} blocked candidate(s)`,
+    `${String(summary.prunedExistingBindings)} existing bound folder(s) pruned`,
+    `${String(summary.residualDirectories)} residual directories`
   ].join(', ');
 }
 
@@ -448,23 +611,39 @@ function buildWarnings(vaultScan: VaultScanResult, externalScan: ExternalScanRes
     ...formatIgnoredDirectoryWarnings(externalScan.ignoredDirectories),
     ...externalScan.skippedDirectories
       .map((issue) => `Skipped external directory at ${issue.location}: ${issue.message}`),
-    ...sortEntries(vaultScan.bindings)
-      .map(([uuid, notePath]) => `Existing vault identity at ${notePath}: ${uuid}`),
     ...formatDuplicateWarnings('Vault', vaultScan.duplicatePaths),
     ...vaultScan.invalidFrontmatter
       .map((issue) => `Invalid frontmatter at ${issue.location}: ${issue.message}`),
-    ...sortEntries(externalScan.bindings)
-      .map(([uuid, folderPath]) => `Existing external marker at ${toExternalRelativeDisplayPath(externalScan.rootPath, folderPath)}: ${uuid}`),
     ...formatDuplicateWarnings('External root', externalScan.duplicatePaths),
     ...externalScan.malformedMarkers
       .map((issue) => `Malformed marker at ${issue.location}: ${issue.message}`)
   ].sort();
 }
 
+function findAncestorIdentifiedNoteConflict(
+  identifiedNoteTargets: readonly IdentifiedNoteTarget[],
+  targetIdentity: string
+): IdentifiedNoteTarget | null {
+  return identifiedNoteTargets.find((identifiedTarget) =>
+    identifiedTarget.identity !== targetIdentity
+    && isPathInsideOrEqualIdentity(targetIdentity, identifiedTarget.identity)
+  ) ?? null;
+}
+
 function findAncestorMarkerConflict(markerIdentities: readonly MarkerIdentity[], targetIdentity: string): MarkerIdentity | null {
   return markerIdentities.find((markerIdentity) =>
     markerIdentity.identity !== targetIdentity
     && isPathInsideOrEqualIdentity(targetIdentity, markerIdentity.identity)
+  ) ?? null;
+}
+
+function findDescendantIdentifiedNoteConflict(
+  identifiedNoteTargets: readonly IdentifiedNoteTarget[],
+  targetIdentity: string
+): IdentifiedNoteTarget | null {
+  return identifiedNoteTargets.find((identifiedTarget) =>
+    identifiedTarget.identity !== targetIdentity
+    && isPathInsideOrEqualIdentity(identifiedTarget.identity, targetIdentity)
   ) ?? null;
 }
 
@@ -475,8 +654,44 @@ function findDescendantMarkerConflict(markerIdentities: readonly MarkerIdentity[
   ) ?? null;
 }
 
+function findExactIdentifiedNoteConflict(
+  identifiedNoteTargets: readonly IdentifiedNoteTarget[],
+  targetIdentity: string
+): IdentifiedNoteTarget | null {
+  return identifiedNoteTargets.find((identifiedTarget) => identifiedTarget.identity === targetIdentity) ?? null;
+}
+
 function findExactMarkerConflict(markerIdentities: readonly MarkerIdentity[], targetIdentity: string): MarkerIdentity | null {
   return markerIdentities.find((markerIdentity) => markerIdentity.identity === targetIdentity) ?? null;
+}
+
+function findSuppressedCandidateIdentities(noteCandidates: readonly NoteCandidate[]): Set<string> {
+  const candidateIdentities = new Set(noteCandidates.map((candidate) => candidate.identity));
+  const suppressedIdentities = new Set<string>();
+  for (const candidateIdentity of candidateIdentities) {
+    for (const ancestorIdentity of getAncestorOrSelfIdentities(candidateIdentity).slice(1)) {
+      const normalizedAncestorIdentity = normalizePathForIdentity(ancestorIdentity);
+      if (candidateIdentities.has(normalizedAncestorIdentity)) {
+        suppressedIdentities.add(normalizedAncestorIdentity);
+      }
+    }
+  }
+
+  return suppressedIdentities;
+}
+
+function formatAdoptionRows(rows: readonly AdoptionAdoptRow[]): string {
+  if (rows.length === 0) {
+    return '## Adoptable Matches\n\nNone.';
+  }
+
+  return [
+    '## Adoptable Matches',
+    '',
+    '| Vault file | Prospective marker |',
+    '| --- | --- |',
+    ...rows.map((row) => `| ${formatMarkdownCell(row.notePath)} | ${formatMarkdownCell(formatProspectiveMarkerPath(row.externalFolder))} |`)
+  ].join('\n');
 }
 
 function formatDuplicateWarnings(scopeLabel: string, duplicatePaths: Map<string, string[]>): string[] {
@@ -499,6 +714,26 @@ function formatMarkdownList(title: string, items: readonly string[]): string {
     `## ${title}`,
     '',
     ...items.map((item) => `- ${formatMarkdownCell(item)}`)
+  ].join('\n');
+}
+
+function formatProspectiveMarkerPath(externalFolder: string): string {
+  return `${normalizeDisplayPath(externalFolder)}/<new-uuid>.exnf`;
+}
+
+function formatResidualGroups(groups: readonly AdoptionResidualGroup[]): string {
+  if (groups.length === 0) {
+    return '## Residual External Tree\n\nNone.';
+  }
+
+  return [
+    '## Residual External Tree',
+    '',
+    '| Root branch | Directory count | Samples |',
+    '| --- | ---: | --- |',
+    ...groups.map((group) =>
+      `| ${formatMarkdownCell(group.groupPath)} | ${String(group.directoryCount)} | ${formatMarkdownCell(group.samplePaths.join(', '))} |`
+    )
   ].join('\n');
 }
 
@@ -557,6 +792,17 @@ function groupByIdentity<T extends { identity: string }>(items: readonly T[]): M
     }
   }
   return groups;
+}
+
+function hasMatchingExternalBranch(noteCandidate: NoteCandidate, context: PlannerContext): boolean {
+  if ((context.directoryCandidatesByIdentity.get(noteCandidate.identity) ?? []).length > 0) {
+    return true;
+  }
+
+  return [...context.ignoredDirectoryIdentities]
+    .some((ignoredIdentity) => isPathInsideOrEqualIdentity(noteCandidate.identity, ignoredIdentity))
+    || context.skippedDirectoryIdentities
+      .some((skippedIdentity) => isPathInsideOrEqualIdentity(noteCandidate.identity, skippedIdentity));
 }
 
 function isPathInsideOrEqualIdentity(childIdentity: string, parentIdentity: string): boolean {
