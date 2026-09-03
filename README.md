@@ -213,6 +213,14 @@ version, and uploads `main.js`, `styles.css`, and `manifest.json` to the
 release. The same workflow can be run manually for an existing tag if release
 asset publishing needs to be retried.
 
+For real-vault testing before a stable release, run the `publish-beta` workflow
+from `main`. Supply the exact branch, tag, or commit to build and a new semantic
+prerelease version such as `2.0.1-beta.2`. The workflow tests, lints, and builds
+that ref, creates a prerelease whose tag points to the resolved commit, and
+uploads BRAT-compatible assets. It changes the copied release manifest only;
+tracked version files remain owned by Release Please. Prerelease tags are
+immutable inputs to this workflow and are never overwritten.
+
 Release automation requires a `RELEASE_PLEASE_TOKEN` repository secret backed by
 a maintainer-owned PAT or GitHub App token. The token must be able to write
 contents, write pull requests, create releases, and trigger follow-up workflows.
@@ -242,11 +250,14 @@ The plugin is not available in [the official Community Plugins repository](https
 
 ### Beta versions
 
-To install the latest beta release of this plugin (regardless if it is available in [the official Community Plugins repository](https://obsidian.md/plugins) or not), follow these steps:
+To install a beta release of this plugin (regardless if it is available in [the official Community Plugins repository](https://obsidian.md/plugins) or not), follow these steps:
 
 1. Ensure you have the [BRAT plugin](https://obsidian.md/plugins?id=obsidian42-brat) installed and enabled.
 2. Click [Install via BRAT](https://intradeus.github.io/http-protocol-redirector?r=obsidian://brat?plugin=https://github.com/hollowhemlock/obsidian-external-note-folders).
 3. An Obsidian pop-up window should appear. In the window, click the `Add plugin` button once and wait a few seconds for the plugin to install.
+
+BRAT installs the plugin files attached to the GitHub prerelease. Pin a specific
+beta version when validating behavior that must remain reproducible.
 
 ## Debugging
 

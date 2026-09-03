@@ -29,6 +29,12 @@ This procedure defines how releases are generated, reviewed, and published in th
   back to the same release tag.
 - `versions.json` is updated in the release PR before release publication; it is
   not committed by the post-release asset workflow.
+- `publish-beta` is a manual prerelease workflow for BRAT testing. It accepts an
+  explicit source ref and semantic prerelease version, runs tests and linting,
+  builds that ref, and publishes `main.js`, `styles.css`, and a release-only
+  manifest under `external-note-folders-<version>`.
+- Beta publication does not edit tracked version files or `versions.json`, does
+  not mark the release as latest, and refuses to overwrite an existing tag.
 - `.release-intent/*.md` files are canonical review and recovery evidence for
   release-relevant normal PRs. Release Please does not currently consume them
   directly, so conventional PR and merge titles still matter.
@@ -51,6 +57,20 @@ This procedure defines how releases are generated, reviewed, and published in th
 6. Confirm the GitHub release was created and release assets are attached.
 7. Confirm the `publish-obsidian-assets` workflow completed successfully.
 8. Verify `versions.json` contains the released version on `main`.
+
+## Beta Workflow
+
+1. Make the candidate commit available on a remote branch, normally `dev`.
+2. From the `publish-beta` workflow on `main`, choose **Run workflow**.
+3. Enter the exact source branch, tag, or commit and a new semantic prerelease
+   version such as `2.0.1-beta.2`.
+4. Confirm tests, linting, build, and release publication all succeeded.
+5. Confirm the prerelease tag points to the resolved source commit and includes
+   `main.js`, `styles.css`, and `manifest.json`.
+6. Install or pin that prerelease in BRAT and test it in the real vault.
+
+Do not reuse a beta version or move its tag. Publish a new increment when the
+candidate changes. Stable releases continue through Release Please.
 
 ## LLM Agent Workflow
 
