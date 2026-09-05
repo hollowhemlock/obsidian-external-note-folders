@@ -355,6 +355,7 @@ function buildPlan(): AdoptionPlan {
     hasGlobalErrors: false,
     markdownReport: '',
     mutationSequence: 0,
+    notices: [],
     residualGroups: [],
     rows: [
       {
@@ -368,6 +369,7 @@ function buildPlan(): AdoptionPlan {
       adoptableLeafMatches: 1,
       blockedCandidates: 0,
       errorCount: 0,
+      ignoredDirectories: 0,
       prunedExistingBindings: 0,
       residualDirectories: 0,
       suppressedAncestorCandidates: 0,

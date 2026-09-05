@@ -5,13 +5,16 @@ import {
 
 import type {
   AdoptionAdoptRow,
+  AdoptionBlockedGroup,
   AdoptionBlockedNoteRow,
   AdoptionPlan,
-  AdoptionPlanRow,
   AdoptionResidualGroup
 } from './core/adoptionPlan.ts';
 
-import { getAdoptionRows } from './core/adoptionPlan.ts';
+import {
+  getAdoptionRows,
+  groupAdoptionBlockedRows
+} from './core/adoptionPlan.ts';
 import { renderCopyableReport } from './modalReport.ts';
 
 export class AdoptionPlanModal extends Modal {
@@ -31,6 +34,7 @@ export class AdoptionPlanModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass('external-note-folders-wide-modal');
+    contentEl.addClass('external-note-folders-adoption-plan-modal');
 
     const adoptRows = getAdoptionRows(this.plan);
     const blockedRows = this.plan.rows.filter((row): row is AdoptionBlockedNoteRow => row.kind === 'blocked-note');
@@ -64,8 +68,9 @@ export class AdoptionPlanModal extends Modal {
 
     this.renderTextSection(contentEl, 'Errors', this.plan.errors, 'No global adoption blockers detected.');
     this.renderTextSection(contentEl, 'Warnings', this.plan.warnings, 'No adoption warnings detected.');
+    this.renderTextSection(contentEl, 'Notices', this.plan.notices, 'No external directories are intentionally excluded.');
     this.renderAdoptableSection(contentEl, adoptRows);
-    this.renderTableSection(contentEl, 'Blocked Notes', blockedRows, 'No note collisions detected.');
+    this.renderBlockedSection(contentEl, blockedRows);
     this.renderResidualSection(contentEl, this.plan.residualGroups);
 
     renderCopyableReport(contentEl, 'Copyable plan', this.plan.markdownReport);
@@ -130,8 +135,63 @@ export class AdoptionPlanModal extends Modal {
     }
   }
 
+  private renderBlockedGroup(containerEl: HTMLElement, group: AdoptionBlockedGroup): void {
+    const sampleText = group.sampleRows.map((row) => row.notePath).join(', ');
+    const omittedCount = group.rowCount - group.sampleRows.length;
+    const omittedSuffix = omittedCount > 0 ? `; ${String(omittedCount)} more` : '';
+    const detailsEl = containerEl.createEl('details', {
+      cls: 'external-note-folders-blocked-group'
+    });
+    detailsEl.createEl('summary', {
+      text: `${String(group.rowCount)} ${group.label}: ${sampleText}${omittedSuffix}`
+    });
+
+    let rendered = false;
+    detailsEl.addEventListener('toggle', () => {
+      if (!detailsEl.open || rendered) {
+        return;
+      }
+
+      rendered = true;
+      detailsEl.createEl('p', { text: group.message });
+      this.renderBlockedRows(detailsEl, group.rows);
+    });
+  }
+
+  private renderBlockedRows(containerEl: HTMLElement, rows: readonly AdoptionBlockedNoteRow[]): void {
+    const tableEl = containerEl.createEl('table', {
+      cls: 'external-note-folders-verify-table'
+    });
+    const headerRowEl = tableEl.createEl('thead').createEl('tr');
+    headerRowEl.createEl('th', { text: 'Vault file' });
+    headerRowEl.createEl('th', { text: 'External folder' });
+
+    const bodyEl = tableEl.createEl('tbody');
+    for (const row of rows) {
+      const rowEl = bodyEl.createEl('tr');
+      rowEl.createEl('td', { text: row.notePath });
+      rowEl.createEl('td', { text: row.externalFolder ?? '-' });
+    }
+  }
+
+  private renderBlockedSection(containerEl: HTMLElement, rows: readonly AdoptionBlockedNoteRow[]): void {
+    containerEl.createEl('h3', { text: 'Blocked candidates' });
+    if (rows.length === 0) {
+      containerEl.createEl('p', { text: 'No candidate collisions detected.' });
+      return;
+    }
+
+    for (const group of groupAdoptionBlockedRows(rows)) {
+      this.renderBlockedGroup(containerEl, group);
+    }
+  }
+
   private renderResidualSection(containerEl: HTMLElement, groups: readonly AdoptionResidualGroup[]): void {
     containerEl.createEl('h3', { text: 'Residual external tree' });
+    containerEl.createEl('p', {
+      cls: 'setting-item-description',
+      text: 'Residual directories are informational only and will not be modified.'
+    });
     if (groups.length === 0) {
       containerEl.createEl('p', { text: 'No residual external directories remain after pruning bindings.' });
       return;
@@ -151,40 +211,6 @@ export class AdoptionPlanModal extends Modal {
       rowEl.createEl('td', { text: group.groupPath });
       rowEl.createEl('td', { text: String(group.directoryCount) });
       rowEl.createEl('td', { text: group.samplePaths.join(', ') });
-    }
-  }
-
-  private renderTableSection(
-    containerEl: HTMLElement,
-    title: string,
-    rows: readonly AdoptionPlanRow[],
-    emptyMessage: string
-  ): void {
-    containerEl.createEl('h3', { text: title });
-    if (rows.length === 0) {
-      containerEl.createEl('p', { text: emptyMessage });
-      return;
-    }
-
-    const tableEl = containerEl.createEl('table', {
-      cls: 'external-note-folders-verify-table'
-    });
-    const headerRowEl = tableEl.createEl('thead').createEl('tr');
-    headerRowEl.createEl('th', { text: 'Kind' });
-    headerRowEl.createEl('th', { text: 'Vault file' });
-    headerRowEl.createEl('th', { text: 'External folder' });
-    headerRowEl.createEl('th', { text: 'Message' });
-
-    const bodyEl = tableEl.createEl('tbody');
-    for (const row of rows) {
-      const notePath = 'notePath' in row ? row.notePath : null;
-      const externalFolder = 'externalFolder' in row ? row.externalFolder : null;
-      const message = 'message' in row ? row.message : '';
-      const rowEl = bodyEl.createEl('tr');
-      rowEl.createEl('td', { text: row.kind });
-      rowEl.createEl('td', { text: notePath ?? '-' });
-      rowEl.createEl('td', { text: externalFolder ?? '-' });
-      rowEl.createEl('td', { text: message });
     }
   }
 

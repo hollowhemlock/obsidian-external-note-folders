@@ -66,8 +66,9 @@ identity at two levels of the same vault/external path branch.
 
 Only root-level scan failures and invalid ignore settings remain global blockers.
 Existing unrelated vault identities, external markers, malformed markers,
-skipped descendant directories, and ignored directories are reported but do not
-block unrelated adoptable rows.
+skipped descendant directories, and ignored directories do not block unrelated
+adoptable rows. Skipped evidence is grouped as warnings, while configured
+ignores are reported separately as intentional notices.
 
 ### Ignore Pattern Contract
 
@@ -95,9 +96,10 @@ adoption, verify, drift, reconcile, or active-note open recovery scans. If an
 existing note identity points at an ignored path, reports classify it as
 ignored/unchecked, not healthy, missing, drifted, or reconciled.
 
-Ignored directory reporting includes a count and the first 20 ignored relative
-paths. The matching ignore pattern is not reported because the `ignore` package
-does not expose that information directly.
+Ignored directory notices include a count and the first 20 ignored relative
+paths, and explain that ignored subtrees are unchecked and excluded from
+adoption topology. The matching ignore pattern is not reported because the
+`ignore` package does not expose that information directly.
 
 ### Adoption Row Policy
 
@@ -109,8 +111,10 @@ does not expose that information directly.
 - Malformed markers are warnings unless they overlap a candidate target;
   candidate targets with exact, ancestor, or descendant malformed markers block
   only that note.
-- Skipped directories are warnings unless the note's target is inside a skipped
-  subtree; that note is blocked.
+- Skipped directories are grouped by filesystem error code with exact counts and
+  at most five deterministic root-relative samples. A note is blocked when its
+  target is inside a skipped subtree or contains a skipped descendant because
+  either overlap leaves its marker topology incomplete.
 - Ignored target paths block the affected note with an ignored-target message.
 - Duplicate normalized derived targets block the affected notes.
 - Duplicate normalized target directories block the affected notes.
@@ -128,7 +132,13 @@ does not expose that information directly.
   group; individual residual rows are not materialized.
 - Existing valid vault identities and external markers are summarized as
   pruned binding counts instead of one warning per identity. Malformed,
-  duplicate, skipped, and ignored evidence remains visible.
+  duplicate, and skipped evidence remains visible. Ignored directories remain
+  visible as notices instead of warnings.
+- Repeated blocked candidates are grouped by reason and message for display.
+  Markdown includes exact counts and at most five samples; the modal retains all
+  underlying rows in lazily expanded details.
+- Residual-directory groups are explicitly informational and are never modified
+  by adoption.
 - Depth-limited adoption stages are not allowed because a partial scan cannot
   prove that a shallower candidate has no descendant candidate or marker.
 - No fuzzy, suffix, tree-tail, or basename-only adoption is allowed.

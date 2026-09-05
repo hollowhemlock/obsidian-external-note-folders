@@ -99,6 +99,14 @@ export async function scanExternalRoot(
   return result;
 }
 
+function getErrorCode(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('code' in error) || typeof error.code !== 'string') {
+    return undefined;
+  }
+
+  return error.code;
+}
+
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unknown filesystem error.';
 }
@@ -138,7 +146,9 @@ async function walkDirectory(
   try {
     entries = await fileSystem.readDirectoryEntries(directoryPath);
   } catch (error: unknown) {
+    const code = getErrorCode(error);
     const issue = {
+      ...(code ? { code } : {}),
       location: directoryPath,
       message: getErrorMessage(error)
     };

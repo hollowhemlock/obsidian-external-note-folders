@@ -82,6 +82,7 @@ describe('external root scanning', () => {
 
     expect(result.accessErrors).toEqual([
       {
+        code: expect.any(String) as string,
         location: await realpath(externalRootPath),
         message: expect.any(String) as string
       }
@@ -146,7 +147,7 @@ describe('external root scanning', () => {
       fileSystem: {
         readDirectoryEntries: async (directoryPath) => {
           if (directoryPath === skippedFolderPath) {
-            throw new Error('permission denied');
+            throw Object.assign(new Error('permission denied'), { code: 'EPERM' });
           }
 
           return readdir(directoryPath, {
@@ -162,6 +163,7 @@ describe('external root scanning', () => {
     expect(result.accessErrors).toEqual([]);
     expect(result.skippedDirectories).toEqual([
       {
+        code: 'EPERM',
         location: skippedFolderPath,
         message: 'permission denied'
       }

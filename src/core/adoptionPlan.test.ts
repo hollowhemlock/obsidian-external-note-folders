@@ -13,6 +13,7 @@ import type {
 import {
   buildAdoptionPlan,
   getAdoptionRows,
+  groupAdoptionBlockedRows,
   haveSameAdoptionRows
 } from './adoptionPlan.ts';
 import { buildExnfMarkerFileName } from './marker.ts';
@@ -225,7 +226,7 @@ describe('adoption plan', () => {
         notePath: 'projects/health_mental/health_mental.md'
       }
     ]);
-    expect(plan.warnings).toContain(`Skipped external directory at ${path.join(EXTERNAL_ROOT, 'tmp')}: EPERM`);
+    expect(plan.warnings).toContain('Skipped 1 external directory (EPERM): tmp');
   });
 
   it('blocks only the note whose target folder has an existing marker', () => {
@@ -449,9 +450,11 @@ describe('adoption plan', () => {
         reason: 'ignored-target'
       }
     ]);
-    expect(plan.warnings).toEqual([
-      'Ignored 1 external directory: Projects/Alpha'
+    expect(plan.warnings).toEqual([]);
+    expect(plan.notices).toEqual([
+      'Ignored 1 external directory: Projects/Alpha. Ignored paths are unchecked and excluded from adoption topology.'
     ]);
+    expect(plan.summary.ignoredDirectories).toBe(1);
   });
 
   it('blocks notes whose derived target is inside an ignored directory', () => {
@@ -482,8 +485,9 @@ describe('adoption plan', () => {
         reason: 'ignored-target'
       }
     ]);
-    expect(plan.warnings).toEqual([
-      'Ignored 1 external directory: Projects'
+    expect(plan.warnings).toEqual([]);
+    expect(plan.notices).toEqual([
+      'Ignored 1 external directory: Projects. Ignored paths are unchecked and excluded from adoption topology.'
     ]);
   });
 
@@ -514,8 +518,161 @@ describe('adoption plan', () => {
       }
     ]);
     expect(plan.warnings).toEqual([
-      `Skipped external directory at ${skippedFolderPath}: EPERM`
+      'Skipped 1 external directory (EPERM): Projects'
     ]);
+  });
+
+  it('blocks an exact candidate that contains a skipped descendant without blocking an unrelated candidate', () => {
+    const alphaFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
+    const betaFolderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Beta');
+    const skippedFolderPath = path.join(alphaFolderPath, '.tmp');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        directories: [alphaFolderPath, skippedFolderPath, betaFolderPath],
+        skippedDirectories: [
+          {
+            code: 'EPERM',
+            location: skippedFolderPath,
+            message: `EPERM: operation not permitted, scandir '${skippedFolderPath}'`
+          }
+        ]
+      }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md', 'Projects/Beta.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(getAdoptionRows(plan)).toEqual([
+      {
+        externalFolder: 'Projects/Beta',
+        folderPath: betaFolderPath,
+        kind: 'adopt',
+        notePath: 'Projects/Beta.md'
+      }
+    ]);
+    expect(plan.rows).toContainEqual({
+      externalFolder: 'Projects/Alpha',
+      kind: 'blocked-note',
+      message: 'Derived external folder contains a skipped external directory, so descendant marker evidence is incomplete.',
+      notePath: 'Projects/Alpha.md',
+      reason: 'target-contains-skipped-directory'
+    });
+  });
+
+  it('allows an exact candidate that contains an explicitly ignored descendant', () => {
+    const folderPath = path.join(EXTERNAL_ROOT, 'Projects', 'Alpha');
+    const ignoredFolderPath = path.join(folderPath, '.tmp');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        directories: [folderPath],
+        ignoredDirectories: [
+          {
+            folderPath: ignoredFolderPath,
+            relativePath: 'Projects/Alpha/.tmp'
+          }
+        ],
+        ignorePatterns: ['**/.tmp/']
+      }),
+      mutationSequence: 0,
+      notePaths: ['Projects/Alpha.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(getAdoptionRows(plan)).toHaveLength(1);
+    expect(plan.warnings).toEqual([]);
+    expect(plan.notices).toEqual([
+      'Ignored 1 external directory: Projects/Alpha/.tmp. Ignored paths are unchecked and excluded from adoption topology.'
+    ]);
+  });
+
+  it('does not let a note target inside an ignored subtree suppress an adoptable ancestor', () => {
+    const projectsFolderPath = path.join(EXTERNAL_ROOT, 'Projects');
+    const ignoredFolderPath = path.join(projectsFolderPath, 'Private');
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        directories: [projectsFolderPath],
+        ignoredDirectories: [
+          {
+            folderPath: ignoredFolderPath,
+            relativePath: 'Projects/Private'
+          }
+        ],
+        ignorePatterns: ['Projects/Private/']
+      }),
+      mutationSequence: 0,
+      notePaths: ['Projects.md', 'Projects/Private.md'],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(getAdoptionRows(plan)).toEqual([
+      {
+        externalFolder: 'Projects',
+        folderPath: projectsFolderPath,
+        kind: 'adopt',
+        notePath: 'Projects.md'
+      }
+    ]);
+    expect(plan.rows).toContainEqual({
+      externalFolder: 'Projects/Private',
+      kind: 'blocked-note',
+      message: 'Derived external folder path is ignored by external root ignore patterns.',
+      notePath: 'Projects/Private.md',
+      reason: 'ignored-target'
+    });
+    expect(plan.summary.suppressedAncestorCandidates).toBe(0);
+  });
+
+  it('groups skipped directory warnings by code with relative capped samples', () => {
+    const skippedDirectories = Array.from({ length: 7 }, (_, index) => {
+      const location = path.join(EXTERNAL_ROOT, 'Projects', `Skipped-${String(6 - index)}`);
+      return {
+        code: 'EPERM',
+        location,
+        message: `EPERM: operation not permitted, scandir '${location}'`
+      };
+    });
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({ skippedDirectories }),
+      mutationSequence: 0,
+      notePaths: [],
+      vaultScan: buildVaultScan()
+    });
+
+    expect(plan.warnings).toEqual([
+      'Skipped 7 external directories (EPERM): Projects/Skipped-0, Projects/Skipped-1, Projects/Skipped-2, Projects/Skipped-3, Projects/Skipped-4; 2 more omitted'
+    ]);
+    expect(plan.warnings[0]).not.toContain(EXTERNAL_ROOT);
+  });
+
+  it('groups blocked candidates for reports without removing execution rows', () => {
+    const ignoredFolderPath = path.join(EXTERNAL_ROOT, 'Projects');
+    const notePaths = Array.from({ length: 7 }, (_, index) => `Projects/Blocked-${String(index)}.md`);
+    const plan = buildAdoptionPlan({
+      externalScan: buildExternalScan({
+        ignoredDirectories: [
+          {
+            folderPath: ignoredFolderPath,
+            relativePath: 'Projects'
+          }
+        ],
+        ignorePatterns: ['Projects/']
+      }),
+      mutationSequence: 0,
+      notePaths,
+      vaultScan: buildVaultScan()
+    });
+    const blockedRows = plan.rows.filter((row) => row.kind === 'blocked-note');
+    const groups = groupAdoptionBlockedRows(blockedRows);
+
+    expect(blockedRows).toHaveLength(7);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.rowCount).toBe(7);
+    expect(groups[0]?.sampleRows).toHaveLength(5);
+    expect(plan.markdownReport).toContain('## Blocked Candidates');
+    expect(plan.markdownReport).toContain('2 more omitted');
+    expect(plan.markdownReport).not.toContain('Projects/Blocked-6.md');
+    expect(plan.markdownReport).not.toContain('| Kind |');
+    expect(plan.markdownReport).not.toContain('## Topology Summary');
   });
 
   it('excludes all notes that already have duplicate vault identities', () => {
@@ -745,6 +902,7 @@ describe('adoption plan', () => {
     expect(plan.markdownReport).toContain('Leaf-first policy');
     expect(plan.markdownReport).toContain('Confirmation applies to the entire plan');
     expect(plan.markdownReport).toContain('Projects/Alpha/<new-uuid>.exnf');
+    expect(plan.markdownReport).toContain('Residual directories are informational only and will not be modified.');
   });
 
   it('reports notes that cannot derive an external path as blocked rows', () => {

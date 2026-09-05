@@ -37,6 +37,7 @@ export interface ExternalScanResult {
 }
 
 export interface ScanIssue {
+  code?: string;
   location: string;
   message: string;
 }

@@ -92,7 +92,7 @@ the [Git gitignore documentation](https://git-scm.com/docs/gitignore) and
 - The plugin does not delete vault files, external folders, or marker files.
 - The plugin does not auto-rename folders to resolve conflicts.
 - External-root scans skip symlinks, junctions, and reparse points by default.
-- Unreadable descendant directories under the external root are reported as warnings and skipped, not treated as global integrity errors.
+- Unreadable descendant directories under the external root are grouped as warnings and skipped, not treated as global integrity errors. Adoption blocks any candidate that contains or falls inside a skipped subtree.
 - Ignored folders are reported as ignored/unchecked when a known note identity points at them; they are not treated as healthy, missing, drifted, or reconciled.
 
 ## Failure Mode Reference
@@ -126,7 +126,7 @@ reconciliation.
 ## Known Limitations
 
 - Reconcile only moves already-bound external folders to note-derived paths. It does not infer new bindings, repair invalid markers, relink folders, delete folders, or resolve conflicts automatically.
-- Bulk adoption is strict, partial, and leaf-first: it only adopts deepest exact derived-path matches whose individual target row is safe. Existing bindings and planned leaves are pruned from a compact residual-tree summary; malformed, duplicate, skipped, and ignored evidence remains visible without suppressing unrelated safe rows.
+- Bulk adoption is strict, partial, and leaf-first: it only adopts deepest exact derived-path matches whose individual target row is safe. Existing bindings and planned leaves are pruned from a compact residual-tree summary; malformed, duplicate, and skipped evidence remains visible as grouped warnings or blocked candidates, while configured ignores appear as notices. Residual directories are informational and are never modified.
 - `Report external folder drift` is read-only and can be used before reconcile to inspect missing, orphaned, unexpected, occupied, and likely moved folders without changing the vault or external root.
 - `Open external folder` does not assign note identity. Run `Assign external folder identifier` first for notes without `exnf`.
 - ADR-0025 recovery scans are active-note scoped, not a substitute for full drift reporting. Long-running commands show a start/progress modal, but scan caps, cancellation, and cached indexes are intentionally out of scope until performance requires them.

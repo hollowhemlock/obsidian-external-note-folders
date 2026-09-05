@@ -14,12 +14,22 @@ import {
 } from './pathPolicy.ts';
 
 const RESIDUAL_SAMPLE_LIMIT = 5;
+const REPORT_SAMPLE_LIMIT = 5;
 
 export interface AdoptionAdoptRow {
   externalFolder: string;
   folderPath: string;
   kind: 'adopt';
   notePath: string;
+}
+
+export interface AdoptionBlockedGroup {
+  label: string;
+  message: string;
+  reason: AdoptionBlockedNoteReason;
+  rowCount: number;
+  rows: AdoptionBlockedNoteRow[];
+  sampleRows: AdoptionBlockedNoteRow[];
 }
 
 export type AdoptionBlockedNoteReason =
@@ -33,6 +43,7 @@ export type AdoptionBlockedNoteReason =
   | 'ignored-target'
   | 'target-already-bound'
   | 'target-already-identified'
+  | 'target-contains-skipped-directory'
   | 'target-has-malformed-marker'
   | 'target-skipped';
 
@@ -50,6 +61,7 @@ export interface AdoptionPlan {
   hasGlobalErrors: boolean;
   markdownReport: string;
   mutationSequence: number;
+  notices: string[];
   residualGroups: AdoptionResidualGroup[];
   rows: AdoptionPlanRow[];
   summary: AdoptionPlanSummary;
@@ -65,6 +77,7 @@ export interface AdoptionPlanSummary {
   adoptableLeafMatches: number;
   blockedCandidates: number;
   errorCount: number;
+  ignoredDirectories: number;
   prunedExistingBindings: number;
   residualDirectories: number;
   suppressedAncestorCandidates: number;
@@ -133,12 +146,13 @@ export function buildAdoptionPlan(input: {
   vaultScan: VaultScanResult;
 }): AdoptionPlan {
   const errors = buildGlobalErrors(input.externalScan);
+  const notices = buildNotices(input.externalScan);
   const warnings = buildWarnings(input.vaultScan, input.externalScan);
   const planningResult = errors.length === 0
     ? buildAdoptionRows(input.notePaths, input.vaultScan, input.externalScan)
     : buildEmptyPlanningResult();
   const sortedRows = sortRows(planningResult.rows);
-  const summary = buildSummary(errors, warnings, sortedRows, planningResult);
+  const summary = buildSummary(errors, warnings, sortedRows, planningResult, input.externalScan.ignoredDirectories.length);
   const summaryText = buildSummaryText(summary);
   return {
     errors: errors.sort(),
@@ -146,6 +160,7 @@ export function buildAdoptionPlan(input: {
     hasGlobalErrors: errors.length > 0,
     markdownReport: buildMarkdownReport({
       errors: errors.sort(),
+      notices,
       residualGroups: planningResult.residualGroups,
       rows: sortedRows,
       summary,
@@ -153,6 +168,7 @@ export function buildAdoptionPlan(input: {
       warnings
     }),
     mutationSequence: input.mutationSequence,
+    notices,
     residualGroups: planningResult.residualGroups,
     rows: sortedRows,
     summary,
@@ -163,6 +179,37 @@ export function buildAdoptionPlan(input: {
 
 export function getAdoptionRows(plan: AdoptionPlan): AdoptionAdoptRow[] {
   return plan.rows.filter((row): row is AdoptionAdoptRow => row.kind === 'adopt');
+}
+
+export function groupAdoptionBlockedRows(rows: readonly AdoptionBlockedNoteRow[]): AdoptionBlockedGroup[] {
+  const groups = new Map<string, AdoptionBlockedNoteRow[]>();
+  for (const row of rows) {
+    const key = `${row.reason}\0${row.message}`;
+    const groupRows = groups.get(key) ?? [];
+    groupRows.push(row);
+    groups.set(key, groupRows);
+  }
+
+  return [...groups.entries()]
+    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+    .map(([, groupRows]) => {
+      const sortedGroupRows = [...groupRows].sort((left, right) =>
+        `${left.notePath}\0${left.externalFolder ?? ''}`.localeCompare(`${right.notePath}\0${right.externalFolder ?? ''}`)
+      );
+      const firstRow = sortedGroupRows[0];
+      if (!firstRow) {
+        throw new Error('Blocked adoption group cannot be empty.');
+      }
+
+      return {
+        label: formatBlockedReasonLabel(firstRow.reason),
+        message: firstRow.message,
+        reason: firstRow.reason,
+        rowCount: sortedGroupRows.length,
+        rows: sortedGroupRows,
+        sampleRows: sortedGroupRows.slice(0, REPORT_SAMPLE_LIMIT)
+      };
+    });
 }
 
 export function haveSameAdoptionRows(left: AdoptionPlan, right: AdoptionPlan): boolean {
@@ -202,7 +249,11 @@ function buildAdoptionRows(
     skippedDirectoryIdentities: externalScan.skippedDirectories.map((issue) => normalizePathForIdentity(issue.location))
   };
   const relevantCandidates = noteCandidates.filter((noteCandidate) => hasMatchingExternalBranch(noteCandidate, context));
-  const suppressedCandidateIdentities = findSuppressedCandidateIdentities(relevantCandidates);
+  const topologyCandidates = relevantCandidates.filter((noteCandidate) =>
+    ![...context.ignoredDirectoryIdentities]
+      .some((ignoredIdentity) => isPathInsideOrEqualIdentity(noteCandidate.identity, ignoredIdentity))
+  );
+  const suppressedCandidateIdentities = findSuppressedCandidateIdentities(topologyCandidates);
   const rows: AdoptionPlanRow[] = [...blockedRows];
 
   for (const noteCandidate of relevantCandidates) {
@@ -216,6 +267,11 @@ function buildAdoptionRows(
       .find((ignoredIdentity) => isPathInsideOrEqualIdentity(noteCandidate.identity, ignoredIdentity));
     const skippedDirectory = context.skippedDirectoryIdentities
       .find((skippedIdentity) => isPathInsideOrEqualIdentity(noteCandidate.identity, skippedIdentity));
+    const skippedDescendantDirectory = context.skippedDirectoryIdentities
+      .find((skippedIdentity) =>
+        skippedIdentity !== noteCandidate.identity
+        && isPathInsideOrEqualIdentity(skippedIdentity, noteCandidate.identity)
+      );
 
     if (noteCandidateSiblings.length > 1) {
       rows.push({
@@ -246,6 +302,17 @@ function buildAdoptionRows(
         message: 'Derived external folder path is inside a skipped external directory.',
         notePath: noteCandidate.notePath,
         reason: 'target-skipped'
+      });
+      continue;
+    }
+
+    if (skippedDescendantDirectory) {
+      rows.push({
+        externalFolder: noteCandidate.externalFolder,
+        kind: 'blocked-note',
+        message: 'Derived external folder contains a skipped external directory, so descendant marker evidence is incomplete.',
+        notePath: noteCandidate.notePath,
+        reason: 'target-contains-skipped-directory'
       });
       continue;
     }
@@ -436,6 +503,7 @@ function buildGlobalErrors(externalScan: ExternalScanResult): string[] {
 
 function buildMarkdownReport(input: {
   errors: string[];
+  notices: string[];
   residualGroups: AdoptionResidualGroup[];
   rows: AdoptionPlanRow[];
   summary: AdoptionPlanSummary;
@@ -453,13 +521,10 @@ function buildMarkdownReport(input: {
     '',
     formatMarkdownList('Errors', input.errors),
     formatMarkdownList('Warnings', input.warnings),
+    formatMarkdownList('Notices', input.notices),
     formatAdoptionRows(input.rows.filter((row): row is AdoptionAdoptRow => row.kind === 'adopt')),
-    formatRows('Blocked Notes', input.rows.filter((row): row is AdoptionBlockedNoteRow => row.kind === 'blocked-note')),
-    formatResidualGroups(input.residualGroups),
-    '## Topology Summary',
-    '',
-    `- Suppressed ancestor candidates: ${String(input.summary.suppressedAncestorCandidates)}`,
-    `- Existing bound folders pruned: ${String(input.summary.prunedExistingBindings)}`
+    formatBlockedGroups(input.rows.filter((row): row is AdoptionBlockedNoteRow => row.kind === 'blocked-note')),
+    formatResidualGroups(input.residualGroups)
   ].join('\n');
 }
 
@@ -528,6 +593,11 @@ function buildNoteCandidates(
   };
 }
 
+function buildNotices(externalScan: ExternalScanResult): string[] {
+  return formatIgnoredDirectoryWarnings(externalScan.ignoredDirectories)
+    .map((notice) => `${notice}. Ignored paths are unchecked and excluded from adoption topology.`);
+}
+
 function buildRelevantFolderIndex(
   relevantFolderIdentities: ReadonlySet<string>
 ): RelevantFolderIndex {
@@ -581,12 +651,14 @@ function buildSummary(
   errors: readonly string[],
   warnings: readonly string[],
   rows: readonly AdoptionPlanRow[],
-  planningResult: AdoptionPlanningResult
+  planningResult: AdoptionPlanningResult,
+  ignoredDirectoryCount: number
 ): AdoptionPlanSummary {
   return {
     adoptableLeafMatches: rows.filter((row) => row.kind === 'adopt').length,
     blockedCandidates: rows.filter((row) => row.kind === 'blocked-note').length,
     errorCount: errors.length,
+    ignoredDirectories: ignoredDirectoryCount,
     prunedExistingBindings: planningResult.prunedExistingBindings,
     residualDirectories: planningResult.residualGroups.reduce((total, group) => total + group.directoryCount, 0),
     suppressedAncestorCandidates: planningResult.suppressedAncestorCandidates,
@@ -598,6 +670,7 @@ function buildSummaryText(summary: AdoptionPlanSummary): string {
   return [
     `${String(summary.errorCount)} error(s)`,
     `${String(summary.warningCount)} warning(s)`,
+    `${String(summary.ignoredDirectories)} ignored external director${summary.ignoredDirectories === 1 ? 'y' : 'ies'}`,
     `${String(summary.adoptableLeafMatches)} adoptable match(es) (leaf-first)`,
     `${String(summary.suppressedAncestorCandidates)} suppressed ancestor candidate(s)`,
     `${String(summary.blockedCandidates)} blocked candidate(s)`,
@@ -608,9 +681,7 @@ function buildSummaryText(summary: AdoptionPlanSummary): string {
 
 function buildWarnings(vaultScan: VaultScanResult, externalScan: ExternalScanResult): string[] {
   return [
-    ...formatIgnoredDirectoryWarnings(externalScan.ignoredDirectories),
-    ...externalScan.skippedDirectories
-      .map((issue) => `Skipped external directory at ${issue.location}: ${issue.message}`),
+    ...formatSkippedDirectoryWarnings(externalScan),
     ...formatDuplicateWarnings('Vault', vaultScan.duplicatePaths),
     ...vaultScan.invalidFrontmatter
       .map((issue) => `Invalid frontmatter at ${issue.location}: ${issue.message}`),
@@ -694,6 +765,35 @@ function formatAdoptionRows(rows: readonly AdoptionAdoptRow[]): string {
   ].join('\n');
 }
 
+function formatBlockedGroups(rows: readonly AdoptionBlockedNoteRow[]): string {
+  const groups = groupAdoptionBlockedRows(rows);
+  if (groups.length === 0) {
+    return '## Blocked Candidates\n\nNone.';
+  }
+
+  return [
+    '## Blocked Candidates',
+    '',
+    '| Reason | Count | Message | Samples |',
+    '| --- | ---: | --- | --- |',
+    ...groups.map((group) => {
+      const samples = group.sampleRows
+        .map((row) => `${row.notePath} → ${row.externalFolder ?? '-'}`)
+        .join('<br>');
+      const omittedCount = group.rowCount - group.sampleRows.length;
+      const suffix = omittedCount > 0 ? `<br>${String(omittedCount)} more omitted` : '';
+      return `| ${formatMarkdownCell(group.label)} | ${String(group.rowCount)} | ${formatMarkdownCell(group.message)} | ${
+        formatMarkdownCell(samples)
+      }${suffix} |`;
+    })
+  ].join('\n');
+}
+
+function formatBlockedReasonLabel(reason: AdoptionBlockedNoteReason): string {
+  const label = reason.replaceAll('-', ' ');
+  return `${label.charAt(0).toUpperCase()}${label.slice(1)}`;
+}
+
 function formatDuplicateWarnings(scopeLabel: string, duplicatePaths: Map<string, string[]>): string[] {
   return sortEntries(duplicatePaths).map(([uuid, paths]) => {
     const sortedPaths = [...paths].sort().join(', ');
@@ -723,11 +823,13 @@ function formatProspectiveMarkerPath(externalFolder: string): string {
 
 function formatResidualGroups(groups: readonly AdoptionResidualGroup[]): string {
   if (groups.length === 0) {
-    return '## Residual External Tree\n\nNone.';
+    return '## Residual External Tree\n\nResidual directories are informational only and will not be modified.\n\nNone.';
   }
 
   return [
     '## Residual External Tree',
+    '',
+    'Residual directories are informational only and will not be modified.',
     '',
     '| Root branch | Directory count | Samples |',
     '| --- | ---: | --- |',
@@ -737,23 +839,23 @@ function formatResidualGroups(groups: readonly AdoptionResidualGroup[]): string 
   ].join('\n');
 }
 
-function formatRows(title: string, rows: readonly AdoptionPlanRow[]): string {
-  if (rows.length === 0) {
-    return `## ${title}\n\nNone.`;
+function formatSkippedDirectoryWarnings(externalScan: ExternalScanResult): string[] {
+  const groups = new Map<string, string[]>();
+  for (const issue of externalScan.skippedDirectories) {
+    const errorLabel = issue.code ?? sanitizeScanIssueMessage(issue.message, issue.location, externalScan.rootPath);
+    const relativePath = toExternalRelativeDisplayPath(externalScan.rootPath, issue.location);
+    const paths = groups.get(errorLabel) ?? [];
+    paths.push(relativePath);
+    groups.set(errorLabel, paths);
   }
 
-  return [
-    `## ${title}`,
-    '',
-    '| Kind | Vault file | External folder | Message |',
-    '| --- | --- | --- | --- |',
-    ...rows.map((row) => {
-      const notePath = 'notePath' in row ? row.notePath : '-';
-      const externalFolder = 'externalFolder' in row && row.externalFolder ? row.externalFolder : '-';
-      const message = 'message' in row ? row.message : '';
-      return `| ${formatMarkdownCell(row.kind)} | ${formatMarkdownCell(notePath)} | ${formatMarkdownCell(externalFolder)} | ${formatMarkdownCell(message)} |`;
-    })
-  ].join('\n');
+  return sortEntries(groups).map(([errorLabel, paths]) => {
+    const sortedPaths = [...paths].sort();
+    const samples = sortedPaths.slice(0, REPORT_SAMPLE_LIMIT);
+    const omittedCount = sortedPaths.length - samples.length;
+    const suffix = omittedCount > 0 ? `; ${String(omittedCount)} more omitted` : '';
+    return `Skipped ${String(sortedPaths.length)} external director${sortedPaths.length === 1 ? 'y' : 'ies'} (${errorLabel}): ${samples.join(', ')}${suffix}`;
+  });
 }
 
 function getAncestorOrSelfIdentities(identity: string): string[] {
@@ -830,6 +932,14 @@ function isRelatedToRelevantFolder(directoryIdentity: string, relevantFolderInde
   }
 
   return false;
+}
+
+function sanitizeScanIssueMessage(message: string, location: string, externalRootPath: string): string {
+  return message
+    .replaceAll(location, '<path>')
+    .replaceAll(normalizeDisplayPath(location), '<path>')
+    .replaceAll(externalRootPath, '<external-root>')
+    .replaceAll(normalizeDisplayPath(externalRootPath), '<external-root>');
 }
 
 function sortEntries<T>(map: Map<string, T>): [string, T][] {

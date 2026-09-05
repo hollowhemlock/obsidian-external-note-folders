@@ -172,12 +172,13 @@
     {
       "kind": "unit-test",
       "domain": "adoption-plan",
-      "scenario": "skipped-target",
+      "scenario": "skipped-target-overlap",
       "testPath": "src/core/adoptionPlan.test.ts",
       "stateIds": [
-        "T18"
+        "T18",
+        "T25"
       ],
-      "notes": "Covers adoption blocking when a note's derived expected folder is inside a skipped external subtree."
+      "notes": "Covers adoption blocking when a note's derived expected folder is inside a skipped external subtree or contains a skipped descendant."
     },
     {
       "kind": "unit-test",

@@ -4,6 +4,7 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 import {
+  afterEach,
   beforeAll,
   describe,
   expect,
@@ -14,6 +15,7 @@ import { buildExnfMarkerFileName } from '../../src/core/marker.ts';
 import {
   assertCliAvailable,
   assertSandboxPluginInstalled,
+  closeSandboxModals,
   enableSandboxConsoleCapture,
   formatCliResult,
   getSandboxVaultPath,
@@ -38,6 +40,8 @@ interface ExpectedAdoptionShape {
   };
 }
 
+const ADOPTION_MODAL_SELECTOR = '.modal:has(.external-note-folders-adoption-plan-modal)';
+
 describe('adoption integration', () => {
   let expectedShape: ExpectedAdoptionShape;
   let pluginId = '';
@@ -48,6 +52,10 @@ describe('adoption integration', () => {
     await assertSandboxPluginInstalled(pluginId);
   });
 
+  afterEach(async () => {
+    await closeSandboxModals();
+  });
+
   it('opens an adoption dry-run for exact fixture matches', async () => {
     const commandsResult = await waitForPluginCommands(pluginId);
     assertCliAvailable(commandsResult);
@@ -55,15 +63,12 @@ describe('adoption integration', () => {
     const debugResult = enableSandboxConsoleCapture();
     expect(debugResult.status, formatCliResult(debugResult)).toBe(0);
     runSandboxCli(['dev:console', 'clear']);
-    runSandboxCli([
-      'eval',
-      'code=document.querySelectorAll(".modal-close-button").forEach((button) => button.click())'
-    ]);
+    await closeSandboxModals();
 
     const commandResult = runSandboxCli(['command', `id=${pluginId}:adopt-existing-external-folders`]);
     expect(commandResult.status, formatCliResult(commandResult)).toBe(0);
 
-    const modalResult = await waitForSandboxModalText('Adopt existing external folders');
+    const modalResult = await waitForSandboxModalText('Adopt existing external folders', ADOPTION_MODAL_SELECTOR);
     expect(modalResult.status, formatCliResult(modalResult)).toBe(0);
     await writeSandboxReport('adoption/dry-run-modal.txt', modalResult.stdout);
     expect(modalResult.stdout).toContain('Adopt existing external folders');
@@ -76,7 +81,10 @@ describe('adoption integration', () => {
     expect(modalResult.stdout).toContain(`Adopt ${String(expectedShape.adoptions.length)} folder(s)`);
 
     clickSandboxModalButton(`Adopt ${String(expectedShape.adoptions.length)} folder(s)`);
-    const confirmModalResult = await waitForSandboxModalText(`Confirm adopt ${String(expectedShape.adoptions.length)} folder(s)`);
+    const confirmModalResult = await waitForSandboxModalText(
+      `Confirm adopt ${String(expectedShape.adoptions.length)} folder(s)`,
+      ADOPTION_MODAL_SELECTOR
+    );
     expect(confirmModalResult.status, formatCliResult(confirmModalResult)).toBe(0);
     clickSandboxModalButton(`Confirm adopt ${String(expectedShape.adoptions.length)} folder(s)`);
 
@@ -87,18 +95,18 @@ describe('adoption integration', () => {
     // Close the just-confirmed plan modal first. Its "Confirm adopt N folder(s)" arm state stays
     // in the DOM and shares the "Adopt existing external folders" heading with a fresh scan, so
     // waiting on the heading would re-capture the stale modal instead of the post-adoption rescan.
-    closeSandboxModals();
+    await closeSandboxModals();
 
     const rerunResult = runSandboxCli(['command', `id=${pluginId}:adopt-existing-external-folders`]);
     expect(rerunResult.status, formatCliResult(rerunResult)).toBe(0);
     const afterApplyMatchesText = `${String(expectedShape.afterApply.adoptableMatches)} adoptable match(es)`;
-    const rerunModalResult = await waitForSandboxModalText(afterApplyMatchesText);
+    const rerunModalResult = await waitForSandboxModalText(afterApplyMatchesText, ADOPTION_MODAL_SELECTOR);
     expect(rerunModalResult.status, formatCliResult(rerunModalResult)).toBe(0);
     await writeSandboxReport('adoption/after-apply-modal.txt', rerunModalResult.stdout);
     expect(rerunModalResult.stdout).toContain('Adopt existing external folders');
     expect(rerunModalResult.stdout).toContain(afterApplyMatchesText);
 
-    closeSandboxModals();
+    await closeSandboxModals();
   }, 30_000);
 });
 
@@ -113,13 +121,6 @@ function clickSandboxModalButton(buttonText: string): void {
   ].join('\n');
   const result = runSandboxCli(['eval', `code=${code}`]);
   expect(result.status, formatCliResult(result)).toBe(0);
-}
-
-function closeSandboxModals(): void {
-  runSandboxCli([
-    'eval',
-    'code=document.querySelectorAll(".modal-close-button").forEach((button) => button.click())'
-  ]);
 }
 
 async function readAdoptedBinding(expectedAdoption: ExpectedAdoption): Promise<string> {

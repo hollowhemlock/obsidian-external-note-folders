@@ -100,6 +100,7 @@ integrity state.
 | T22 | Expected folder crosses root boundary after resolution | Fail closed |
 | T23 | Expected folder has child bound marker | Overlap conflict |
 | T24 | Expected folder is child of existing bound marker | Overlap/descendant conflict |
+| T25 | Expected folder contains skipped/unreadable descendant | Adoption row blocker |
 
 ### Root-Wide External Evidence
 
@@ -220,6 +221,7 @@ integrity state.
 | Multiple deepest exact siblings | Each safe sibling is `adopt` |
 | V2 + target ignored T17 | `blocked-note`: `ignored-target` |
 | V2 + target skipped T18 | `blocked-note`: `target-skipped` |
+| V2 + target contains skipped T25 | `blocked-note`: `target-contains-skipped-directory` |
 | V2 + T4/T5/T8 | `blocked-note`: `target-already-bound` |
 | V2 + T9/T10/T14 | `blocked-note`: `target-has-malformed-marker` |
 | V2 + T23/T24 | Blocked overlap/conflict |
@@ -230,7 +232,7 @@ integrity state.
 | V4/V5/V6 | Invalid vault identity warning; not adoptable |
 | R10/R11 unrelated | Existing valid marker summarized; safe rows still adopt |
 | R6 unrelated malformed | Warning only; safe rows still adopt |
-| G7 unrelated skipped | Warning only; safe rows still adopt |
+| G7 unrelated skipped | Grouped warning only; safe rows still adopt |
 | G11/G12/root access failure | Global blocker |
 | J1 | Resume modal instead of new plan |
 | J2 | Block and ask manual inspection |
@@ -238,7 +240,9 @@ integrity state.
 | Apply: marker write succeeds then frontmatter fails | Journal incomplete; resume supported |
 | Apply: frontmatter write attempted with marker changed | Stops on first failure |
 | Rerun after success | 0 adoptable for adopted rows; payload preserved |
-| Residual external directories | Group by first root-relative segment with exact counts and at most five stable samples; no per-directory plan rows |
+| Ignored directories | Notice with count and relative samples; excluded from warning count |
+| Repeated blocked candidates | Group by reason/message for display; retain all plan rows and lazily expand modal details |
+| Residual external directories | Group by first root-relative segment with exact counts and at most five stable samples; informational only, with no per-directory plan rows |
 
 ### Reconcile External Folders
 

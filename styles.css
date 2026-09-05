@@ -40,6 +40,19 @@
   background: var(--background-secondary);
 }
 
+.external-note-folders-blocked-group {
+  margin-block: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+.external-note-folders-blocked-group summary {
+  cursor: pointer;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+}
+
 .external-note-folders-modal-actions {
   display: flex;
   gap: 8px;

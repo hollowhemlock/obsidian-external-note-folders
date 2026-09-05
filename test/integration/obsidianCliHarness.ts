@@ -28,6 +28,16 @@ const COMMAND_REGISTRATION_ATTEMPTS = 5;
 const COMMAND_REGISTRATION_RETRY_DELAY_MILLISECONDS = 500;
 const MODAL_TEXT_ATTEMPTS = 20;
 const MODAL_TEXT_RETRY_DELAY_MILLISECONDS = 500;
+
+export async function closeSandboxModals(): Promise<void> {
+  const closeResult = runSandboxCli([
+    'eval',
+    'code=Array.from(document.querySelectorAll(".modal")).forEach((modal) => { const closeButton = Array.from(modal.querySelectorAll("button")).find((button) => button.textContent?.trim() === "Close") ?? modal.querySelector(".modal-close-button"); closeButton?.click(); })'
+  ]);
+  expect(closeResult.status, formatCliResult(closeResult)).toBe(0);
+  await delay(MODAL_TEXT_RETRY_DELAY_MILLISECONDS);
+}
+
 export async function assertSandboxPluginInstalled(pluginId: string): Promise<void> {
   await access(path.join(
     getSandboxVaultPath(),
@@ -105,8 +115,8 @@ export async function waitForPluginCommands(pluginId: string, vaultPath = getSan
   return latestResult;
 }
 
-export async function waitForSandboxModalText(containsText: string): Promise<CliResult> {
-  let latestResult = runSandboxCli(['dev:dom', 'selector=.modal', 'text']);
+export async function waitForSandboxModalText(containsText: string, selector = '.modal'): Promise<CliResult> {
+  let latestResult = runSandboxCli(['dev:dom', `selector=${selector}`, 'text']);
 
   for (let attempt = 1; attempt < MODAL_TEXT_ATTEMPTS; attempt += 1) {
     if (latestResult.status === 0 && latestResult.stdout.includes(containsText)) {
@@ -114,7 +124,7 @@ export async function waitForSandboxModalText(containsText: string): Promise<Cli
     }
 
     await delay(MODAL_TEXT_RETRY_DELAY_MILLISECONDS);
-    latestResult = runSandboxCli(['dev:dom', 'selector=.modal', 'text']);
+    latestResult = runSandboxCli(['dev:dom', `selector=${selector}`, 'text']);
   }
 
   return latestResult;
