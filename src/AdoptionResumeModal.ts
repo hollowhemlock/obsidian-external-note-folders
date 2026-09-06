@@ -3,15 +3,20 @@ import {
   Modal
 } from 'obsidian';
 
+import type { ReportContext } from './modalReport.ts';
 import type { IncompleteAdoptionJournal } from './storage/adoptionExecutor.ts';
 
-import { renderCopyableReport } from './modalReport.ts';
+import {
+  renderCopyableReport,
+  renderReportContext
+} from './modalReport.ts';
 
 export class AdoptionResumeModal extends Modal {
   public constructor(
     app: Modal['app'],
     private readonly journal: IncompleteAdoptionJournal,
-    private readonly onResume: () => Promise<void>
+    private readonly onResume: () => Promise<void>,
+    private readonly reportContext: ReportContext
   ) {
     super(app);
   }
@@ -22,6 +27,7 @@ export class AdoptionResumeModal extends Modal {
     contentEl.addClass('external-note-folders-wide-modal');
 
     contentEl.createEl('h2', { text: 'Resume external folder adoption' });
+    renderReportContext(contentEl, this.reportContext);
     contentEl.createEl('p', {
       text: 'An incomplete adoption journal exists. Resume it or inspect the journal before starting a new adoption run.'
     });
@@ -33,7 +39,7 @@ export class AdoptionResumeModal extends Modal {
       cls: 'setting-item-description',
       text: `Started: ${this.journal.startedAt}; entries: ${String(this.journal.entryCount)}`
     });
-    renderCopyableReport(contentEl, 'Copyable details', this.buildCopyableReport());
+    renderCopyableReport(contentEl, 'Copyable details', this.buildCopyableReport(), this.reportContext);
 
     const actionsEl = contentEl.createDiv({
       cls: 'external-note-folders-modal-actions'

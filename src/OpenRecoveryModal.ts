@@ -9,8 +9,12 @@ import type {
   OpenRecoveryActiveMatchRow,
   OpenRecoveryCandidateRow
 } from './core/openExternalFolderRecovery.ts';
+import type { ReportContext } from './modalReport.ts';
 
-import { renderCopyableReport } from './modalReport.ts';
+import {
+  renderCopyableReport,
+  renderReportContext
+} from './modalReport.ts';
 
 export interface OpenRecoveryModalInput {
   onAdoptCandidate: (row: OpenRecoveryCandidateRow) => Promise<void>;
@@ -18,6 +22,7 @@ export interface OpenRecoveryModalInput {
   onCreateExpected: () => Promise<void>;
   onOpenFolder: (folderPath: string) => Promise<void>;
   plan: OpenExternalFolderRecoveryPlan;
+  reportContext: ReportContext;
 }
 
 export class OpenRecoveryModal extends Modal {
@@ -34,6 +39,7 @@ export class OpenRecoveryModal extends Modal {
     contentEl.addClass('external-note-folders-wide-modal');
 
     contentEl.createEl('h2', { text: 'Open external folder recovery' });
+    renderReportContext(contentEl, this.input.reportContext);
     contentEl.createEl('p', { text: this.input.plan.summaryText });
     contentEl.createEl('p', {
       cls: 'setting-item-description',
@@ -46,7 +52,7 @@ export class OpenRecoveryModal extends Modal {
     this.renderActiveMatches(contentEl);
     this.renderCandidates(contentEl);
     this.renderExpectedActions(contentEl);
-    renderCopyableReport(contentEl, 'Copyable report', this.input.plan.markdownReport);
+    renderCopyableReport(contentEl, 'Copyable report', this.input.plan.markdownReport, this.input.reportContext);
   }
 
   private renderActiveMatches(containerEl: HTMLElement): void {

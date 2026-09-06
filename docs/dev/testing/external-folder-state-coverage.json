@@ -302,6 +302,17 @@
       "notes": "Covers unique literal-name suggestions, ambiguity groups without Cartesian rows, and exclusion of exact, identified, marked, malformed, ignored, and skipped topology."
     },
     {
+      "kind": "integration-test",
+      "domain": "moved-folder-suggestions",
+      "scenario": "nonzero-modal-suggestions-and-ambiguity",
+      "testPath": "test/integration/adoption.integration.test.ts",
+      "stateIds": [
+        "R23",
+        "R24"
+      ],
+      "notes": "Covers real Obsidian modal rendering for one unique divergent-path suggestion and one ambiguous name group, including collapsed lazy rows and read-only filesystem state."
+    },
+    {
       "kind": "unit-test",
       "domain": "adoption-executor",
       "scenario": "adoption-journal-lifecycle",

@@ -9,15 +9,20 @@ import type {
   MovedFolderSuggestionGroup,
   MovedFolderSuggestionReport
 } from './core/movedFolderSuggestions.ts';
+import type { ReportContext } from './modalReport.ts';
 
-import { renderCopyableReport } from './modalReport.ts';
+import {
+  renderCopyableReport,
+  renderReportContext
+} from './modalReport.ts';
 
 const RENDER_BATCH_SIZE = 100;
 
 export class MovedFolderSuggestionModal extends Modal {
   public constructor(
     app: Modal['app'],
-    private readonly report: MovedFolderSuggestionReport
+    private readonly report: MovedFolderSuggestionReport,
+    private readonly reportContext: ReportContext
   ) {
     super(app);
   }
@@ -29,6 +34,7 @@ export class MovedFolderSuggestionModal extends Modal {
     contentEl.addClass('external-note-folders-moved-folder-suggestion-modal');
 
     contentEl.createEl('h2', { text: 'Suggest moved external folder matches' });
+    renderReportContext(contentEl, this.reportContext);
     contentEl.createEl('p', {
       text:
         'Read-only report: literal note and folder names are compared only when their relative paths diverge. No identifiers are assigned and no files or folders are changed.'
@@ -50,7 +56,7 @@ export class MovedFolderSuggestionModal extends Modal {
       text:
         'Temporarily restore the note to the folder’s matching relative path, run the exact-path adoption command, then move the note to its intended path and run the reconcile command.'
     });
-    renderCopyableReport(contentEl, 'Copyable report', this.report.markdownReport);
+    renderCopyableReport(contentEl, 'Copyable report', this.report.markdownReport, this.reportContext);
 
     const actionsEl = contentEl.createDiv({ cls: 'external-note-folders-modal-actions' });
     new ButtonComponent(actionsEl).setButtonText('Close').onClick(() => {
@@ -66,7 +72,9 @@ export class MovedFolderSuggestionModal extends Modal {
     }
 
     for (const group of groups) {
-      const detailsEl = containerEl.createEl('details');
+      const detailsEl = containerEl.createEl('details', {
+        cls: 'external-note-folders-moved-ambiguity-group'
+      });
       detailsEl.createEl('summary', {
         text: `${group.normalizedName}: ${String(group.noteCount)} note(s), ${String(group.folderCount)} folder(s)`
       });

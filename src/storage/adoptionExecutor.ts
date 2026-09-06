@@ -61,6 +61,7 @@ export type AdoptionJournalStage =
 
 export interface IncompleteAdoptionJournal {
   entryCount: number;
+  externalRootPath: string;
   journalPath: string;
   runId: string;
   startedAt: string;
@@ -112,6 +113,7 @@ export async function listIncompleteAdoptionJournals(journalRootPath: string): P
 
     incompleteJournals.push({
       entryCount: journal.entries.length,
+      externalRootPath: journal.externalRootPath,
       journalPath,
       runId: journal.runId,
       startedAt: journal.startedAt

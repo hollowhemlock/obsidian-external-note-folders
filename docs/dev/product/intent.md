@@ -192,6 +192,9 @@ References:
 If a known note identity points to a problematic, ignored, missing, malformed, duplicate, or occupied
 state, the user should see that state in the appropriate command output.
 
+Every user-facing report and plan identifies the absolute active-vault path and external-root path
+at the top, and preserves that context in copied output.
+
 Ignored linked folders are not treated as healthy, missing, drifted, or reconciled. They are
 reported as ignored/unchecked so the user can decide whether to remove the note identity, move the
 note, or amend ignore settings.

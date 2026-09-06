@@ -8,8 +8,12 @@ import type {
   MarkerMigrationPlanRow,
   MarkerMigrationRenameRow
 } from './core/markerMigrationPlan.ts';
+import type { ReportContext } from './modalReport.ts';
 
-import { renderCopyableReport } from './modalReport.ts';
+import {
+  renderCopyableReport,
+  renderReportContext
+} from './modalReport.ts';
 
 export class MarkerMigrationPlanModal extends Modal {
   private executeArmed: boolean;
@@ -18,7 +22,8 @@ export class MarkerMigrationPlanModal extends Modal {
     app: Modal['app'],
     private readonly plan: MarkerMigrationPlan,
     private readonly onExecute: () => Promise<void>,
-    private readonly dryRunByDefault: boolean
+    private readonly dryRunByDefault: boolean,
+    private readonly reportContext: ReportContext
   ) {
     super(app);
     this.executeArmed = !dryRunByDefault;
@@ -32,6 +37,7 @@ export class MarkerMigrationPlanModal extends Modal {
     const renameRows = this.plan.rows.filter((row): row is MarkerMigrationRenameRow => row.kind === 'rename');
 
     contentEl.createEl('h2', { text: 'Migrate legacy marker files' });
+    renderReportContext(contentEl, this.reportContext);
     contentEl.createEl('p', { text: this.plan.summaryText });
     contentEl.createEl('p', {
       cls: 'setting-item-description',
@@ -52,7 +58,7 @@ export class MarkerMigrationPlanModal extends Modal {
     this.renderTextSection(contentEl, 'Warnings', this.plan.warnings, 'No scan warnings detected.');
     this.renderTableSection(contentEl, 'Marker Rows', this.plan.rows, 'No legacy markers found.');
 
-    renderCopyableReport(contentEl, 'Copyable plan', this.plan.markdownReport);
+    renderCopyableReport(contentEl, 'Copyable plan', this.plan.markdownReport, this.reportContext);
 
     const actionsEl = contentEl.createDiv({
       cls: 'external-note-folders-modal-actions'

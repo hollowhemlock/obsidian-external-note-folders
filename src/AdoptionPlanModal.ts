@@ -10,12 +10,16 @@ import type {
   AdoptionPlan,
   AdoptionResidualGroup
 } from './core/adoptionPlan.ts';
+import type { ReportContext } from './modalReport.ts';
 
 import {
   getAdoptionRows,
   groupAdoptionBlockedRows
 } from './core/adoptionPlan.ts';
-import { renderCopyableReport } from './modalReport.ts';
+import {
+  renderCopyableReport,
+  renderReportContext
+} from './modalReport.ts';
 
 export class AdoptionPlanModal extends Modal {
   private executeArmed: boolean;
@@ -25,7 +29,8 @@ export class AdoptionPlanModal extends Modal {
     private readonly plan: AdoptionPlan,
     private readonly onExecute: () => Promise<void>,
     private readonly dryRunByDefault: boolean,
-    private readonly movedSuggestionCount: null | number = 0
+    private readonly movedSuggestionCount: null | number,
+    private readonly reportContext: ReportContext
   ) {
     super(app);
     this.executeArmed = !dryRunByDefault;
@@ -41,6 +46,7 @@ export class AdoptionPlanModal extends Modal {
     const blockedRows = this.plan.rows.filter((row): row is AdoptionBlockedNoteRow => row.kind === 'blocked-note');
 
     contentEl.createEl('h2', { text: 'Adopt exact-path external folders' });
+    renderReportContext(contentEl, this.reportContext);
     contentEl.createEl('p', {
       cls: 'external-note-folders-adoption-guidance',
       text:
@@ -88,7 +94,7 @@ export class AdoptionPlanModal extends Modal {
     this.renderBlockedSection(contentEl, blockedRows);
     this.renderResidualSection(contentEl, this.plan.residualGroups);
 
-    renderCopyableReport(contentEl, 'Copyable plan', this.plan.markdownReport);
+    renderCopyableReport(contentEl, 'Copyable plan', this.plan.markdownReport, this.reportContext);
 
     const actionsEl = contentEl.createDiv({
       cls: 'external-note-folders-modal-actions'

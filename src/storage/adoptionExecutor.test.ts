@@ -273,6 +273,7 @@ describe('adoption executor', () => {
 
     expect(incompleteJournals).toHaveLength(2);
     expect(incompleteJournals.every((journal) => journal.entryCount === 1)).toBe(true);
+    expect(incompleteJournals.every((journal) => journal.externalRootPath === 'X:/External')).toBe(true);
   });
 
   it('ignores stale completed journals when listing incomplete journals', async () => {

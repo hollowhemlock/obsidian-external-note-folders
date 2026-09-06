@@ -10,6 +10,7 @@ import type {
   OpenExternalFolderRecoveryPlan,
   OpenRecoveryCandidateRow
 } from './core/openExternalFolderRecovery.ts';
+import type { ReportContext } from './modalReport.ts';
 import type { PluginSettings } from './PluginSettings.ts';
 import type { AdoptionExecutionOperations } from './storage/adoptionExecutor.ts';
 
@@ -301,6 +302,13 @@ export class Plugin extends ObsidianPlugin {
     });
   }
 
+  private getReportContext(externalRootPath: string): ReportContext {
+    return {
+      externalRootPath,
+      vaultPath: this.getVaultRootPath()
+    };
+  }
+
   private getVaultRootPath(): string {
     const adapter = this.app.vault.adapter as Partial<VaultAdapterWithBasePath>;
     if (typeof adapter.getBasePath === 'function') {
@@ -434,7 +442,8 @@ export class Plugin extends ObsidianPlugin {
           uuid: plan.uuid
         });
       },
-      plan
+      plan,
+      reportContext: this.getReportContext(plan.externalRootPath)
     }).open();
   }
 
@@ -461,7 +470,8 @@ export class Plugin extends ObsidianPlugin {
           } catch (error: unknown) {
             this.showUnexpectedError(error);
           }
-        }
+        },
+        this.getReportContext(journal.externalRootPath)
       ).open();
       return;
     }
@@ -490,7 +500,8 @@ export class Plugin extends ObsidianPlugin {
         }
       },
       this.settings.dryRunByDefault,
-      analysis.movedSuggestionCount
+      analysis.movedSuggestionCount,
+      this.getReportContext(plan.externalRootPath)
     ).open();
   }
 
@@ -534,7 +545,8 @@ export class Plugin extends ObsidianPlugin {
             }
           },
           true,
-          currentAnalysis.movedSuggestionCount
+          currentAnalysis.movedSuggestionCount,
+          this.getReportContext(currentPlan.externalRootPath)
         ).open();
         return false;
       }
@@ -592,7 +604,7 @@ export class Plugin extends ObsidianPlugin {
     }
 
     await this.runMutatingCommand('assign an external folder UUID', async () => {
-      const { verifyReport } = await this.withProgressModal(
+      const { externalScan, verifyReport } = await this.withProgressModal(
         'Assign external folder identifier started',
         'Scanning the external root for integrity errors before writing note frontmatter.',
         () => this.collectScanContext()
@@ -600,7 +612,7 @@ export class Plugin extends ObsidianPlugin {
       if (verifyReport.hasIntegrityErrors) {
         new Notice('Cannot assign an identifier while integrity errors exist. Review the opened report for details.');
         this.logWarn('assign UUID blocked by integrity errors', { report: verifyReport });
-        new VerifyReportModal(this.app, verifyReport, false).open();
+        new VerifyReportModal(this.app, verifyReport, false, this.getReportContext(externalScan.rootPath)).open();
         return;
       }
 
@@ -674,7 +686,8 @@ export class Plugin extends ObsidianPlugin {
               this.showUnexpectedError(error);
             }
           },
-          true
+          true,
+          this.getReportContext(currentPlan.externalRootPath)
         ).open();
         return false;
       }
@@ -732,7 +745,8 @@ export class Plugin extends ObsidianPlugin {
           this.showUnexpectedError(error);
         }
       },
-      this.settings.dryRunByDefault
+      this.settings.dryRunByDefault,
+      this.getReportContext(plan.externalRootPath)
     ).open();
   }
 
@@ -890,7 +904,8 @@ export class Plugin extends ObsidianPlugin {
           this.showUnexpectedError(error);
         }
       },
-      this.settings.dryRunByDefault
+      this.settings.dryRunByDefault,
+      this.getReportContext(plan.externalRootPath)
     ).open();
   }
 
@@ -938,17 +953,20 @@ export class Plugin extends ObsidianPlugin {
       vaultRootPath: this.getVaultRootPath()
     });
 
-    const driftReport = await this.withProgressModal(
+    const { driftReport, externalRootPath } = await this.withProgressModal(
       'External folder drift report started',
       'Scanning the vault and external root to build the drift report.',
       async () => {
         const { externalScan, vaultScan } = await this.collectScanContext();
-        return buildDriftReport(vaultScan, externalScan);
+        return {
+          driftReport: buildDriftReport(vaultScan, externalScan),
+          externalRootPath: externalScan.rootPath
+        };
       }
     );
     new Notice(`External folder drift report complete: ${driftReport.summaryText}.`);
     this.logInfo('drift report complete', { report: driftReport });
-    new DriftReportModal(this.app, driftReport).open();
+    new DriftReportModal(this.app, driftReport, this.getReportContext(externalRootPath)).open();
   }
 
   private async runSuggestMovedExternalFolderMatchesCommand(): Promise<void> {
@@ -956,23 +974,26 @@ export class Plugin extends ObsidianPlugin {
       externalRootPath: this.settings.externalRootPath,
       vaultRootPath: this.getVaultRootPath()
     });
-    const report = await this.withProgressModal(
+    const { externalRootPath, report } = await this.withProgressModal(
       'Moved external folder suggestion scan started',
       'Scanning the vault and external root for unique equivalently named paths.',
       async () => {
         const { externalScan, vaultScan } = await this.collectScanContext();
         const notePaths = this.getMarkdownNotePaths();
-        return buildMovedFolderSuggestionReport({
-          exactCandidateIdentities: buildExactPathCandidateIdentities({ externalScan, notePaths, vaultScan }),
-          externalScan,
-          notePaths,
-          vaultScan
-        });
+        return {
+          externalRootPath: externalScan.rootPath,
+          report: buildMovedFolderSuggestionReport({
+            exactCandidateIdentities: buildExactPathCandidateIdentities({ externalScan, notePaths, vaultScan }),
+            externalScan,
+            notePaths,
+            vaultScan
+          })
+        };
       }
     );
     new Notice(`Moved external folder suggestion scan complete: ${report.summaryText}.`);
     this.logInfo('moved external folder suggestion scan complete', { report });
-    new MovedFolderSuggestionModal(this.app, report).open();
+    new MovedFolderSuggestionModal(this.app, report, this.getReportContext(externalRootPath)).open();
   }
 
   private showUnexpectedError(error: unknown): void {

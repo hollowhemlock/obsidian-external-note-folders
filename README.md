@@ -31,6 +31,8 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 - `Reconcile external folders`: Builds a dry-run move plan and, only after explicit confirmation, moves existing bound external folders to their current note-derived paths. It never deletes folders or marker files and stops on first failure.
 - `Migrate legacy marker files`: Builds a dry-run plan that renames legacy fixed `.exnf` markers to `<uuid>.exnf` and executes only after explicit confirmation.
 
+Every report and dry-run plan begins with the absolute active-vault path and configured external-root path. The same context is prepended to its copyable text so captured reports can be traced to the filesystem roots they describe.
+
 ## Open Behavior and Drift
 
 `Open external folder` must not assign note identity. The recovery behavior keeps

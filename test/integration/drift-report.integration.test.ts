@@ -14,6 +14,7 @@ import {
   formatCliResult,
   getSandboxVaultPath,
   readSandboxPluginId,
+  resolveRepoPath,
   runCli,
   waitForPluginCommands,
   waitForSandboxModalText,
@@ -54,7 +55,12 @@ describe('drift report integration', () => {
     const modalResult = await waitForSandboxModalText('Copyable report', DRIFT_MODAL_SELECTOR);
     expect(modalResult.status, formatCliResult(modalResult)).toBe(0);
     await writeSandboxReport('drift-report/basic-drift-matrix/modal.md', modalResult.stdout);
+    const normalizedModalText = normalizePathSeparators(modalResult.stdout);
     expect(modalResult.stdout).toContain('External folder drift report');
+    expect(modalResult.stdout).toContain('vault-path:');
+    expect(normalizedModalText).toContain(normalizePathSeparators(sandboxVaultPath));
+    expect(modalResult.stdout).toContain('external-root:');
+    expect(normalizedModalText).toContain(normalizePathSeparators(resolveRepoPath('test/fixtures/sandbox/external-root')));
     expect(modalResult.stdout).toContain(`${DRIFT_SCENARIO_PATH}/Moved/New Place/Move Me.md`);
     expect(modalResult.stdout).toContain('Copyable report');
 
@@ -64,3 +70,7 @@ describe('drift report integration', () => {
     expect(consoleResult.stdout).toContain('[external-note-folders] drift report complete');
   }, 30_000);
 });
+
+function normalizePathSeparators(input: string): string {
+  return input.replaceAll('\\', '/');
+}

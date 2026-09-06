@@ -6,13 +6,18 @@ import type {
   DriftReport,
   DriftSuggestion
 } from './core/driftReport.ts';
+import type { ReportContext } from './modalReport.ts';
 
-import { renderCopyableReport } from './modalReport.ts';
+import {
+  renderCopyableReport,
+  renderReportContext
+} from './modalReport.ts';
 
 export class DriftReportModal extends Modal {
   public constructor(
     app: Modal['app'],
-    private readonly driftReport: DriftReport
+    private readonly driftReport: DriftReport,
+    private readonly reportContext: ReportContext
   ) {
     super(app);
   }
@@ -24,6 +29,7 @@ export class DriftReportModal extends Modal {
     contentEl.addClass('external-note-folders-drift-report-modal');
 
     contentEl.createEl('h2', { text: 'External folder drift report' });
+    renderReportContext(contentEl, this.reportContext);
     contentEl.createEl('p', { text: this.driftReport.summaryText });
     contentEl.createEl('p', {
       cls: 'setting-item-description',
@@ -43,7 +49,7 @@ export class DriftReportModal extends Modal {
     this.renderOccupiedSection(contentEl, 'Occupied Target Paths', this.driftReport.occupiedRows, 'No expected target paths are occupied.');
     this.renderSuggestionSection(contentEl, 'Suggestions', this.driftReport.suggestions, 'No likely matches found.');
 
-    renderCopyableReport(contentEl, 'Copyable report', this.driftReport.markdownReport);
+    renderCopyableReport(contentEl, 'Copyable report', this.driftReport.markdownReport, this.reportContext);
   }
 
   private renderBindingSection(
