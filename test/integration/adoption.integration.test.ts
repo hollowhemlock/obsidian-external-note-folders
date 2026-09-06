@@ -41,6 +41,7 @@ interface ExpectedAdoptionShape {
 }
 
 const ADOPTION_MODAL_SELECTOR = '.modal:has(.external-note-folders-adoption-plan-modal)';
+const MOVED_SUGGESTION_MODAL_SELECTOR = '.modal:has(.external-note-folders-moved-folder-suggestion-modal)';
 
 describe('adoption integration', () => {
   let expectedShape: ExpectedAdoptionShape;
@@ -56,6 +57,23 @@ describe('adoption integration', () => {
     await closeSandboxModals();
   });
 
+  it('opens the read-only moved-folder suggestion report', async () => {
+    const commandsResult = await waitForPluginCommands(pluginId);
+    assertCliAvailable(commandsResult);
+    await closeSandboxModals();
+
+    const commandResult = runSandboxCli(['command', `id=${pluginId}:suggest-moved-external-folder-matches`]);
+    expect(commandResult.status, formatCliResult(commandResult)).toBe(0);
+
+    const modalResult = await waitForSandboxModalText('Suggest moved external folder matches', MOVED_SUGGESTION_MODAL_SELECTOR);
+    expect(modalResult.status, formatCliResult(modalResult)).toBe(0);
+    await writeSandboxReport('adoption/moved-folder-suggestions-modal.txt', modalResult.stdout);
+    expect(modalResult.stdout).toContain('Read-only report');
+    expect(modalResult.stdout).toContain('unique only among checked eligible paths');
+    expect(modalResult.stdout).toContain('Safe adoption workflow');
+    expect(modalResult.stdout).not.toContain('Confirm adopt');
+  }, 30_000);
+
   it('opens an adoption dry-run for exact fixture matches', async () => {
     const commandsResult = await waitForPluginCommands(pluginId);
     assertCliAvailable(commandsResult);
@@ -68,10 +86,10 @@ describe('adoption integration', () => {
     const commandResult = runSandboxCli(['command', `id=${pluginId}:adopt-existing-external-folders`]);
     expect(commandResult.status, formatCliResult(commandResult)).toBe(0);
 
-    const modalResult = await waitForSandboxModalText('Adopt existing external folders', ADOPTION_MODAL_SELECTOR);
+    const modalResult = await waitForSandboxModalText('Adopt exact-path external folders', ADOPTION_MODAL_SELECTOR);
     expect(modalResult.status, formatCliResult(modalResult)).toBe(0);
     await writeSandboxReport('adoption/dry-run-modal.txt', modalResult.stdout);
-    expect(modalResult.stdout).toContain('Adopt existing external folders');
+    expect(modalResult.stdout).toContain('Adopt exact-path external folders');
     expect(modalResult.stdout).toContain(`${String(expectedShape.adoptions.length)} adoptable match(es)`);
     for (const expectedAdoption of expectedShape.adoptions) {
       expect(modalResult.stdout).toContain(expectedAdoption.notePath);
@@ -93,7 +111,7 @@ describe('adoption integration', () => {
     }
 
     // Close the just-confirmed plan modal first. Its "Confirm adopt N folder(s)" arm state stays
-    // in the DOM and shares the "Adopt existing external folders" heading with a fresh scan, so
+    // in the DOM and shares the "Adopt exact-path external folders" heading with a fresh scan, so
     // waiting on the heading would re-capture the stale modal instead of the post-adoption rescan.
     await closeSandboxModals();
 
@@ -103,7 +121,7 @@ describe('adoption integration', () => {
     const rerunModalResult = await waitForSandboxModalText(afterApplyMatchesText, ADOPTION_MODAL_SELECTOR);
     expect(rerunModalResult.status, formatCliResult(rerunModalResult)).toBe(0);
     await writeSandboxReport('adoption/after-apply-modal.txt', rerunModalResult.stdout);
-    expect(rerunModalResult.stdout).toContain('Adopt existing external folders');
+    expect(rerunModalResult.stdout).toContain('Adopt exact-path external folders');
     expect(rerunModalResult.stdout).toContain(afterApplyMatchesText);
 
     await closeSandboxModals();

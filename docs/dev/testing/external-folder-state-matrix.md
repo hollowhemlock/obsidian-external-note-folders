@@ -16,7 +16,8 @@ Maintenance guidance lives in [Testing Strategy](README.md).
 | --- | --- | --- | --- |
 | `Assign external folder identifier` | Yes | No | Minting identity when unsafe |
 | `Open external folder` | No, except explicit recovery adoption | Sometimes marker create/adopt | Opening or adopting the wrong folder |
-| `Adopt existing external folders` | Yes | Yes | Bulk identity writes |
+| `Adopt exact-path external folders` | Yes | Yes | Bulk identity writes |
+| `Suggest moved external folder matches` | No | No | Misleading name-based association |
 | `Report external folder drift` | No | No | Silent misclassification |
 | `Reconcile external folders` | No | Yes | Moving the wrong folder |
 | `Migrate legacy marker files` | No | Yes | Marker migration or data loss |
@@ -129,6 +130,9 @@ integrity state.
 | R20 | Descendant directories under marked folders | Omitted from residual-directory counts |
 | R21 | Case or Unicode duplicate external targets | Collision |
 | R22 | External folder contains important payload files | Mutation must preserve |
+| R23 | One eligible unassigned note and one eligible unmarked folder share a literal name at divergent paths | Read-only moved-folder suggestion |
+| R24 | Multiple eligible notes or folders share a literal name | Ambiguity summary; no pair suggestions |
+| R25 | Equivalently named folder overlaps exact-candidate, marker, identity, malformed, ignored, or skipped topology | Excluded from moved-folder suggestions |
 
 ### Journal And Execution State
 
@@ -211,7 +215,20 @@ integrity state.
 | T23/T24 | Overlap/occupied/malformed-derived conflict as appropriate |
 | Case/Unicode collisions | Collision error or deterministic classification |
 
-### Adopt Existing External Folders
+### Suggest Moved External Folder Matches
+
+| Combination | Expected report |
+| --- | --- |
+| V2 + R23 | One read-only suggestion with current expected path and divergent candidate path |
+| V2 + R24 | One ambiguity group with exact counts and capped samples; no Cartesian pair rows |
+| V2 + R25 | No moved-folder suggestion for excluded topology |
+| V2 + T0 + no equal eligible name | No suggestion |
+| G7/G9 | Report unchecked warning/notice; unrelated checked paths remain eligible |
+| G4/G11/G12 | Suggestion classification unavailable |
+| Large unique group | Keep all report rows; render 100 rows per explicit expansion action; copy at most five samples |
+| Any report | No UUID, marker, note, journal, or folder mutation |
+
+### Adopt Exact-Path External Folders
 
 | Combination | Expected row |
 | --- | --- |

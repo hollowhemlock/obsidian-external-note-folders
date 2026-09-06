@@ -12,7 +12,8 @@ Use this note for a quick manual pass in the sandbox vault.
 
 - `Assign external folder identifier`: run on this note and confirm a start/progress modal appears, then an `exnf` value appears in frontmatter.
 - `Open external folder`: run on this note and confirm the system file manager opens the matching external folder.
-- `Adopt existing external folders`: run and confirm a start/progress modal appears, then a dry-run modal opens; this fixture may report existing identities as blockers.
+- `Adopt exact-path external folders`: run and confirm a start/progress modal appears, then a dry-run modal opens; this fixture may report existing identities as blockers.
+- `Suggest moved external folder matches`: confirm the read-only report opens and does not offer an adoption or mutation action.
 - `Report external folder drift`: run after opening the folder and confirm a start/progress modal appears, then this note reports no integrity errors or unexpected path.
 - `Reconcile external folders`: run after opening the folder and confirm a start/progress modal appears, then the dry-run plan shows no move needed for this note.
 

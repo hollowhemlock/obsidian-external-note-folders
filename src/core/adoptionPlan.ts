@@ -12,6 +12,10 @@ import {
   deriveExternalFolderPath,
   normalizePathForIdentity
 } from './pathPolicy.ts';
+import {
+  buildExternalScanGlobalErrors,
+  formatSkippedDirectoryWarnings
+} from './scanEvidence.ts';
 
 const RESIDUAL_SAMPLE_LIMIT = 5;
 const REPORT_SAMPLE_LIMIT = 5;
@@ -139,7 +143,7 @@ interface RelevantFolderIndex {
   relevantIdentities: ReadonlySet<string>;
 }
 
-export function buildAdoptionPlan(input: {
+export function buildExactPathAdoptionPlan(input: {
   externalScan: ExternalScanResult;
   mutationSequence: number;
   notePaths: readonly string[];
@@ -175,6 +179,32 @@ export function buildAdoptionPlan(input: {
     summaryText,
     warnings
   };
+}
+
+export const buildAdoptionPlan = buildExactPathAdoptionPlan;
+
+export function buildExactPathCandidateIdentities(input: {
+  externalScan: ExternalScanResult;
+  notePaths: readonly string[];
+  vaultScan: VaultScanResult;
+}): ReadonlySet<string> {
+  const directoryIdentities = new Set(
+    input.externalScan.directories.map((folderPath) => normalizePathForIdentity(folderPath))
+  );
+  const ignoredDirectoryIdentities = new Set(input.externalScan.ignoredDirectories
+    .map((directory) => normalizePathForIdentity(directory.folderPath)));
+  const skippedDirectoryIdentities = new Set(input.externalScan.skippedDirectories
+    .map((issue) => normalizePathForIdentity(issue.location)));
+  const { noteCandidates } = buildNoteCandidates(input.notePaths, input.vaultScan, input.externalScan.rootPath);
+  return new Set(
+    noteCandidates
+      .filter((candidate) =>
+        directoryIdentities.has(candidate.identity)
+        || hasAncestorOrSelfIdentity(candidate.identity, ignoredDirectoryIdentities)
+        || hasAncestorOrSelfIdentity(candidate.identity, skippedDirectoryIdentities)
+      )
+      .map((candidate) => candidate.identity)
+  );
 }
 
 export function getAdoptionRows(plan: AdoptionPlan): AdoptionAdoptRow[] {
@@ -493,12 +523,7 @@ function buildExistingIdentityNotePaths(vaultScan: VaultScanResult): Set<string>
 }
 
 function buildGlobalErrors(externalScan: ExternalScanResult): string[] {
-  return [
-    ...externalScan.accessErrors
-      .map((issue) => `External root access error at ${issue.location}: ${issue.message}`),
-    ...externalScan.ignoreErrors
-      .map((issue) => `Invalid external root ignore pattern ${issue.pattern}: ${issue.message}`)
-  ];
+  return buildExternalScanGlobalErrors(externalScan);
 }
 
 function buildMarkdownReport(input: {
@@ -511,7 +536,7 @@ function buildMarkdownReport(input: {
   warnings: string[];
 }): string {
   return [
-    '# External Folder Adoption Plan',
+    '# Exact-Path External Folder Adoption Plan',
     '',
     input.summaryText,
     '',
@@ -839,25 +864,6 @@ function formatResidualGroups(groups: readonly AdoptionResidualGroup[]): string 
   ].join('\n');
 }
 
-function formatSkippedDirectoryWarnings(externalScan: ExternalScanResult): string[] {
-  const groups = new Map<string, string[]>();
-  for (const issue of externalScan.skippedDirectories) {
-    const errorLabel = issue.code ?? sanitizeScanIssueMessage(issue.message, issue.location, externalScan.rootPath);
-    const relativePath = toExternalRelativeDisplayPath(externalScan.rootPath, issue.location);
-    const paths = groups.get(errorLabel) ?? [];
-    paths.push(relativePath);
-    groups.set(errorLabel, paths);
-  }
-
-  return sortEntries(groups).map(([errorLabel, paths]) => {
-    const sortedPaths = [...paths].sort();
-    const samples = sortedPaths.slice(0, REPORT_SAMPLE_LIMIT);
-    const omittedCount = sortedPaths.length - samples.length;
-    const suffix = omittedCount > 0 ? `; ${String(omittedCount)} more omitted` : '';
-    return `Skipped ${String(sortedPaths.length)} external director${sortedPaths.length === 1 ? 'y' : 'ies'} (${errorLabel}): ${samples.join(', ')}${suffix}`;
-  });
-}
-
 function getAncestorOrSelfIdentities(identity: string): string[] {
   const identities: string[] = [];
   let currentIdentity = normalizeDisplayPath(identity);
@@ -896,6 +902,11 @@ function groupByIdentity<T extends { identity: string }>(items: readonly T[]): M
   return groups;
 }
 
+function hasAncestorOrSelfIdentity(identity: string, possibleAncestors: ReadonlySet<string>): boolean {
+  return getAncestorOrSelfIdentities(identity)
+    .some((ancestor) => possibleAncestors.has(normalizePathForIdentity(ancestor)));
+}
+
 function hasMatchingExternalBranch(noteCandidate: NoteCandidate, context: PlannerContext): boolean {
   if ((context.directoryCandidatesByIdentity.get(noteCandidate.identity) ?? []).length > 0) {
     return true;
@@ -932,14 +943,6 @@ function isRelatedToRelevantFolder(directoryIdentity: string, relevantFolderInde
   }
 
   return false;
-}
-
-function sanitizeScanIssueMessage(message: string, location: string, externalRootPath: string): string {
-  return message
-    .replaceAll(location, '<path>')
-    .replaceAll(normalizeDisplayPath(location), '<path>')
-    .replaceAll(externalRootPath, '<external-root>')
-    .replaceAll(normalizeDisplayPath(externalRootPath), '<external-root>');
 }
 
 function sortEntries<T>(map: Map<string, T>): [string, T][] {

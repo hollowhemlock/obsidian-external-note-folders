@@ -14,6 +14,7 @@ The current release supports:
 - Opening the note's bound external folder.
 - Creating a bound external folder on first open for an already-identified note when no binding exists.
 - Adopting exact note/folder matches from mixed existing external roots.
+- Suggesting equivalently named unassigned notes and external folders whose relative paths have diverged.
 - Integrity preflights before mutating commands.
 - Reporting drift between note-derived paths and existing bound external folders.
 - Explicitly reconciling existing bound external folders after note renames or moves.
@@ -24,7 +25,8 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 
 - `Assign external folder identifier`: Adds an `exnf` UUID to the active markdown note if one is missing. It never creates or changes external folders.
 - `Open external folder`: Requires an existing valid `exnf` UUID and never assigns note identity. It opens the expected folder immediately when its marker matches; otherwise it runs an active-note recovery scan for fallback cases where the expected folder is missing, unmarked, malformed, or bound to another UUID.
-- `Adopt existing external folders`: Builds a leaf-first dry-run plan for exact derived-path matches from notes that do not already have `exnf` identity. When exact candidates overlap, only the deepest candidates are eligible, and targets overlapping an already-identified note or marked folder are blocked, so adoption never creates nested identities or bound folders. After confirmation, the command writes `<uuid>.exnf` markers first and note frontmatter second.
+- `Adopt exact-path external folders`: Builds a leaf-first dry-run plan for exact derived-path matches from notes that do not already have `exnf` identity. When exact candidates overlap, only the deepest candidates are eligible, and targets overlapping an already-identified note or marked folder are blocked, so adoption never creates nested identities or bound folders. After confirmation, the command writes `<uuid>.exnf` markers first and note frontmatter second. The legacy command ID remains unchanged so existing hotkeys continue to work.
+- `Suggest moved external folder matches`: Builds a read-only report of unassigned notes and unmarked external folders with identical literal names but divergent relative paths. Only names that are unique among checked eligible paths are suggested; ambiguous names are summarized, and ignored or skipped subtrees are explicitly unchecked. This command never assigns UUIDs, writes markers, moves folders, or adopts a suggestion.
 - `Report external folder drift`: Read-only report that compares current note-derived external folder paths against existing external folders, highlights integrity errors, missing/orphaned/unexpected/occupied paths, and suggests likely matches.
 - `Reconcile external folders`: Builds a dry-run move plan and, only after explicit confirmation, moves existing bound external folders to their current note-derived paths. It never deletes folders or marker files and stops on first failure.
 - `Migrate legacy marker files`: Builds a dry-run plan that renames legacy fixed `.exnf` markers to `<uuid>.exnf` and executes only after explicit confirmation.

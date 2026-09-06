@@ -1,4 +1,4 @@
-# External Folder Adoption Plan
+# Exact-Path External Folder Adoption Plan
 
 ## Summary
 
@@ -26,7 +26,7 @@ for mixed external roots.
 
 ## PR 2: Bulk Adopt Existing External Folders
 
-- Add an `Adopt existing external folders` command with dry-run, copyable
+- Add an `Adopt exact-path external folders` command with dry-run, copyable
   report, and explicit confirm.
 - Whole-root pristine state is not required. Root-level scan failures and invalid
   ignore settings are global blockers; unrelated existing identities, markers,

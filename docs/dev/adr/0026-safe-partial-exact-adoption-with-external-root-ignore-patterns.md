@@ -141,7 +141,7 @@ adoption topology. The matching ignore pattern is not reported because the
   by adoption.
 - Depth-limited adoption stages are not allowed because a partial scan cannot
   prove that a shallower candidate has no descendant candidate or marker.
-- No fuzzy, suffix, tree-tail, or basename-only adoption is allowed.
+- No fuzzy, suffix, tree-tail, or basename-only adoption is allowed. ADR-0030 permits literal basename evidence only in a separate read-only suggestion report; it does not weaken adoption eligibility.
 
 Execution remains marker-first, frontmatter-second, journaled, and preflighted
 immediately before apply.
@@ -208,5 +208,6 @@ immediately before apply.
 - [ADR-0015](0015-external-folder-path-derivation.md)
 - [ADR-0024](0024-strict-exact-adoption-with-journaled-marker-first-writes.md)
 - [ADR-0025](0025-active-note-open-recovery-scan.md)
+- [ADR-0030](0030-read-only-moved-folder-name-suggestions.md)
 - [Git gitignore documentation](https://git-scm.com/docs/gitignore)
 - [`ignore` package documentation](https://github.com/kaelzhang/node-ignore)

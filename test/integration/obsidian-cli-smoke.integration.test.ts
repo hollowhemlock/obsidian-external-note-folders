@@ -57,6 +57,7 @@ describe('obsidian CLI smoke integration', () => {
     const combinedOutput = `${commandsResult.stdout}\n${commandsResult.stderr}`;
     expect(combinedOutput).toContain(`${pluginId}:assign-external-folder-uuid`);
     expect(combinedOutput).toContain(`${pluginId}:adopt-existing-external-folders`);
+    expect(combinedOutput).toContain(`${pluginId}:suggest-moved-external-folder-matches`);
     expect(combinedOutput).toContain(`${pluginId}:migrate-legacy-marker-files`);
     expect(combinedOutput).toContain(`${pluginId}:open-external-folder`);
     expect(combinedOutput).toContain(`${pluginId}:reconcile-external-folders`);

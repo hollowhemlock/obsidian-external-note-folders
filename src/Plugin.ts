@@ -17,7 +17,8 @@ import { AdoptionPlanModal } from './AdoptionPlanModal.ts';
 import { AdoptionResumeModal } from './AdoptionResumeModal.ts';
 import { CommandProgressModal } from './CommandProgressModal.ts';
 import {
-  buildAdoptionPlan,
+  buildExactPathAdoptionPlan,
+  buildExactPathCandidateIdentities,
   haveSameAdoptionRows
 } from './core/adoptionPlan.ts';
 import { buildDriftReport } from './core/driftReport.ts';
@@ -26,6 +27,7 @@ import {
   buildMarkerMigrationPlan,
   haveSameMarkerMigrationRows
 } from './core/markerMigrationPlan.ts';
+import { buildMovedFolderSuggestionReport } from './core/movedFolderSuggestions.ts';
 import { chooseInitialOpenExternalFolderAction } from './core/openExternalFolderFlow.ts';
 import { buildOpenExternalFolderRecoveryPlan } from './core/openExternalFolderRecovery.ts';
 import {
@@ -36,6 +38,7 @@ import { buildReconcilePlan } from './core/reconcilePlan.ts';
 import { buildVerifyReport } from './core/verify.ts';
 import { DriftReportModal } from './DriftReportModal.ts';
 import { MarkerMigrationPlanModal } from './MarkerMigrationPlanModal.ts';
+import { MovedFolderSuggestionModal } from './MovedFolderSuggestionModal.ts';
 import { assignUuidToNote } from './obsidian/assignUuidToNote.ts';
 import { scanVault } from './obsidian/scanVault.ts';
 import {
@@ -71,6 +74,11 @@ import { executeMarkerMigrationPlan } from './storage/markerMigrationExecutor.ts
 import { executeReconcilePlan } from './storage/reconcileExecutor.ts';
 import { scanExternalRoot } from './storage/scanExternalRoot.ts';
 import { VerifyReportModal } from './VerifyReportModal.ts';
+
+interface ExactPathAdoptionAnalysis {
+  movedSuggestionCount: null | number;
+  plan: AdoptionPlan;
+}
 
 interface ScanContext {
   externalScan: Awaited<ReturnType<typeof scanExternalRoot>>;
@@ -117,12 +125,22 @@ export class Plugin extends ObsidianPlugin {
 
     this.addCommand({
       callback: () => {
-        this.runAdoptExistingExternalFoldersCommand().catch((error: unknown) => {
+        this.runAdoptExactPathExternalFoldersCommand().catch((error: unknown) => {
           this.showUnexpectedError(error);
         });
       },
       id: 'adopt-existing-external-folders',
-      name: 'Adopt existing external folders'
+      name: 'Adopt exact-path external folders'
+    });
+
+    this.addCommand({
+      callback: () => {
+        this.runSuggestMovedExternalFolderMatchesCommand().catch((error: unknown) => {
+          this.showUnexpectedError(error);
+        });
+      },
+      id: 'suggest-moved-external-folder-matches',
+      name: 'Suggest moved external folder matches'
     });
 
     this.addCommand({
@@ -160,16 +178,6 @@ export class Plugin extends ObsidianPlugin {
     await this.saveData(this.settings);
   }
 
-  private async buildAdoptionDryRunPlan(): Promise<AdoptionPlan> {
-    const { externalScan, vaultScan } = await this.collectScanContext();
-    return buildAdoptionPlan({
-      externalScan,
-      mutationSequence: this.mutationSequence,
-      notePaths: this.getMarkdownNotePaths(),
-      vaultScan
-    });
-  }
-
   private buildAdoptionExecutionOperations(externalRootPath: string): AdoptionExecutionOperations {
     return {
       assertMarkerMatches: async (row, uuid): Promise<void> => {
@@ -192,6 +200,34 @@ export class Plugin extends ObsidianPlugin {
       writeNoteUuid: async (row, uuid): Promise<void> => {
         await writeUuidToNoteIfMissing(this.app, this.getMarkdownFileByPath(row.notePath), uuid);
       }
+    };
+  }
+
+  private async buildExactPathAdoptionAnalysis(): Promise<ExactPathAdoptionAnalysis> {
+    const { externalScan, vaultScan } = await this.collectScanContext();
+    const notePaths = this.getMarkdownNotePaths();
+    const exactCandidateIdentities = buildExactPathCandidateIdentities({
+      externalScan,
+      notePaths,
+      vaultScan
+    });
+    const plan = buildExactPathAdoptionPlan({
+      externalScan,
+      mutationSequence: this.mutationSequence,
+      notePaths,
+      vaultScan
+    });
+    const suggestionReport = buildMovedFolderSuggestionReport({
+      exactCandidateIdentities,
+      externalScan,
+      notePaths,
+      vaultScan
+    });
+    return {
+      movedSuggestionCount: suggestionReport.classificationOmitted
+        ? null
+        : suggestionReport.summary.uniqueSuggestions,
+      plan
     };
   }
 
@@ -402,7 +438,7 @@ export class Plugin extends ObsidianPlugin {
     }).open();
   }
 
-  private async runAdoptExistingExternalFoldersCommand(): Promise<void> {
+  private async runAdoptExactPathExternalFoldersCommand(): Promise<void> {
     const incompleteJournals = await listIncompleteAdoptionJournals(this.getAdoptionJournalRootPath());
     if (incompleteJournals.length > 1) {
       new Notice('Multiple incomplete adoption journals exist. Inspect the journal folder before resuming adoption.');
@@ -435,11 +471,12 @@ export class Plugin extends ObsidianPlugin {
       vaultRootPath: this.getVaultRootPath()
     });
 
-    const plan = await this.withProgressModal(
+    const analysis = await this.withProgressModal(
       'External folder adoption started',
       'Scanning the vault and external root to build the adoption dry-run plan.',
-      () => this.buildAdoptionDryRunPlan()
+      () => this.buildExactPathAdoptionAnalysis()
     );
+    const { plan } = analysis;
     new Notice(`External folder adoption dry-run complete: ${plan.summaryText}.`);
     this.logInfo('external folder adoption dry-run complete', { plan });
     new AdoptionPlanModal(
@@ -452,7 +489,8 @@ export class Plugin extends ObsidianPlugin {
           this.showUnexpectedError(error);
         }
       },
-      this.settings.dryRunByDefault
+      this.settings.dryRunByDefault,
+      analysis.movedSuggestionCount
     ).open();
   }
 
@@ -473,11 +511,12 @@ export class Plugin extends ObsidianPlugin {
         return false;
       }
 
-      const currentPlan = await this.withProgressModal(
+      const currentAnalysis = await this.withProgressModal(
         'External folder adoption preflight started',
         'Rescanning the vault and external root before writing marker files or note frontmatter.',
-        () => this.buildAdoptionDryRunPlan()
+        () => this.buildExactPathAdoptionAnalysis()
       );
+      const currentPlan = currentAnalysis.plan;
       if (currentPlan.hasGlobalErrors || !haveSameAdoptionRows(plan, currentPlan)) {
         new Notice('Adoption preflight changed. Review the opened dry-run plan before executing.');
         this.logWarn('adoption execution blocked by changed preflight', {
@@ -494,7 +533,8 @@ export class Plugin extends ObsidianPlugin {
               this.showUnexpectedError(error);
             }
           },
-          true
+          true,
+          currentAnalysis.movedSuggestionCount
         ).open();
         return false;
       }
@@ -909,6 +949,30 @@ export class Plugin extends ObsidianPlugin {
     new Notice(`External folder drift report complete: ${driftReport.summaryText}.`);
     this.logInfo('drift report complete', { report: driftReport });
     new DriftReportModal(this.app, driftReport).open();
+  }
+
+  private async runSuggestMovedExternalFolderMatchesCommand(): Promise<void> {
+    this.logInfo('moved external folder suggestion scan started', {
+      externalRootPath: this.settings.externalRootPath,
+      vaultRootPath: this.getVaultRootPath()
+    });
+    const report = await this.withProgressModal(
+      'Moved external folder suggestion scan started',
+      'Scanning the vault and external root for unique equivalently named paths.',
+      async () => {
+        const { externalScan, vaultScan } = await this.collectScanContext();
+        const notePaths = this.getMarkdownNotePaths();
+        return buildMovedFolderSuggestionReport({
+          exactCandidateIdentities: buildExactPathCandidateIdentities({ externalScan, notePaths, vaultScan }),
+          externalScan,
+          notePaths,
+          vaultScan
+        });
+      }
+    );
+    new Notice(`Moved external folder suggestion scan complete: ${report.summaryText}.`);
+    this.logInfo('moved external folder suggestion scan complete', { report });
+    new MovedFolderSuggestionModal(this.app, report).open();
   }
 
   private showUnexpectedError(error: unknown): void {

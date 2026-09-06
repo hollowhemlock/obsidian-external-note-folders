@@ -291,6 +291,18 @@
     },
     {
       "kind": "unit-test",
+      "domain": "moved-folder-suggestions",
+      "scenario": "unique-ambiguous-and-excluded-name-evidence",
+      "testPath": "src/core/movedFolderSuggestions.test.ts",
+      "stateIds": [
+        "R23",
+        "R24",
+        "R25"
+      ],
+      "notes": "Covers unique literal-name suggestions, ambiguity groups without Cartesian rows, and exclusion of exact, identified, marked, malformed, ignored, and skipped topology."
+    },
+    {
+      "kind": "unit-test",
       "domain": "adoption-executor",
       "scenario": "adoption-journal-lifecycle",
       "testPath": "src/storage/adoptionExecutor.test.ts",

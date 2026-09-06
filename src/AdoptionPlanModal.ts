@@ -24,7 +24,8 @@ export class AdoptionPlanModal extends Modal {
     app: Modal['app'],
     private readonly plan: AdoptionPlan,
     private readonly onExecute: () => Promise<void>,
-    private readonly dryRunByDefault: boolean
+    private readonly dryRunByDefault: boolean,
+    private readonly movedSuggestionCount: null | number = 0
   ) {
     super(app);
     this.executeArmed = !dryRunByDefault;
@@ -39,12 +40,26 @@ export class AdoptionPlanModal extends Modal {
     const adoptRows = getAdoptionRows(this.plan);
     const blockedRows = this.plan.rows.filter((row): row is AdoptionBlockedNoteRow => row.kind === 'blocked-note');
 
-    contentEl.createEl('h2', { text: 'Adopt existing external folders' });
+    contentEl.createEl('h2', { text: 'Adopt exact-path external folders' });
     contentEl.createEl('p', {
       cls: 'external-note-folders-adoption-guidance',
       text:
         'Leaf-first adoption selects only the deepest exact note/folder matches. A folder cannot receive a marker when another candidate or existing binding is below it.'
     });
+    if (this.movedSuggestionCount === null) {
+      contentEl.createEl('p', {
+        cls: 'external-note-folders-adoption-guidance',
+        text:
+          'Possible moved external folder matches were not included, and their count is unavailable because scan classification failed. Open the moved-folder suggestion command for details.'
+      });
+    } else if (this.movedSuggestionCount > 0) {
+      contentEl.createEl('p', {
+        cls: 'external-note-folders-adoption-guidance',
+        text: `${
+          String(this.movedSuggestionCount)
+        } possible moved external folder match(es) were not included. Open the moved-folder suggestion command to review them.`
+      });
+    }
     contentEl.createEl('p', {
       cls: 'external-note-folders-adoption-guidance',
       text:
