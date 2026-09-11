@@ -64,7 +64,7 @@ refactor: extract collision check into dedicated function
 fix: preserve collision detection after note rename
 ```
 
-Each shared commit is independently reviewable and revertable.
+Each shared commit is independently reviewable and revertible.
 
 ### When to run lint
 

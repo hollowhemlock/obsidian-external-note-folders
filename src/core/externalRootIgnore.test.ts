@@ -27,23 +27,23 @@ describe('external root ignore patterns', () => {
   });
 
   it('treats POSIX-looking single-leading-slash patterns as root-anchored relative patterns', () => {
-    const matcher = buildExternalRootIgnoreMatcher(path.resolve('external-root'), ['/Users/ryanh/foo/']);
+    const matcher = buildExternalRootIgnoreMatcher(path.resolve('external-root'), ['/Users/alice/foo/']);
 
     expect(matcher.errors).toEqual([]);
-    expect(matcher.ignoresRelativeDirectoryPath('Users/ryanh/foo')).toBe(true);
+    expect(matcher.ignoresRelativeDirectoryPath('Users/alice/foo')).toBe(true);
   });
 
   it('rejects Windows drive and UNC filesystem-absolute patterns', () => {
     expect(
       normalizeExternalRootIgnorePatterns([
-        'C:/Users/ryanh/foo/',
-        'C:\\Users\\ryanh\\foo\\',
+        'C:/Users/alice/foo/',
+        'C:\\Users\\alice\\foo\\',
         '//server/share/foo/',
         '\\\\server\\share\\foo\\'
       ]).errors.map((error) => error.pattern)
     ).toEqual([
-      'C:/Users/ryanh/foo/',
-      'C:/Users/ryanh/foo/',
+      'C:/Users/alice/foo/',
+      'C:/Users/alice/foo/',
       '//server/share/foo/',
       '//server/share/foo/'
     ]);

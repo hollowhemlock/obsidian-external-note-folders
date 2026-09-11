@@ -57,7 +57,7 @@ export async function createCliNote(notePath: string, uuid: string): Promise<voi
   const createResult = runSandboxCli([
     'create',
     `path=${notePath}`,
-    `content=---\nexnf: ${uuid}\n---\n\nCLI drift matrix note.`,
+    `content=${['---', `exnf: ${uuid}`, '---', '', 'CLI drift matrix note.'].join('\n')}`,
     'overwrite'
   ]);
   expect(createResult.status, formatCliResult(createResult)).toBe(0);

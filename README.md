@@ -197,7 +197,7 @@ external root:
 Rules:
 
 - Backslashes are normalized to `/`, so pasted Windows paths are accepted.
-- A single leading `/` anchors the pattern to the external root. `/Users/ryanh/foo/` means `Users/ryanh/foo/` under the external root, not filesystem path `/Users/ryanh/foo/`.
+- A single leading `/` anchors the pattern to the external root. `/Users/alice/foo/` means `Users/alice/foo/` under the external root, not filesystem path `/Users/alice/foo/`.
 - Windows drive paths such as `C:/...` and UNC paths such as `//server/share/...` are rejected.
 - `!` negation is not supported in v1.
 - Matching is case-insensitive on Windows/macOS defaults and case-sensitive on Linux.

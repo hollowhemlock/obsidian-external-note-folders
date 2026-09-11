@@ -191,14 +191,14 @@ describe('external root scanning', () => {
     const externalRootPath = await createTempRoot(tempDirectories);
 
     const result = await scanExternalRoot(externalRootPath, {
-      ignorePatterns: ['C:/Users/ryanh/foo/', '//server/share/foo/']
+      ignorePatterns: ['C:/Users/alice/foo/', '//server/share/foo/']
     });
 
     expect(result.accessErrors).toEqual([]);
     expect(result.ignoreErrors).toEqual([
       {
         message: 'Ignore patterns must be relative to the configured external root.',
-        pattern: 'C:/Users/ryanh/foo/'
+        pattern: 'C:/Users/alice/foo/'
       },
       {
         message: 'Ignore patterns must be relative to the configured external root.',
