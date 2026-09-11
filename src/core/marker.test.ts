@@ -12,7 +12,7 @@ import {
   formatLegacyMarkerConflictMessage,
   parseExnfMarker,
   parseExnfMarkerFile,
-  serializeExnfMarker
+  serializeUuidNamedExnfMarker
 } from './marker.ts';
 
 const VALID_UUID = '123e4567-e89b-42d3-a456-426614174000';
@@ -36,11 +36,18 @@ describe('EXNF marker contract', () => {
     expect(() => classifyExnfMarkerFileName('not-a-uuid.exnf')).toThrow(ExnfMarkerParseError);
   });
 
-  it('requires UUID-named marker filenames to match their payload', () => {
+  it('accepts empty UUID-named markers and compatible matching payloads', () => {
+    expect(parseExnfMarkerFile(`${VALID_UUID}.exnf`, '')).toEqual({
+      format: 'uuid-named',
+      uuid: VALID_UUID
+    });
     expect(parseExnfMarkerFile(`${VALID_UUID}.exnf`, `${VALID_UUID}\n`)).toEqual({
       format: 'uuid-named',
       uuid: VALID_UUID
     });
+  });
+
+  it('rejects UUID-named marker payloads that conflict with the filename', () => {
     expect(() => parseExnfMarkerFile(`${VALID_UUID}.exnf`, '123e4567-e89b-42d3-a456-426614174001\n')).toThrow(ExnfMarkerParseError);
   });
 
@@ -90,8 +97,8 @@ describe('EXNF marker contract', () => {
     ])).toBeNull();
   });
 
-  it('serializes with a trailing newline', () => {
-    expect(serializeExnfMarker(VALID_UUID)).toBe(`${VALID_UUID}\n`);
+  it('serializes UUID-named markers as empty files', () => {
+    expect(serializeUuidNamedExnfMarker(VALID_UUID)).toBe('');
   });
 
   it('parses a single UUID line', () => {

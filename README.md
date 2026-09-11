@@ -4,7 +4,7 @@ This is a plugin for [Obsidian](https://obsidian.md/) that associates Obsidian v
 
 ## What It Does
 
-External Note Folders links a markdown note to an external folder by storing a canonical UUID in the note's `exnf` frontmatter field and writing the same UUID to a `<uuid>.exnf` marker file in the external folder. Legacy fixed `.exnf` markers are read during the 2.0.0 migration window and should be migrated with the explicit migration command.
+External Note Folders links a markdown note to an external folder by storing a canonical UUID in the note's `exnf` frontmatter field and creating an empty `<uuid>.exnf` marker file in the external folder. Existing UUID-named markers remain compatible when their strict payload UUID matches the filename. Legacy fixed `.exnf` markers are read during the 2.0.0 migration window and should be migrated with the explicit migration command.
 
 External folder paths normally mirror the vault-relative note path without `.md`. Folder-note layouts collapse to the parent folder, so `Projects/Alpha/Alpha.md` uses `Projects/Alpha/` instead of `Projects/Alpha/Alpha/`.
 
@@ -32,6 +32,133 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 - `Migrate legacy marker files`: Builds a dry-run plan that renames legacy fixed `.exnf` markers to `<uuid>.exnf` and executes only after explicit confirmation.
 
 Every report and dry-run plan begins with the absolute active-vault path and configured external-root path. The same context is prepended to its copyable text so captured reports can be traced to the filesystem roots they describe.
+
+## Open the Bound Note from an External Folder
+
+The plugin does not add shortcuts or Markdown launchers to external folders. If
+you want terminal navigation in the other direction, add an `exnf-open` helper
+to your shell profile. The helper reads the canonical `<uuid>.exnf` marker in
+the current directory, searches the configured vault for the matching `exnf`
+property, and opens the single matching note through the official Obsidian CLI.
+It does not modify the note, marker, or external folder.
+
+This requires Obsidian 1.12.7 or newer with **Settings -> General -> Command
+line interface** enabled. Set `EXNF_VAULT` to the vault name or vault ID. The
+Obsidian app can already be running; otherwise, the CLI starts it.
+
+### PowerShell
+
+Add this to your PowerShell profile (for example, `$PROFILE`):
+
+```powershell
+$env:EXNF_VAULT = 'Your Vault Name'
+
+function Open-ExnfNote {
+    $vault = $env:EXNF_VAULT
+    if ([string]::IsNullOrWhiteSpace($vault)) {
+        throw 'Set EXNF_VAULT to an Obsidian vault name or ID.'
+    }
+
+    $uuidPattern = '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.exnf$'
+    $markerFiles = @(Get-ChildItem -LiteralPath (Get-Location) -File |
+        Where-Object { $_.Name -clike '*.exnf' })
+    if ($markerFiles.Count -ne 1) {
+        throw "Expected exactly one .exnf marker file; found $($markerFiles.Count)."
+    }
+    if ($markerFiles[0].Name -cnotmatch $uuidPattern) {
+        throw "Marker filename is not a canonical UUID: $($markerFiles[0].Name)"
+    }
+
+    $uuid = [IO.Path]::GetFileNameWithoutExtension($markerFiles[0].Name)
+    $markerBytes = [IO.File]::ReadAllBytes($markerFiles[0].FullName)
+    $markerContent = [Text.UTF8Encoding]::new($false, $true).GetString($markerBytes)
+    if ($markerContent.Length -gt 0 -and
+        $markerContent -cne $uuid -and
+        $markerContent -cne "$uuid`n") {
+        throw 'The marker payload is malformed or conflicts with its filename.'
+    }
+
+    $notes = @(& obsidian "vault=$vault" search "query=[exnf:$uuid]" |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Obsidian CLI search failed.'
+    }
+    if ($notes.Count -ne 1) {
+        throw "Expected exactly one note with exnf $uuid; found $($notes.Count)."
+    }
+
+    & obsidian "vault=$vault" open "path=$($notes[0])"
+}
+
+Set-Alias exnf-open Open-ExnfNote
+```
+
+### Bash (Linux and macOS)
+
+Add this to `~/.bashrc` (Linux) or your Bash profile on macOS:
+
+```bash
+export EXNF_VAULT='Your Vault Name'
+
+exnf-open() {
+    if [[ -z "${EXNF_VAULT:-}" ]]; then
+        echo 'Set EXNF_VAULT to an Obsidian vault name or ID.' >&2
+        return 1
+    fi
+
+    local marker name uuid output
+    local -a marker_files=() notes=()
+    for marker in ./*.exnf; do
+        [[ -e "$marker" ]] || continue
+        marker_files+=("$marker")
+    done
+    if (( ${#marker_files[@]} != 1 )); then
+        echo "Expected exactly one .exnf marker file; found ${#marker_files[@]}." >&2
+        return 1
+    fi
+
+    marker=${marker_files[0]}
+    name=${marker#./}
+    if [[ ! $name =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.exnf$ ]]; then
+        echo "Marker filename is not a canonical UUID: $name" >&2
+        return 1
+    fi
+
+    uuid=${marker#./}
+    uuid=${uuid%.exnf}
+    if [[ -s $marker ]] \
+        && ! cmp -s -- "$marker" <(printf '%s' "$uuid") \
+        && ! cmp -s -- "$marker" <(printf '%s\n' "$uuid"); then
+        echo 'The marker payload is malformed or conflicts with its filename.' >&2
+        return 1
+    fi
+
+    if ! output=$(obsidian "vault=$EXNF_VAULT" search "query=[exnf:$uuid]"); then
+        echo 'Obsidian CLI search failed.' >&2
+        return 1
+    fi
+    if [[ -n $output ]]; then
+        while IFS= read -r note; do
+            notes+=("$note")
+        done <<< "$output"
+    fi
+    if (( ${#notes[@]} != 1 )); then
+        echo "Expected exactly one note with exnf $uuid; found ${#notes[@]}." >&2
+        return 1
+    fi
+
+    obsidian "vault=$EXNF_VAULT" open "path=${notes[0]}"
+}
+```
+
+From a bound external folder, run `exnf-open`. The helper deliberately refuses
+to guess when the directory has no marker, has a legacy or malformed marker,
+has more than one `*.exnf` file, or the vault search returns zero or multiple
+notes. It only checks the current directory; run it from the bound folder that
+contains the marker.
+
+See the [Obsidian CLI documentation](https://obsidian.md/help/cli) for CLI
+installation and platform-specific setup.
 
 ## Open Behavior and Drift
 
@@ -136,7 +263,8 @@ reconciliation.
 - ADR-0025 recovery scans are active-note scoped, not a substitute for full drift reporting. Long-running commands show a start/progress modal, but scan caps, cancellation, and cached indexes are intentionally out of scope until performance requires them.
 - Concurrent UUID assignment across unsynced devices can create orphan external folders.
 - Sync tool conflicts in note frontmatter or external marker files are outside the plugin's repair scope; `Report external folder drift` surfaces the resulting state.
-- Fixed `.exnf` markers are deprecated legacy evidence during the 2.0.0 migration window. New writes create `<uuid>.exnf`; run `Migrate legacy marker files` to rename old markers.
+- Fixed `.exnf` markers are deprecated legacy evidence during the 2.0.0 migration window. New writes create empty `<uuid>.exnf` files; run `Migrate legacy marker files` to rename old markers.
+- New UUID-named markers are empty because their canonical filename carries the folder identity. UUID-named markers written by earlier 2.0.0 betas remain valid when their payload UUID matches the filename; a conflicting nonempty payload is malformed. Legacy fixed `.exnf` markers still carry their UUID in their content during the migration window.
 
 ## Contributor Guide
 

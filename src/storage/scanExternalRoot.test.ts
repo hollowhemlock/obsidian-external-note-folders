@@ -224,6 +224,18 @@ describe('external root scanning', () => {
     );
   });
 
+  it('binds empty UUID-named markers by their filename', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const folderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    await mkdir(folderPath, { recursive: true });
+    await writeFile(path.join(folderPath, buildExnfMarkerFileName(VALID_UUID)), '', 'utf8');
+
+    const result = await scanExternalRoot(externalRootPath);
+
+    expect(result.bindings).toEqual(new Map([[VALID_UUID, folderPath]]));
+    expect(result.malformedMarkers).toEqual([]);
+  });
+
   it('scans directory entries in stable name order', async () => {
     const externalRootPath = path.join(os.tmpdir(), 'external-note-folders-stable-order');
     const alphaFolderPath = path.join(externalRootPath, 'Alpha');

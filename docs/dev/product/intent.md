@@ -25,7 +25,7 @@ external folder without requiring the folder path to stay fixed.
 The relationship is identity-based:
 
 - the vault note stores a canonical UUID in `exnf` frontmatter;
-- the external folder stores the same UUID in a marker file;
+- the external folder stores the same UUID in the canonical filename of an empty marker file;
 - current folder paths are derived from the current vault note path, but identity survives note and
   folder moves.
 

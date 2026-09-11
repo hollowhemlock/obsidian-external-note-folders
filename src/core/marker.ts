@@ -115,21 +115,30 @@ export function parseExnfMarkerFile(fileName: string, content: string): ExnfMark
     throw new ExnfMarkerParseError('Not an EXNF marker file.');
   }
 
-  const payloadUuid = parseExnfMarker(content);
-  if (fileNameResult.kind === 'uuid-named' && fileNameResult.uuid !== payloadUuid) {
-    throw new ExnfMarkerParseError(`Marker filename UUID ${fileNameResult.uuid} does not match payload UUID ${payloadUuid}.`);
+  if (fileNameResult.kind === 'uuid-named') {
+    if (content !== '') {
+      const payloadUuid = parseExnfMarker(content);
+      if (fileNameResult.uuid !== payloadUuid) {
+        throw new ExnfMarkerParseError(`Marker filename UUID ${fileNameResult.uuid} does not match payload UUID ${payloadUuid}.`);
+      }
+    }
+
+    return {
+      format: fileNameResult.kind,
+      uuid: fileNameResult.uuid
+    };
   }
 
   return {
     format: fileNameResult.kind,
-    uuid: payloadUuid
+    uuid: parseExnfMarker(content)
   };
 }
 
-export function serializeExnfMarker(uuid: string): string {
+export function serializeUuidNamedExnfMarker(uuid: string): string {
   if (!isCanonicalUuid(uuid)) {
     throw new Error('Expected a canonical lowercase UUID.');
   }
 
-  return `${uuid}\n`;
+  return '';
 }

@@ -55,9 +55,7 @@ describe('bound external folder mutations', () => {
       folderPath: path.join(externalRootPath, 'Projects', 'Alpha'),
       kind: 'bound'
     });
-    expect(await readFile(markerPath(result.folderPath), 'utf8')).toBe(
-      `${VALID_UUID}\n`
-    );
+    expect(await readFile(markerPath(result.folderPath), 'utf8')).toBe('');
   });
 
   it('requires a configured absolute external root', async () => {
@@ -141,9 +139,7 @@ describe('bound external folder mutations', () => {
       folderPath: path.join(externalRootPath, '0_unsorted', '2025-08-04_wood storage cart'),
       kind: 'bound'
     });
-    expect(await readFile(markerPath(result.folderPath), 'utf8')).toBe(
-      `${VALID_UUID}\n`
-    );
+    expect(await readFile(markerPath(result.folderPath), 'utf8')).toBe('');
   });
 
   it('reports a missing expected folder without creating it when requested', async () => {
@@ -166,7 +162,7 @@ describe('bound external folder mutations', () => {
     const externalRootPath = await createTempRoot(tempDirectories);
     const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
     await mkdir(targetFolderPath, { recursive: true });
-    await writeFile(markerPath(targetFolderPath), `${VALID_UUID}\n`, 'utf8');
+    await writeFile(markerPath(targetFolderPath), '', 'utf8');
 
     const result = await ensureExpectedBoundExternalFolder({
       createIfMissing: false,
@@ -369,9 +365,7 @@ describe('bound external folder mutations', () => {
       folderPath: targetFolderPath,
       markerWritten: true
     });
-    expect(await readFile(markerPath(targetFolderPath), 'utf8')).toBe(
-      `${VALID_UUID}\n`
-    );
+    expect(await readFile(markerPath(targetFolderPath), 'utf8')).toBe('');
   });
 
   it('does not overwrite a marker that appears before confirm-time adoption', async () => {
@@ -407,6 +401,25 @@ describe('bound external folder mutations', () => {
     const externalRootPath = await createTempRoot(tempDirectories);
     const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
     await mkdir(targetFolderPath, { recursive: true });
+    await writeFile(markerPath(targetFolderPath), '', 'utf8');
+
+    const result = await writeExpectedMarkerIfMissingOrMatching({
+      externalRootPath,
+      notePath: 'Projects/Alpha.md',
+      uuid: VALID_UUID
+    });
+
+    expect(result).toEqual({
+      folderPath: targetFolderPath,
+      markerWritten: false
+    });
+    expect(await readFile(markerPath(targetFolderPath), 'utf8')).toBe('');
+  });
+
+  it('preserves matching earlier-beta marker payloads during idempotent writes', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const targetFolderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    await mkdir(targetFolderPath, { recursive: true });
     await writeFile(markerPath(targetFolderPath), `${VALID_UUID}\n`, 'utf8');
 
     const result = await writeExpectedMarkerIfMissingOrMatching({
@@ -419,9 +432,7 @@ describe('bound external folder mutations', () => {
       folderPath: targetFolderPath,
       markerWritten: false
     });
-    expect(await readFile(markerPath(targetFolderPath), 'utf8')).toBe(
-      `${VALID_UUID}\n`
-    );
+    expect(await readFile(markerPath(targetFolderPath), 'utf8')).toBe(`${VALID_UUID}\n`);
   });
 
   it('writes a marker into a selected unmarked folder without deriving from note path', async () => {
@@ -439,9 +450,7 @@ describe('bound external folder mutations', () => {
       folderPath: selectedFolderPath,
       markerWritten: true
     });
-    expect(await readFile(markerPath(selectedFolderPath), 'utf8')).toBe(
-      `${VALID_UUID}\n`
-    );
+    expect(await readFile(markerPath(selectedFolderPath), 'utf8')).toBe('');
   });
 
   it('does not overwrite a selected folder marker that appears before confirmation', async () => {

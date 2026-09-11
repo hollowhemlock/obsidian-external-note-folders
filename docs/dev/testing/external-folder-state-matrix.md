@@ -2,7 +2,7 @@
 
 Status: Living testing reference
 
-Last updated: 2026-05-23
+Last updated: 2026-09-07
 
 Scope: Exhaustive state taxonomy for external-folder and vault identity behavior across the plugin's
 user-facing commands. This note is not an ADR and does not define product behavior by itself.
@@ -80,7 +80,7 @@ integrity state.
 | T1 | Expected path exists as file | Occupied/block |
 | T2 | Expected path exists as directory, empty, unmarked | Adoption/open-confirm/reconcile occupied |
 | T3 | Expected path exists as directory, nonempty, unmarked | Same as T2, plus payload preservation |
-| T4 | Expected folder has matching `<uuid>.exnf` | Healthy fast path |
+| T4 | Expected folder has matching empty `<uuid>.exnf` | Healthy fast path; filename is authoritative |
 | T5 | Expected folder has matching legacy `.exnf` only | Legacy read/migration |
 | T6 | Expected folder has matching uuid marker and legacy marker with same UUID | Legacy stale/migration evidence |
 | T7 | Expected folder has matching uuid marker and legacy marker with different UUID | Marker conflict |
@@ -90,7 +90,7 @@ integrity state.
 | T11 | Expected folder has multiple uuid markers, one matching active note | Current plus stale/orphan |
 | T12 | Expected folder has multiple uuid markers, none matching active note | Occupied/conflict candidates |
 | T13 | Expected folder has duplicate markers for same UUID via legacy plus uuid-named | Migration/conflict |
-| T14 | Expected folder has marker filename UUID not matching file payload | Malformed/conflict |
+| T14 | Expected folder has nonempty marker payload that is malformed or differs from its filename UUID | Malformed/conflict |
 | T15 | Expected folder has marker for UUID whose owner note is known | Owner-note display |
 | T16 | Expected folder has marker for UUID with no owner note | Orphan evidence |
 | T17 | Expected folder is ignored by settings | Ignored target |
@@ -102,6 +102,7 @@ integrity state.
 | T23 | Expected folder has child bound marker | Overlap conflict |
 | T24 | Expected folder is child of existing bound marker | Overlap/descendant conflict |
 | T25 | Expected folder contains skipped/unreadable descendant | Adoption row blocker |
+| T26 | Expected folder has UUID-named marker with strict matching earlier-beta payload | Healthy compatibility evidence; filename is authoritative |
 
 ### Root-Wide External Evidence
 

@@ -52,22 +52,22 @@ implemented. This ADR does not itself bump package or manifest versions.
 - A bound external folder is identity-bearing when it contains one or more
   marker files named `<uuid>.exnf`, where `<uuid>` is a canonical lowercase
   RFC 4122 UUID.
-- The marker payload remains the strict single-line UUID format from ADR-0014:
-  UTF-8, exact canonical lowercase UUID, writer emits trailing `\n`, parser
-  accepts one optional trailing `\n`, and rejects BOM, `\r\n`, `\r`, extra
-  content, extra lines, or non-canonical UUIDs.
-- The marker payload schema remains implicit `v1`. Future payload schema
-  changes require explicit migration handling and an ADR or accepted update to
-  this ADR.
-- The filename UUID and payload UUID must match. A mismatch is a malformed
-  marker and blocks mutation involving that folder.
+- New UUID-named marker files are empty. Their canonical lowercase UUID filename
+  is the marker's single source of identity.
+- UUID-named markers written by earlier 2.0.0 betas remain compatible when their
+  payload uses the strict single-line UUID format from ADR-0014 and matches the
+  filename UUID. A conflicting or otherwise malformed nonempty payload remains
+  malformed and blocks mutation involving that folder; it never overrides the
+  filename.
+- Legacy fixed `.exnf` markers retain the strict payload contract from ADR-0014
+  during their deprecation window because their filename carries no UUID.
 - The note's `exnf` frontmatter UUID remains authoritative for selecting the
   current marker.
 - If a folder contains the active note's `<uuid>.exnf` plus other `*.exnf`
   markers, the matching marker is current and the other markers are drift
   evidence: stale, orphaned, or misplaced cleanup candidates.
-- New writes after implementation create only `<uuid>.exnf`; fixed `.exnf`
-  markers are deprecated legacy markers.
+- New writes after implementation create only empty `<uuid>.exnf` files; fixed
+  `.exnf` markers are deprecated legacy markers.
 
 ### Legacy `.exnf` Deprecation Window
 
@@ -117,6 +117,8 @@ Negative / trade-offs:
 
 - Marker discovery changes from checking one fixed filename to enumerating
   `*.exnf` candidates.
+- Existing UUID-named beta markers may retain a redundant matching payload until
+  rewritten or manually emptied; no migration is required.
 - Marker files become visible in file managers instead of hidden by a leading
   dot on Unix-like systems.
 - Existing users need an explicit migration path.
@@ -129,7 +131,9 @@ Negative / trade-offs:
 Implementation is in line with this ADR when tests prove:
 
 - New marker writes create `<uuid>.exnf` and never fixed `.exnf`.
-- Filename UUID and payload UUID must match.
+- New UUID-named markers are empty and derive identity from the filename.
+- Existing UUID-named markers with a matching strict UUID payload remain valid,
+  while conflicting nonempty payloads are malformed.
 - Legacy `.exnf` markers are read as deprecated binding evidence during the
   migration window.
 - New markers take precedence over matching legacy markers.

@@ -20,9 +20,8 @@ import {
   classifyExnfMarkerFileName,
   findLegacyMarkerConflict,
   formatLegacyMarkerConflictMessage,
-  parseExnfMarker,
   parseExnfMarkerFile,
-  serializeExnfMarker
+  serializeUuidNamedExnfMarker
 } from '../core/marker.ts';
 import { deriveExternalFolderPath } from '../core/pathPolicy.ts';
 
@@ -498,12 +497,12 @@ async function writeMarker(boundFolderPath: string, uuid: string): Promise<void>
   const markerPath = buildMarkerPath(boundFolderPath, uuid);
   try {
     const existingContent = await readFile(markerPath, 'utf8');
-    const existingUuid = parseExnfMarker(existingContent);
-    if (existingUuid === uuid) {
+    const existingMarker = parseExnfMarkerFile(path.basename(markerPath), existingContent);
+    if (existingMarker.uuid === uuid) {
       return;
     }
 
-    throw new Error(`Existing marker UUID ${existingUuid} does not match ${uuid}.`);
+    throw new Error(`Existing marker UUID ${existingMarker.uuid} does not match ${uuid}.`);
   } catch (error: unknown) {
     if (isMissingFileError(error)) {
       await writeNewMarkerFile(markerPath, uuid);
@@ -516,14 +515,14 @@ async function writeMarker(boundFolderPath: string, uuid: string): Promise<void>
 
 async function writeNewMarkerFile(markerPath: string, uuid: string): Promise<void> {
   try {
-    await writeFile(markerPath, serializeExnfMarker(uuid), {
+    await writeFile(markerPath, serializeUuidNamedExnfMarker(uuid), {
       encoding: 'utf8',
       flag: 'wx'
     });
   } catch (error: unknown) {
     if (isPathAlreadyExistsError(error)) {
-      const existingUuid = parseExnfMarker(await readFile(markerPath, 'utf8'));
-      if (existingUuid === uuid) {
+      const existingMarker = parseExnfMarkerFile(path.basename(markerPath), await readFile(markerPath, 'utf8'));
+      if (existingMarker.uuid === uuid) {
         return;
       }
     }

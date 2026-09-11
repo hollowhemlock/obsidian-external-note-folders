@@ -261,7 +261,7 @@ async function readAdoptedBinding(expectedAdoption: ExpectedAdoption): Promise<s
   );
   await access(markerPath);
   const markerContent = await readFile(markerPath, 'utf8');
-  expect(markerContent.trim()).toBe(uuid);
+  expect(markerContent).toBe('');
   for (const payloadFile of expectedAdoption.externalPayloadFiles) {
     await access(path.join(externalFolderPath, payloadFile));
   }

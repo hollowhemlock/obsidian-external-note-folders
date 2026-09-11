@@ -165,9 +165,10 @@
         "T12",
         "T19",
         "T20",
-        "T22"
+        "T22",
+        "T26"
       ],
-      "notes": "Covers expected-folder files, unmarked directories, matching uuid and legacy markers, legacy conflicts, malformed legacy markers, multiple UUID-named markers, symlink/reparse rejection, parent creation, and root-boundary safety."
+      "notes": "Covers expected-folder files, unmarked directories, empty filename-authoritative UUID markers, compatible earlier-beta marker payloads, legacy markers and conflicts, malformed markers, multiple UUID-named markers, symlink/reparse rejection, parent creation, and root-boundary safety."
     },
     {
       "kind": "unit-test",
