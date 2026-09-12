@@ -109,29 +109,27 @@ export function parseExnfMarker(content: string): string {
   return parsedContent;
 }
 
-export function parseExnfMarkerFile(fileName: string, content: string): ExnfMarkerParseResult {
+export function parseLegacyExnfMarkerFile(fileName: string, content: string): ExnfMarkerParseResult {
   const fileNameResult = classifyExnfMarkerFileName(fileName);
-  if (fileNameResult.kind === 'not-marker') {
-    throw new ExnfMarkerParseError('Not an EXNF marker file.');
-  }
-
-  if (fileNameResult.kind === 'uuid-named') {
-    if (content !== '') {
-      const payloadUuid = parseExnfMarker(content);
-      if (fileNameResult.uuid !== payloadUuid) {
-        throw new ExnfMarkerParseError(`Marker filename UUID ${fileNameResult.uuid} does not match payload UUID ${payloadUuid}.`);
-      }
-    }
-
-    return {
-      format: fileNameResult.kind,
-      uuid: fileNameResult.uuid
-    };
+  if (fileNameResult.kind !== 'legacy') {
+    throw new ExnfMarkerParseError('Not a legacy EXNF marker file.');
   }
 
   return {
     format: fileNameResult.kind,
     uuid: parseExnfMarker(content)
+  };
+}
+
+export function parseUuidNamedExnfMarkerFile(fileName: string): ExnfMarkerParseResult {
+  const fileNameResult = classifyExnfMarkerFileName(fileName);
+  if (fileNameResult.kind !== 'uuid-named') {
+    throw new ExnfMarkerParseError('Not a UUID-named EXNF marker file.');
+  }
+
+  return {
+    format: fileNameResult.kind,
+    uuid: fileNameResult.uuid
   };
 }
 

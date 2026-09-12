@@ -12,7 +12,7 @@ Use this procedure for any change that affects:
 - marker parsing or writing
 - path derivation, sanitization, or boundary checks
 - external-root scanning or raw filesystem access
-- command behavior (`Assign UUID`, `Open External Folder`, `Adopt exact-path external folders`, moved-folder suggestions, drift report, `Reconcile`)
+- command behavior (`Assign UUID`, `Set up external folder`, `Open External Folder`, `Adopt exact-path external folders`, moved-folder suggestions, drift report, `Reconcile`)
 
 ## Baseline Commands
 
@@ -50,13 +50,15 @@ settings are disposable and are replaced during reset.
 
 | Scenario | Setup | Expected Outcome |
 | --- | --- | --- |
-| External root missing | Point settings at a non-existent absolute path. | `Verify` reports `Error`; mutating commands abort without creating data elsewhere. |
-| External root inaccessible | Use a detached drive, denied-permission folder, or similar inaccessible root. | Scan surfaces an `Error`; mutation preflight aborts; no partial writes occur. |
+| External root missing | Point settings at a non-existent absolute path. | Scan-dependent commands report `Error` and external-root mutations abort. Vault-only assignment still succeeds. |
+| External root inaccessible | Use a detached drive, denied-permission folder, or similar inaccessible root. | Scan-dependent commands surface an `Error` and external-root mutation preflight aborts. Vault-only assignment still succeeds. |
 | Child directory inaccessible | Deny read access to a descendant directory while the configured root remains readable. | Scan reports a warning, skips that subtree, and continues classifying readable sibling folders. |
-| Duplicate UUID in vault | Create two notes with the same `exnf` frontmatter value. | `Verify` reports duplicate-vault `Error`; non-adoption mutating commands abort. `Adopt exact-path external folders` reports the duplicate as a warning, excludes every note path carrying that UUID from adoption, and may still adopt unrelated unassigned rows. |
-| Duplicate UUID in external root | Create two bound folders with marker files containing the same UUID. | `Verify` reports duplicate-external `Error`; non-adoption mutating commands abort. `Adopt exact-path external folders` reports the duplicate as a warning, blocks only candidate targets that already contain marker evidence, and may still adopt unrelated unassigned rows. |
-| Malformed marker | Add an invalid UUID filename; add BOM, extra content, extra lines, or a non-canonical UUID to a legacy marker; or add a nonempty `<uuid>.exnf` payload that is malformed or differs from its filename. | Marker is classified as malformed `Error`; non-adoption mutation preflights abort. `Adopt exact-path external folders` reports unrelated malformed markers as warnings, blocks candidate targets with malformed markers, and may still adopt unrelated unassigned rows. |
-| UUID-named marker compatibility | Test an empty `<uuid>.exnf` marker and an earlier-beta marker whose strict UUID payload matches its filename. | Both identify the folder by the filename UUID. New assignment and adoption writes create empty marker files. |
+| Duplicate UUID in vault | Create two notes with the same `exnf` frontmatter value. | `Verify` reports duplicate-vault `Error`; UUID-sensitive recovery/reconcile operations block. Assignment to an unrelated unassigned note generates a different UUID. Adoption excludes every note path carrying the duplicate UUID and may still adopt unrelated rows. |
+| Duplicate UUID in external root | Create two bound folders with marker files containing the same UUID. | `Verify` reports duplicate-external `Error`; imported-marker restoration and UUID-sensitive recovery/reconcile operations block. Vault-only assignment is unaffected. Adoption blocks only overlapping candidates and may still adopt unrelated rows. |
+| Malformed marker | Add an invalid UUID marker filename or a legacy `.exnf` file with BOM, extra lines, extra content, or a non-canonical UUID. | Marker is classified as malformed; affected mutation blocks. Canonical marker bodies are not read. |
+| UUID-named marker authority | Test empty, arbitrary text, multiline, mismatching, binary, and unreadable `<uuid>.exnf` bodies. | Every folder is identified by the filename UUID without reading content. New writes remain empty. |
+| Pragmatic setup | Run `Set up external folder` for a missing target, an unmarked exact target, and an exact target with one imported marker identity. | Missing setup is targeted and immediate; unmarked adoption confirms; imported restoration confirms only after complete UUID uniqueness proof. |
+| Setup interruption | Fault after folder creation, marker write, and frontmatter write. | A note-specific setup journal is offered for idempotent resume with the same UUID and no deletion. |
 | Occupied target path | Create an unbound directory at the derived destination path before `Open External Folder`. | Command reports conflict and aborts; no auto-rename occurs. |
 | Existing root adoption | Use unassigned notes and matching note-derived external folder paths. Unrelated existing `exnf`, marker files, skipped directories, or ignored directories may be present. Include one candidate whose target has ancestor or descendant marker evidence. | `Adopt exact-path external folders` shows exact safe matches in dry-run, reports unrelated state as warnings/blocked rows, blocks the overlapping marker candidate, writes markers before frontmatter after confirmation, and journals the run. |
 | Moved unassigned folder suggestion | Move an unassigned note away from an equivalently named unmarked folder, then add duplicate-name, ignored, skipped, marked, and exact-candidate branches. | `Suggest moved external folder matches` reports only unique checked eligible pairs, summarizes ambiguity, marks unchecked evidence, and performs no mutation. |

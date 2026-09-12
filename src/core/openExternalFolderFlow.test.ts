@@ -43,6 +43,26 @@ describe('open external folder flow', () => {
         uuid: VALID_UUID
       }
     })).toEqual({
+      additionalMarkerUuids: [],
+      folderPath: 'X:/External/Projects/Alpha',
+      kind: 'open-expected',
+      uuid: VALID_UUID
+    });
+  });
+
+  it('opens the matching expected folder and preserves additional marker evidence', () => {
+    expect(chooseInitialOpenExternalFolderAction({
+      expectedState: {
+        additionalMarkerUuids: [OTHER_UUID],
+        folderPath: 'X:/External/Projects/Alpha',
+        kind: 'bound-with-additional-markers'
+      },
+      identity: {
+        kind: 'valid',
+        uuid: VALID_UUID
+      }
+    })).toEqual({
+      additionalMarkerUuids: [OTHER_UUID],
       folderPath: 'X:/External/Projects/Alpha',
       kind: 'open-expected',
       uuid: VALID_UUID

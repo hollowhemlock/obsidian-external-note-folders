@@ -32,6 +32,9 @@ The vault is authoritative for identity mapping.
   folders and unavailable external roots are expected, not errors
 - External state is derived and may be incomplete: missing bound folders are informational
   (Unavailable), not failures
+- External state never changes vault identity automatically. ADR-0031 permits one explicit,
+  confirmation-gated recovery exception: restoring a unique marker UUID from the note's exact
+  expected folder after complete uniqueness validation.
 
 ### Consequences
 
@@ -57,6 +60,9 @@ The vault is authoritative for identity mapping.
 - Why rejected: Too complex/risky for MVP
 
 ## More Information
+
+See [ADR-0031](0031-pragmatic-active-note-setup.md) for the narrow imported-marker restoration
+exception.
 
 ### Non-Goals
 

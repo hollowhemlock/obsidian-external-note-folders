@@ -8,7 +8,7 @@ area: markers
 
 User-visible change:
 
-- New UUID-named markers are empty files, while existing markers with matching UUID payloads remain compatible and conflicting payloads remain blocked.
+- New UUID-named markers are empty files. Existing UUID-named marker contents are opaque and never read; only the canonical filename carries identity. Legacy fixed `.exnf` contents remain strictly validated.
 
 Validation:
 

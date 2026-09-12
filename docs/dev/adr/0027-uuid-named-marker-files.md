@@ -26,7 +26,7 @@ filename collisions during parallel UUID generation.
 - Preserve UUID-based identity across vault and external-root moves.
 - Avoid path-only linking and central registries.
 - Avoid sync-tool-specific conflict filename detection.
-- Keep marker parsing strict and deterministic.
+- Keep marker filename parsing strict and deterministic.
 - Make the breaking marker-contract change explicit for release planning.
 - Provide a migration path for existing fixed `.exnf` markers.
 
@@ -53,12 +53,8 @@ implemented. This ADR does not itself bump package or manifest versions.
   marker files named `<uuid>.exnf`, where `<uuid>` is a canonical lowercase
   RFC 4122 UUID.
 - New UUID-named marker files are empty. Their canonical lowercase UUID filename
-  is the marker's single source of identity.
-- UUID-named markers written by earlier 2.0.0 betas remain compatible when their
-  payload uses the strict single-line UUID format from ADR-0014 and matches the
-  filename UUID. A conflicting or otherwise malformed nonempty payload remains
-  malformed and blocks mutation involving that folder; it never overrides the
-  filename.
+  is the marker's single source of identity. Their contents are opaque: scanners
+  never read, validate, or rewrite them.
 - Legacy fixed `.exnf` markers retain the strict payload contract from ADR-0014
   during their deprecation window because their filename carries no UUID.
 - The note's `exnf` frontmatter UUID remains authoritative for selecting the
@@ -117,14 +113,14 @@ Negative / trade-offs:
 
 - Marker discovery changes from checking one fixed filename to enumerating
   `*.exnf` candidates.
-- Existing UUID-named beta markers may retain a redundant matching payload until
-  rewritten or manually emptied; no migration is required.
+- Existing UUID-named markers may contain arbitrary data; it has no identity or
+  integrity meaning and requires no migration.
 - Marker files become visible in file managers instead of hidden by a leading
   dot on Unix-like systems.
 - Existing users need an explicit migration path.
-- Existing ADR-0005 and ADR-0014 are superseded for the marker filename
-  contract, though their per-folder identity and strict payload principles
-  continue here.
+- Existing ADR-0005 and ADR-0014 are superseded for the canonical marker
+  filename contract. Their strict payload rules continue only for legacy fixed
+  `.exnf` markers, whose filename contains no identity.
 
 ### Confirmation
 
@@ -132,8 +128,7 @@ Implementation is in line with this ADR when tests prove:
 
 - New marker writes create `<uuid>.exnf` and never fixed `.exnf`.
 - New UUID-named markers are empty and derive identity from the filename.
-- Existing UUID-named markers with a matching strict UUID payload remain valid,
-  while conflicting nonempty payloads are malformed.
+- UUID-named marker contents are never read and cannot conflict with the filename.
 - Legacy `.exnf` markers are read as deprecated binding evidence during the
   migration window.
 - New markers take precedence over matching legacy markers.
@@ -201,3 +196,4 @@ Implementation is in line with this ADR when tests prove:
 - [ADR-0014](0014-exnf-marker-format-and-validation.md)
 - [ADR-0025](0025-active-note-open-recovery-scan.md)
 - [ADR-0026](0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md)
+- [ADR-0031](0031-pragmatic-active-note-setup.md)

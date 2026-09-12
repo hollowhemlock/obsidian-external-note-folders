@@ -17,7 +17,8 @@ import {
   classifyExnfMarkerFileName,
   findLegacyMarkerConflict,
   formatLegacyMarkerConflictMessage,
-  parseExnfMarkerFile
+  parseLegacyExnfMarkerFile,
+  parseUuidNamedExnfMarkerFile
 } from '../core/marker.ts';
 import { registerUuidBinding } from '../core/scanResult.ts';
 
@@ -186,8 +187,9 @@ async function walkDirectory(
       continue;
     }
 
+    let markerFileName: ReturnType<typeof classifyExnfMarkerFileName>;
     try {
-      const markerFileName = classifyExnfMarkerFileName(entry.name);
+      markerFileName = classifyExnfMarkerFileName(entry.name);
       if (markerFileName.kind === 'not-marker') {
         continue;
       }
@@ -200,8 +202,9 @@ async function walkDirectory(
     }
 
     try {
-      const markerContent = await fileSystem.readMarkerFile(entryPath);
-      const marker = parseExnfMarkerFile(entry.name, markerContent);
+      const marker = markerFileName.kind === 'uuid-named'
+        ? parseUuidNamedExnfMarkerFile(entry.name)
+        : parseLegacyExnfMarkerFile(entry.name, await fileSystem.readMarkerFile(entryPath));
       const record: ExternalMarkerRecord = {
         folderPath: directoryPath,
         format: marker.format,

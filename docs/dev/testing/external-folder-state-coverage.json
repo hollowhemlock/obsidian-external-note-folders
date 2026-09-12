@@ -52,7 +52,7 @@
         "R3",
         "R7"
       ],
-      "notes": "Covers identity-integrity drift states: duplicate vault identities, duplicate external identities, expected folders occupied by another UUID, malformed target markers, and marker filename/payload mismatch."
+      "notes": "Covers identity-integrity drift states: duplicate vault identities, duplicate external identities, expected folders occupied by another UUID, malformed marker filenames, and filename-authoritative canonical marker contents."
     },
     {
       "kind": "unit-test",
@@ -168,7 +168,7 @@
         "T22",
         "T26"
       ],
-      "notes": "Covers expected-folder files, unmarked directories, empty filename-authoritative UUID markers, compatible earlier-beta marker payloads, legacy markers and conflicts, malformed markers, multiple UUID-named markers, symlink/reparse rejection, parent creation, and root-boundary safety."
+      "notes": "Covers expected-folder files, unmarked directories, filename-authoritative UUID markers with opaque contents, legacy markers and conflicts, malformed marker filenames or legacy contents, multiple UUID-named markers, symlink/reparse rejection, parent creation, and root-boundary safety."
     },
     {
       "kind": "unit-test",
@@ -314,6 +314,51 @@
       "notes": "Covers real Obsidian modal rendering for one unique divergent-path suggestion and one ambiguous name group, including collapsed lazy rows and read-only filesystem state."
     },
     {
+      "kind": "integration-test",
+      "domain": "setup",
+      "scenario": "imported-marker-restoration-confirmation",
+      "testPath": "test/integration/setup.integration.test.ts",
+      "stateIds": [
+        "V2",
+        "V20",
+        "T0",
+        "T11",
+        "T14",
+        "R26"
+      ],
+      "notes": "Covers real Obsidian command wiring for targeted missing-folder setup despite unrelated malformed evidence, confirmation rendering for one unique imported marker, opaque canonical contents, and open-with-warning behavior for a delayed additional marker."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "setup-plan",
+      "scenario": "targeted-setup-and-imported-restoration",
+      "testPath": "src/core/setupPlan.test.ts",
+      "stateIds": [
+        "V20",
+        "V21",
+        "T27",
+        "T28",
+        "R26",
+        "R27",
+        "R28",
+        "R29"
+      ],
+      "notes": "Covers missing and unmarked exact targets, imported marker restoration, vault and external UUID conflicts, incomplete scan evidence, ignored evidence disclosure, leaf-first topology, and stale target plans."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "setup-executor",
+      "scenario": "setup-journal-lifecycle",
+      "testPath": "src/storage/setupExecutor.test.ts",
+      "stateIds": [
+        "J16",
+        "J17",
+        "J18",
+        "J20"
+      ],
+      "notes": "Covers journal-first setup, pre-action stages, idempotent resume with the journaled UUID, and note-scoped incomplete journal lookup."
+    },
+    {
       "kind": "unit-test",
       "domain": "adoption-executor",
       "scenario": "adoption-journal-lifecycle",
@@ -375,9 +420,10 @@
         "J9",
         "J13",
         "J14",
-        "J15"
+        "J15",
+        "J19"
       ],
-      "reason": "Remaining journal states require command-boundary or deliberately fault-injected integration coverage: missing external root during resume, impossible frontmatter-without-marker recovery, stale preflight plans, concurrent mutating commands, and UI failure after successful external write."
+      "reason": "Remaining journal states require command-boundary or deliberately fault-injected integration coverage: missing external root during resume, impossible frontmatter-without-marker recovery, stale preflight plans, concurrent mutating commands, UI failure after successful external write, and setup completion followed by an opener failure."
     }
   ]
 }

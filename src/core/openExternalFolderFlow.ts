@@ -1,6 +1,7 @@
 import type { ExnfFrontmatterValue } from './frontmatter.ts';
 
 export type ExpectedExternalFolderState =
+  | { additionalMarkerUuids: string[]; folderPath: string; kind: 'bound-with-additional-markers' }
   | { folderPath: string; kind: 'bound' }
   | { folderPath: string; kind: 'malformed-marker'; markerPath: string; message: string }
   | { folderPath: string; kind: 'marker-conflict'; markerPath: string; message: string }
@@ -9,8 +10,8 @@ export type ExpectedExternalFolderState =
   | { folderPath: string; kind: 'unmarked' };
 
 export type InitialOpenExternalFolderAction =
-  | { expectedState: Exclude<ExpectedExternalFolderState, { kind: 'bound' }>; kind: 'run-recovery'; uuid: string }
-  | { folderPath: string; kind: 'open-expected'; uuid: string }
+  | { additionalMarkerUuids: string[]; folderPath: string; kind: 'open-expected'; uuid: string }
+  | { expectedState: Exclude<ExpectedExternalFolderState, { kind: 'bound-with-additional-markers' | 'bound' }>; kind: 'run-recovery'; uuid: string }
   | { kind: 'block-invalid-identity'; message: string }
   | { kind: 'notice-missing-identity' };
 
@@ -35,6 +36,16 @@ export function chooseInitialOpenExternalFolderAction(input: {
 
   if (input.expectedState.kind === 'bound') {
     return {
+      additionalMarkerUuids: [],
+      folderPath: input.expectedState.folderPath,
+      kind: 'open-expected',
+      uuid: input.identity.uuid
+    };
+  }
+
+  if (input.expectedState.kind === 'bound-with-additional-markers') {
+    return {
+      additionalMarkerUuids: input.expectedState.additionalMarkerUuids,
       folderPath: input.expectedState.folderPath,
       kind: 'open-expected',
       uuid: input.identity.uuid

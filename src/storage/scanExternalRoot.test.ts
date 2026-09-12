@@ -236,6 +236,26 @@ describe('external root scanning', () => {
     expect(result.malformedMarkers).toEqual([]);
   });
 
+  it('does not read UUID-named marker contents', async () => {
+    const externalRootPath = path.join(os.tmpdir(), 'external-note-folders-filename-only');
+    const folderPath = path.join(externalRootPath, 'Alpha');
+    const result = await scanExternalRoot(externalRootPath, {
+      fileSystem: {
+        readDirectoryEntries: async (directoryPath) =>
+          directoryPath === externalRootPath
+            ? [mockDirent('Alpha', 'directory')]
+            : [mockDirent(buildExnfMarkerFileName(VALID_UUID), 'file')],
+        readMarkerFile: async () => {
+          throw new Error('canonical marker content must not be read');
+        },
+        resolveRealPath: async () => externalRootPath
+      }
+    });
+
+    expect(result.bindings).toEqual(new Map([[VALID_UUID, folderPath]]));
+    expect(result.malformedMarkers).toEqual([]);
+  });
+
   it('scans directory entries in stable name order', async () => {
     const externalRootPath = path.join(os.tmpdir(), 'external-note-folders-stable-order');
     const alphaFolderPath = path.join(externalRootPath, 'Alpha');
@@ -267,19 +287,15 @@ describe('external root scanning', () => {
     expect(result.duplicatePaths).toEqual(new Map([[VALID_UUID, [alphaFolderPath, zetaFolderPath]]]));
   });
 
-  it('reports malformed markers', async () => {
+  it('ignores UUID-named marker contents', async () => {
     const externalRootPath = await createTempRoot(tempDirectories);
     const folderPath = path.join(externalRootPath, 'Projects', 'Alpha');
     await writeMarker(folderPath, VALID_UUID, OTHER_UUID.toUpperCase());
 
     const result = await scanExternalRoot(externalRootPath);
 
-    expect(result.malformedMarkers).toEqual([
-      {
-        location: path.join(folderPath, buildExnfMarkerFileName(VALID_UUID)),
-        message: 'Marker must contain a canonical lowercase UUID.'
-      }
-    ]);
+    expect(result.bindings).toEqual(new Map([[VALID_UUID, folderPath]]));
+    expect(result.malformedMarkers).toEqual([]);
   });
 
   it('reads valid legacy markers as deprecated binding evidence', async () => {

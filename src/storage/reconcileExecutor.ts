@@ -20,7 +20,8 @@ import {
   classifyExnfMarkerFileName,
   findLegacyMarkerConflict,
   formatLegacyMarkerConflictMessage,
-  parseExnfMarkerFile
+  parseLegacyExnfMarkerFile,
+  parseUuidNamedExnfMarkerFile
 } from '../core/marker.ts';
 import { assertPathIsWithinRoot } from '../core/pathPolicy.ts';
 
@@ -114,7 +115,9 @@ async function assertMarkerMatches(folderPath: string, uuid: string): Promise<vo
         continue;
       }
 
-      const marker = parseExnfMarkerFile(entry.name, await readFile(markerPath, 'utf8'));
+      const marker = fileNameResult.kind === 'uuid-named'
+        ? parseUuidNamedExnfMarkerFile(entry.name)
+        : parseLegacyExnfMarkerFile(entry.name, await readFile(markerPath, 'utf8'));
       parsedMarkers.push({
         format: marker.format,
         markerPath,

@@ -47,6 +47,8 @@ whether exact-name candidate folders were available for adoption.
 1. Inspect the active note's derived expected folder.
 2. If the expected folder has a matching marker, open immediately and do not
    scan the external root.
+   If additional UUID markers coexist in that folder, still open but show a
+   nonblocking warning directing the user to the drift report.
 3. If expected-folder inspection is anything other than matching bound, run an
    active-note recovery scan across the external root.
 4. The recovery scan is complete for that invocation. It does not stop at the
@@ -164,3 +166,4 @@ are disabled.
 - [ADR-0026](0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md)
 - [ADR-0027](0027-uuid-named-marker-files.md)
 - [docs/dev/plans/open-external-folder-recovery.md](../plans/open-external-folder-recovery.md)
+- [ADR-0031](0031-pragmatic-active-note-setup.md)

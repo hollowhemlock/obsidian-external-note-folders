@@ -144,7 +144,7 @@ Adopt a dedicated **non-required Obsidian CLI integration test lane** with these
 
 ### Future Considerations
 
-Expand integration coverage as domain commands are implemented (Assign UUID, Open External Folder, Verify, Reconcile), keeping fixture scenarios traceable to ADR invariants and grouped by workflow.
+Expand integration coverage as domain commands are implemented (Assign UUID, Set Up External Folder, Open External Folder, Verify, Reconcile), keeping fixture scenarios traceable to ADR invariants and grouped by workflow.
 
 ### References
 

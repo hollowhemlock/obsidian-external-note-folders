@@ -2,7 +2,7 @@
 
 Status: Living testing reference
 
-Last updated: 2026-09-07
+Last updated: 2026-09-11
 
 Scope: Exhaustive state taxonomy for external-folder and vault identity behavior across the plugin's
 user-facing commands. This note is not an ADR and does not define product behavior by itself.
@@ -15,15 +15,15 @@ Maintenance guidance lives in [Testing Strategy](README.md).
 | Command | Mutates vault | Mutates external root | Primary risk |
 | --- | --- | --- | --- |
 | `Assign external folder identifier` | Yes | No | Minting identity when unsafe |
-| `Open external folder` | No, except explicit recovery adoption | Sometimes marker create/adopt | Opening or adopting the wrong folder |
+| `Set up external folder` | Yes | Sometimes | Creating, adopting, or explicitly restoring the wrong identity |
+| `Open external folder` | No | Sometimes marker create/adopt | Opening or adopting the wrong folder |
 | `Adopt exact-path external folders` | Yes | Yes | Bulk identity writes |
 | `Suggest moved external folder matches` | No | No | Misleading name-based association |
 | `Report external folder drift` | No | No | Silent misclassification |
 | `Reconcile external folders` | No | Yes | Moving the wrong folder |
 | `Migrate legacy marker files` | No | Yes | Marker migration or data loss |
 
-`VerifyReport` is not a command, but it is test-relevant because it gates assignment and models
-integrity state.
+`VerifyReport` is not a command. It models integrity state but does not gate vault-only assignment.
 
 ## Canonical State Axes
 
@@ -71,6 +71,8 @@ integrity state.
 | V17 | Note has valid `exnf`; expected path occupied by unmarked folder | Occupied target |
 | V18 | Note has valid `exnf`; expected path occupied by another UUID | Occupied/mismatch |
 | V19 | Note has valid `exnf`; expected path contains malformed marker | Integrity/error |
+| V20 | Unassigned note has an exact-path imported marker UUID | Explicit restoration candidate |
+| V21 | Imported marker UUID already belongs to another vault note | Restoration blocker |
 
 ### Expected External Folder State For A Note
 
@@ -85,12 +87,12 @@ integrity state.
 | T6 | Expected folder has matching uuid marker and legacy marker with same UUID | Legacy stale/migration evidence |
 | T7 | Expected folder has matching uuid marker and legacy marker with different UUID | Marker conflict |
 | T8 | Expected folder has valid marker for different UUID | Mismatched/occupied |
-| T9 | Expected folder has malformed uuid-named marker | Malformed |
+| T9 | Expected folder has malformed `*.exnf` filename | Malformed |
 | T10 | Expected folder has malformed legacy marker | Malformed |
-| T11 | Expected folder has multiple uuid markers, one matching active note | Current plus stale/orphan |
+| T11 | Expected folder has multiple uuid markers, one matching active note | Open matching folder and warn about preserved additional identities |
 | T12 | Expected folder has multiple uuid markers, none matching active note | Occupied/conflict candidates |
-| T13 | Expected folder has duplicate markers for same UUID via legacy plus uuid-named | Migration/conflict |
-| T14 | Expected folder has nonempty marker payload that is malformed or differs from its filename UUID | Malformed/conflict |
+| T13 | Expected folder has duplicate markers for the same UUID via legacy plus uuid-named | One compatible identity plus legacy migration evidence |
+| T14 | Expected folder has a UUID-named marker with arbitrary, multiline, mismatching, binary, or unreadable contents | Healthy filename-authoritative evidence; contents are opaque |
 | T15 | Expected folder has marker for UUID whose owner note is known | Owner-note display |
 | T16 | Expected folder has marker for UUID with no owner note | Orphan evidence |
 | T17 | Expected folder is ignored by settings | Ignored target |
@@ -102,7 +104,9 @@ integrity state.
 | T23 | Expected folder has child bound marker | Overlap conflict |
 | T24 | Expected folder is child of existing bound marker | Overlap/descendant conflict |
 | T25 | Expected folder contains skipped/unreadable descendant | Adoption row blocker |
-| T26 | Expected folder has UUID-named marker with strict matching earlier-beta payload | Healthy compatibility evidence; filename is authoritative |
+| T26 | Expected folder has UUID-named marker with strict matching earlier-beta payload | Healthy compatibility evidence; contents remain untouched |
+| T27 | Missing target gains a file, folder, or marker before setup mutation | Stale/race blocker; do not overwrite |
+| T28 | Existing unmarked target has a deeper exact note/folder candidate | Leaf-first setup blocker |
 
 ### Root-Wide External Evidence
 
@@ -134,6 +138,10 @@ integrity state.
 | R23 | One eligible unassigned note and one eligible unmarked folder share a literal name at divergent paths | Read-only moved-folder suggestion |
 | R24 | Multiple eligible notes or folders share a literal name | Ambiguity summary; no pair suggestions |
 | R25 | Equivalently named folder overlaps exact-candidate, marker, identity, malformed, ignored, or skipped topology | Excluded from moved-folder suggestions |
+| R26 | Imported marker UUID occurs exactly once at the active note's expected path | Confirmation-gated restoration candidate |
+| R27 | Imported marker UUID also occurs elsewhere in the checked root | Restoration blocker |
+| R28 | Restoration scan has skipped or inaccessible evidence | Uniqueness cannot be proven; block |
+| R29 | Restoration scan excludes configured ignored directories | Intentional blind spot disclosed in confirmation |
 
 ### Journal And Execution State
 
@@ -155,6 +163,11 @@ integrity state.
 | J13 | Preflight plan changed before apply | Open new plan; no mutation sequence increment |
 | J14 | Concurrent command during mutation | Serialized or stale-plan blocked |
 | J15 | External write succeeds, notice/modal fails | Data state remains recoverable |
+| J16 | Setup journal is at `folder-create` | Reinspect, create exclusively, then advance |
+| J17 | Setup journal is at `marker-write` | Require an empty/unmarked new folder or compatible adoption/restoration evidence |
+| J18 | Setup journal is at `frontmatter-write` | Require the journaled matching marker, then write the journaled UUID |
+| J19 | Setup journal is complete but folder open fails | Binding remains complete; report opener failure separately |
+| J20 | Incomplete setup journal belongs to another note | Does not block active-note setup |
 
 ## Command-Specific Test Matrix
 
@@ -163,30 +176,46 @@ integrity state.
 | Combination | Expected behavior |
 | --- | --- |
 | V0 or V1 | No-op notice |
-| V2 + G5/G6 + no integrity errors | Writes valid note UUID only |
-| V2 + any verify integrity error | Blocks and opens/report verify details |
+| V2 in any external-root state | Generates an unused vault UUID and writes note frontmatter only; no external scan |
 | V3 | Reports existing identity; does not rewrite |
 | V4/V5/V6 | Blocks invalid frontmatter |
-| V7/V8 anywhere in vault | Blocks assignment due duplicate identity |
-| R3/R6/R7/R9/G11/G12 | Blocks via verify integrity |
-| G7/G8 unrelated | Warning only unless verify treats as integrity |
+| V7/V8 anywhere in vault | Existing duplicate identities do not cause a newly generated UUID collision; retry generation if necessary |
 | Any T state | Irrelevant; assign must not create or write external folders |
+
+### Set Up External Folder
+
+| Combination | Expected behavior |
+| --- | --- |
+| V3 | Delegate to `Open external folder`; do not change identity |
+| V2 + T0 | Journal first, create target exclusively, write empty marker, write frontmatter, complete journal, then open |
+| V2 + T2/T3 | Apply targeted ancestor/subtree checks, require confirmation, then journal/adopt/open |
+| V2 + T28 | Block until the deeper exact candidate is handled |
+| V2 + T5/T4/T6 with one identity | Complete root scan, disclose ignored count, require confirmation, restore that UUID, then open |
+| V2 + R27/R28 | Block restoration because external uniqueness is not proven |
+| V2 + R29 only | Allow confirmation with an explicit ignored/unchecked count |
+| V2 + T7/T9/T10/T12/T17/T18/T19/T22/T23/T24/T25 | Block without mutation |
+| V2 + T27 | Stale preflight; do not write or overwrite |
+| J16/J17/J18 | Offer note-scoped resume using the journaled UUID and fresh preflight |
+| J19 | Do not reopen the binding transaction; report only the opener error |
+| J20 | Continue active-note setup normally |
 
 ### Open External Folder
 
 | Combination | Expected behavior |
 | --- | --- |
 | V0 or V1 | Stop |
-| V2 | Notice: assign/adopt first; no scan |
+| V2 | Notice: run `Set up external folder`; no scan |
 | V4/V5/V6 | Block invalid identity |
 | V3 + T4 | Fast-open expected; no fallback scan |
-| V3 + T5 matching legacy | Open if legacy read is supported, or route migration if policy says legacy is not openable |
+| V3 + T11 | Open the matching expected folder and show a nonblocking additional-marker warning |
+| V3 + T5 matching legacy | Open the expected folder and retain migration evidence |
 | V3 + T0 + R0 | Recovery modal offers create expected |
 | V3 + T0 + R2 single off-path active UUID | Open actual folder; show drift modal |
 | V3 + T0 + R3 duplicate active UUID | No auto-open; modal blocks ambiguity |
 | V3 + T2/T3 + R0 | Modal offers write marker/adopt expected |
 | V3 + T2/T3 + R2 | Opens actual off-path; reports expected occupied |
-| V3 + T8/T9/T10/T13/T14 + R0 | Block expected path; modal shows issue |
+| V3 + T8/T9/T10/T13 + R0 | Block expected path; modal shows issue |
+| V3 + T14 | Treat the canonical marker as healthy without reading its contents |
 | V3 + T17 | Modal says expected ignored; no create/adopt |
 | V3 + T18/T19/T22 | Fail closed |
 | V3 + R12/R13 active UUID inside ignored subtree | Ignored marker invisible; behaves as no match |
@@ -209,7 +238,7 @@ integrity state.
 | V3 + R4 | Orphan folder |
 | V7/V8 | Error duplicate vault UUID |
 | R3 | Error duplicate external UUID |
-| R6 | Malformed marker error |
+| R6 | Malformed marker filename or malformed legacy content error |
 | G7/G8 | Warnings |
 | G11/G12 | Invalid ignore error; classification omitted if evidence is ambiguous |
 | R12/R13 | Ignored markers invisible; only ignored count/path warning if reported |
@@ -241,7 +270,8 @@ integrity state.
 | V2 + target skipped T18 | `blocked-note`: `target-skipped` |
 | V2 + target contains skipped T25 | `blocked-note`: `target-contains-skipped-directory` |
 | V2 + T4/T5/T8 | `blocked-note`: `target-already-bound` |
-| V2 + T9/T10/T14 | `blocked-note`: `target-has-malformed-marker` |
+| V2 + T9/T10 | `blocked-note`: `target-has-malformed-marker` |
+| V2 + T14 | Canonical marker is valid filename-authoritative evidence; its content is ignored |
 | V2 + T23/T24 | Blocked overlap/conflict |
 | V2 target overlaps V3 note-derived target | Blocked identified-note topology conflict, even when the V3 marker is missing or drifted |
 | V2 + duplicate derived target V11 | Blocked duplicate-note-target |
@@ -292,7 +322,8 @@ integrity state.
 | Legacy `.exnf` valid, matching `<uuid>.exnf` exists | Already migrated/stale cleanup evidence |
 | Legacy `.exnf` valid, different uuid-named marker exists | Conflict blocker |
 | Legacy `.exnf` malformed | Global blocker |
-| Uuid-named marker malformed | Global blocker |
+| Uuid-named marker filename malformed | Global blocker |
+| Uuid-named marker content arbitrary or unreadable | Ignore content; migrate legacy evidence based on filenames and valid legacy contents |
 | Legacy marker filename plus payload mismatch | Malformed/block |
 | Ignored subtree with legacy markers | Invisible/no migration |
 | Skipped subtree with possible legacy markers | Skipped warning |
@@ -311,7 +342,8 @@ integrity state.
 | V3 + T17 | Ignored/unchecked |
 | V7/V8 | Error |
 | R3 | Error |
-| R6/R7 | Error |
+| R6/R7 | Malformed filename or legacy-content error |
+| T14/T26 | Healthy canonical evidence; do not read content |
 | R8 | Warning: legacy marker should migrate |
 | G7/G8 | Warning |
 | G11/G12 | Error |
@@ -337,6 +369,10 @@ plus focused fixtures for mutation commands.
 | `open/missing-expected-duplicate-offpath` | Duplicate active UUID blocks auto-open |
 | `open/unmarked-expected-confirm` | Explicit marker adoption with revalidation |
 | `open/malformed-expected-with-candidates` | Modal lists candidates and blocks unsafe target |
+| `setup/missing-target-fast-path` | Targeted checks, journal-first create, marker-before-frontmatter, open-last |
+| `setup/unmarked-target-confirm` | Leaf-first focused adoption and fresh preflight |
+| `setup/imported-marker-restore` | Whole-root UUID uniqueness scan and confirmation-gated restoration |
+| `setup/resume-each-stage` | Idempotent resume using the journaled UUID |
 | `adoption/mixed-root-safe-partial` | Unrelated markers/skips do not suppress safe rows |
 | `adoption/target-marker-blockers` | Valid/malformed/mismatched marker on candidate blocks only row |
 | `adoption/ignored-and-skipped-targets` | Ignored/skipped target rows block specifically |

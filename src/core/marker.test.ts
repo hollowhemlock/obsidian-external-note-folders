@@ -11,7 +11,8 @@ import {
   findLegacyMarkerConflict,
   formatLegacyMarkerConflictMessage,
   parseExnfMarker,
-  parseExnfMarkerFile,
+  parseLegacyExnfMarkerFile,
+  parseUuidNamedExnfMarkerFile,
   serializeUuidNamedExnfMarker
 } from './marker.ts';
 
@@ -36,23 +37,15 @@ describe('EXNF marker contract', () => {
     expect(() => classifyExnfMarkerFileName('not-a-uuid.exnf')).toThrow(ExnfMarkerParseError);
   });
 
-  it('accepts empty UUID-named markers and compatible matching payloads', () => {
-    expect(parseExnfMarkerFile(`${VALID_UUID}.exnf`, '')).toEqual({
+  it('derives UUID-named marker identity without marker content', () => {
+    expect(parseUuidNamedExnfMarkerFile(`${VALID_UUID}.exnf`)).toEqual({
       format: 'uuid-named',
       uuid: VALID_UUID
     });
-    expect(parseExnfMarkerFile(`${VALID_UUID}.exnf`, `${VALID_UUID}\n`)).toEqual({
-      format: 'uuid-named',
-      uuid: VALID_UUID
-    });
-  });
-
-  it('rejects UUID-named marker payloads that conflict with the filename', () => {
-    expect(() => parseExnfMarkerFile(`${VALID_UUID}.exnf`, '123e4567-e89b-42d3-a456-426614174001\n')).toThrow(ExnfMarkerParseError);
   });
 
   it('parses legacy marker filenames as deprecated marker evidence', () => {
-    expect(parseExnfMarkerFile('.exnf', `${VALID_UUID}\n`)).toEqual({
+    expect(parseLegacyExnfMarkerFile('.exnf', `${VALID_UUID}\n`)).toEqual({
       format: 'legacy',
       uuid: VALID_UUID
     });

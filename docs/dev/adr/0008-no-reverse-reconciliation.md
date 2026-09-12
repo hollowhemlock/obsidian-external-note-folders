@@ -27,12 +27,17 @@ mutate vault content, it introduces deletion semantics and significant ambiguity
 
 External state never drives vault changes.
 
+ADR-0031 adds one explicit exception: an unassigned note may restore the unique UUID marker identity
+from its exact expected folder after a complete non-ignored-root scan and user confirmation. This is
+not automatic reconciliation and does not create, move, rename, or delete notes.
+
 The plugin does not:
 - Create notes from external folders
 - Move notes based on external changes
 - Delete notes when external folders disappear
 
-External changes are reported by Verify only.
+External changes are reported by explicit read-only reports. The ADR-0031 restoration exception is
+available only through `Set up external folder`.
 
 ### Consequences
 
@@ -60,6 +65,8 @@ External changes are reported by Verify only.
 ### Non-Goals
 
 - Automatically reflecting external changes into vault
+
+Explicit exact-path identity restoration is governed by [ADR-0031](0031-pragmatic-active-note-setup.md).
 
 ### Future Considerations
 

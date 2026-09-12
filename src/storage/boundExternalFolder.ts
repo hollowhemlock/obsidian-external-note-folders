@@ -20,7 +20,8 @@ import {
   classifyExnfMarkerFileName,
   findLegacyMarkerConflict,
   formatLegacyMarkerConflictMessage,
-  parseExnfMarkerFile,
+  parseLegacyExnfMarkerFile,
+  parseUuidNamedExnfMarkerFile,
   serializeUuidNamedExnfMarker
 } from '../core/marker.ts';
 import { deriveExternalFolderPath } from '../core/pathPolicy.ts';
@@ -43,6 +44,7 @@ export interface ExpectedExternalFolderInput {
 }
 
 export type ExpectedExternalFolderInspection =
+  | { additionalMarkerUuids: string[]; folderPath: string; kind: 'bound-with-additional-markers' }
   | { folderPath: string; kind: 'bound' }
   | { folderPath: string; kind: 'malformed-marker'; markerPath: string; message: string }
   | { folderPath: string; kind: 'marker-conflict'; markerPath: string; message: string }
@@ -70,7 +72,7 @@ interface FolderMarkerInspection {
 
 export async function assertExpectedMarkerMatches(input: ExpectedExternalFolderInput): Promise<void> {
   const inspection = await inspectExpectedExternalFolder(input);
-  if (inspection.kind !== 'bound') {
+  if (inspection.kind !== 'bound' && inspection.kind !== 'bound-with-additional-markers') {
     if (inspection.kind === 'unmarked') {
       throw new Error(`Expected external folder marker is missing: ${inspection.folderPath}`);
     }
@@ -108,6 +110,10 @@ export async function ensureExpectedBoundExternalFolder(
       folderPath: inspection.folderPath,
       kind: 'bound'
     };
+  }
+
+  if (inspection.kind === 'bound-with-additional-markers') {
+    throw new Error(`Expected external folder contains additional marker UUID(s): ${inspection.additionalMarkerUuids.join(', ')}`);
   }
 
   throwExpectedInspectionError(inspection);
@@ -156,6 +162,14 @@ export async function inspectExpectedExternalFolder(
   }
 
   if (markerInspection.matchingMarkerPath) {
+    if (markerInspection.otherUuids.length > 0) {
+      return {
+        additionalMarkerUuids: markerInspection.otherUuids,
+        folderPath: targetFolderPath,
+        kind: 'bound-with-additional-markers'
+      };
+    }
+
     return {
       folderPath: targetFolderPath,
       kind: 'bound'
@@ -225,6 +239,10 @@ export async function writeExpectedMarkerIfMissingOrMatching(
     };
   }
 
+  if (inspection.kind === 'bound-with-additional-markers') {
+    throw new Error(`Expected external folder contains additional marker UUID(s): ${inspection.additionalMarkerUuids.join(', ')}`);
+  }
+
   if (inspection.kind !== 'unmarked') {
     throwExpectedInspectionError(inspection);
   }
@@ -241,7 +259,7 @@ export async function writeExpectedMarkerIfUnmarked(
 ): Promise<WriteExpectedMarkerIfUnmarkedResult> {
   const inspection = await inspectExpectedExternalFolder(input);
   if (inspection.kind !== 'unmarked') {
-    if (inspection.kind === 'bound') {
+    if (inspection.kind === 'bound' || inspection.kind === 'bound-with-additional-markers') {
       throw new Error(`Expected external folder is already marked: ${inspection.folderPath}`);
     }
 
@@ -393,7 +411,9 @@ async function inspectFolderMarkers(folderPath: string, expectedUuid: string): P
         continue;
       }
 
-      const marker = parseExnfMarkerFile(entry.name, await readFile(markerPath, 'utf8'));
+      const marker = fileNameResult.kind === 'uuid-named'
+        ? parseUuidNamedExnfMarkerFile(entry.name)
+        : parseLegacyExnfMarkerFile(entry.name, await readFile(markerPath, 'utf8'));
       parsedMarkers.push({
         format: marker.format,
         markerPath,
@@ -449,7 +469,9 @@ function isPathAlreadyExistsError(error: unknown): boolean {
   );
 }
 
-function throwExpectedInspectionError(inspection: Exclude<ExpectedExternalFolderInspection, { kind: 'bound' }>): never {
+function throwExpectedInspectionError(
+  inspection: Exclude<ExpectedExternalFolderInspection, { kind: 'bound-with-additional-markers' | 'bound' }>
+): never {
   if (inspection.kind === 'missing') {
     throw new Error(`Expected external folder is missing: ${inspection.folderPath}`);
   }
@@ -496,8 +518,8 @@ async function tryLstat(targetPath: string): Promise<Awaited<ReturnType<typeof l
 async function writeMarker(boundFolderPath: string, uuid: string): Promise<void> {
   const markerPath = buildMarkerPath(boundFolderPath, uuid);
   try {
-    const existingContent = await readFile(markerPath, 'utf8');
-    const existingMarker = parseExnfMarkerFile(path.basename(markerPath), existingContent);
+    await access(markerPath);
+    const existingMarker = parseUuidNamedExnfMarkerFile(path.basename(markerPath));
     if (existingMarker.uuid === uuid) {
       return;
     }
@@ -521,7 +543,7 @@ async function writeNewMarkerFile(markerPath: string, uuid: string): Promise<voi
     });
   } catch (error: unknown) {
     if (isPathAlreadyExistsError(error)) {
-      const existingMarker = parseExnfMarkerFile(path.basename(markerPath), await readFile(markerPath, 'utf8'));
+      const existingMarker = parseUuidNamedExnfMarkerFile(path.basename(markerPath));
       if (existingMarker.uuid === uuid) {
         return;
       }

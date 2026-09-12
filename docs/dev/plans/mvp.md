@@ -28,7 +28,9 @@ Status legend:
 - [x] No conflict-based surprise renames — plugin never renames folders to
       dodge collisions (deterministic path derivation including sanitization
       and hash shortening is normal creation behavior, not renaming)
-- [x] External state never drives vault mutations
+- [x] External state never drives vault mutations automatically; the only
+      exception is explicit, confirmation-gated restoration of one unique
+      exact-path imported marker identity under ADR-0031
 - [x] Exactly one external root is configured
 
 References:
@@ -61,10 +63,10 @@ References:
 - [x] UUID helper: generate canonical lowercase RFC 4122 UUID
 - [x] UUID helper: strict UUID validation (no permissive coercion)
 - [x] Frontmatter helper for `exnf` read/write
-- [x] Marker writer uses UTF-8 without BOM and trailing `\n`
-- [x] Marker parser accepts only one UUID line plus optional trailing newline
-- [x] Marker parser rejects BOM, extra lines, extra content, non-canonical UUID
-- [x] Any malformed marker is `Error` and blocks mutation
+- [x] Canonical marker writer creates an empty `<uuid>.exnf` file
+- [x] Canonical marker identity comes only from the filename; content is not read
+- [x] Legacy `.exnf` parser accepts one canonical UUID line and rejects malformed content
+- [x] Malformed marker filenames and legacy payloads block affected mutation
 
 References:
 - [x] `docs/dev/adr/0005-bound-folder-marker.md`
@@ -112,7 +114,8 @@ scanVaultUUIDs(): {
 ### 6. External Root Scan
 
 - [x] Recursively discover marker files under external root boundary
-- [x] Parse and validate markers with strict contract
+- [x] Parse canonical identity strictly from `<uuid>.exnf` filenames without
+      reading content; strictly validate legacy fixed `.exnf` contents
 - [x] Build `Map<uuid, boundFolderPath>`
 - [x] Detect duplicate UUIDs in external root and classify as `Error`
 - [x] Detect malformed markers and classify as `Error`
@@ -147,15 +150,13 @@ Implement one guarded module for all mutations.
 ### 8. Command Serialization and Locking
 
 - [x] Implement single-flight lock for mutating commands
-- [x] Mutating commands: `Open External Folder` (when creating), `Assign UUID`
-      (when writing)
+- [x] Mutating commands: `Set up external folder`, `Open External Folder`
+      (when creating/adopting), `Assign UUID` (when writing), adoption,
+      reconcile, and legacy marker migration
 - [x] Integrity preflight for mutating commands:
-  - [x] `Assign UUID` runs vault + external integrity scan immediately before
-        mutation
-  - [x] If any integrity `Error` exists anywhere, abort mutation with grouped
-        actionable notice
-  - [x] This includes configured-root access/boundary failures (strict
-        fail-closed); unreadable descendant directories are warning-only skips
+  - [x] `Assign UUID` is vault-only and does not depend on external-root health
+  - [x] `Set up external folder` uses targeted checks for fresh identity and a
+        complete uniqueness scan only when restoring an imported marker UUID
   - [x] `Open External Folder` validates only the active note's expected folder;
         whole-root drift detection is handled by explicit report/reconcile
         commands
@@ -171,7 +172,8 @@ Reference:
 
 #### 9.1 Assign UUID
 
-- [x] Run global mutation preflight and abort on any integrity `Error`
+- [x] Inspect active-note frontmatter first; for a missing identity, scan vault
+      UUID metadata only and generate an unused canonical UUID
 - [x] If UUID missing: generate and write
 - [x] If UUID exists: no-op + notice
 - [x] Never mutate external root from this command
@@ -249,7 +251,7 @@ Reference:
 - [x] Unit tests:
   - [x] path sanitization/canonicalization/boundary checks
   - [x] UUID validation and normalization policy
-  - [x] strict marker parse/write contract
+  - [x] filename-authoritative canonical marker and strict legacy parse/write contract
   - [x] duplicate detection with path-rich diagnostics (`uuid -> paths[]`)
 - [x] Integration/manual matrix:
   - [x] external root missing
@@ -269,7 +271,7 @@ Reference:
 
 - [x] README covers:
   - [x] what plugin does and does not do
-  - [x] command semantics (Assign UUID, Open External Folder, Report external folder drift)
+  - [x] command semantics (Assign UUID, Set up external folder, Open External Folder, Report external folder drift)
   - [x] no-deletions guarantee
   - [x] known limitations (sync, orphan accumulation)
 - [x] Link ADR index
