@@ -4,6 +4,7 @@ import {
   TFile
 } from 'obsidian';
 
+import type { CommandProgressOptions } from './CommandProgressModal.ts';
 import type { AdoptionPlan } from './core/adoptionPlan.ts';
 import type { ExnfFrontmatterValue } from './core/frontmatter.ts';
 import type {
@@ -64,6 +65,12 @@ import {
   writeUuidToNoteIfMissing
 } from './obsidian/writeUuidToNote.ts';
 import { OpenRecoveryModal } from './OpenRecoveryModal.ts';
+import {
+  buildRecoveryDetails,
+  describeRecoveryReason,
+  RECOVERY_SEARCH_DESCRIPTION,
+  RECOVERY_SEARCH_FOOTER
+} from './openRecoveryPresentation.ts';
 import { DEFAULT_SETTINGS } from './PluginSettings.ts';
 import { PluginSettingsTab } from './PluginSettingsTab.ts';
 import { ReconcilePlanModal } from './ReconcilePlanModal.ts';
@@ -517,7 +524,7 @@ export class Plugin extends ObsidianPlugin {
     });
   }
 
-  private openRecoveryModal(plan: OpenExternalFolderRecoveryPlan): void {
+  private openRecoveryModal(plan: OpenExternalFolderRecoveryPlan, openedFolderPath: null | string): void {
     new OpenRecoveryModal(this.app, {
       onAdoptCandidate: async (row: OpenRecoveryCandidateRow): Promise<void> => {
         await this.runMutatingCommand('adopt an exact-name candidate external folder', async () => {
@@ -575,6 +582,7 @@ export class Plugin extends ObsidianPlugin {
           uuid: plan.uuid
         });
       },
+      openedFolderPath,
       plan,
       reportContext: this.getReportContext(plan.externalRootPath)
     }).open();
@@ -979,8 +987,8 @@ export class Plugin extends ObsidianPlugin {
 
       if (initialAction.kind === 'run-recovery') {
         const plan = await this.withProgressModal(
-          'External folder recovery scan started',
-          'Searching the external root for this note UUID and exact-name candidate folders.',
+          'Searching for the external folder',
+          `${describeRecoveryReason(initialAction.expectedState)} ${RECOVERY_SEARCH_DESCRIPTION}`,
           async () => {
             const vaultScan = scanVault(this.app);
             const externalScan = await scanExternalRoot(externalRootPath, {
@@ -993,18 +1001,29 @@ export class Plugin extends ObsidianPlugin {
               uuid: initialAction.uuid,
               vaultScan
             });
+          },
+          {
+            details: buildRecoveryDetails({
+              expectedState: initialAction.expectedState,
+              externalRootPath,
+              notePath: activeFile.path,
+              uuid: initialAction.uuid
+            }, 'Searching in'),
+            footerText: RECOVERY_SEARCH_FOOTER
           }
         );
 
+        let openedFolderPath: null | string = null;
         if (plan.autoOpenFolderPath) {
           await openExternalFolderInFileManager(plan.autoOpenFolderPath);
+          openedFolderPath = plan.autoOpenFolderPath;
           new Notice(`Opened recovered external folder for ${activeFile.path}. Review the opened recovery details.`);
           this.logWarn('opened external folder from recovery scan', { plan });
         } else {
           new Notice(`External folder recovery scan complete: ${plan.summaryText}.`);
           this.logInfo('external folder recovery scan complete', { plan });
         }
-        this.openRecoveryModal(plan);
+        this.openRecoveryModal(plan, openedFolderPath);
         return;
       }
 
@@ -1297,9 +1316,10 @@ export class Plugin extends ObsidianPlugin {
   private async withProgressModal<T>(
     title: string,
     description: string,
-    operation: () => Promise<T>
+    operation: () => Promise<T>,
+    options: CommandProgressOptions = {}
   ): Promise<T> {
-    const progressModal = new CommandProgressModal(this.app, title, description);
+    const progressModal = new CommandProgressModal(this.app, title, description, options);
     progressModal.open();
     await new Promise<void>((resolve) => {
       setTimeout(resolve, 0);

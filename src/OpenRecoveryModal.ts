@@ -11,16 +11,23 @@ import type {
 } from './core/openExternalFolderRecovery.ts';
 import type { ReportContext } from './modalReport.ts';
 
+import { renderModalDetails } from './modalDetails.ts';
 import {
   renderCopyableReport,
   renderReportContext
 } from './modalReport.ts';
+import {
+  buildRecoveryDetails,
+  describeRecoveryOutcome,
+  describeRecoveryReason
+} from './openRecoveryPresentation.ts';
 
 export interface OpenRecoveryModalInput {
   onAdoptCandidate: (row: OpenRecoveryCandidateRow) => Promise<void>;
   onAdoptExpected: () => Promise<void>;
   onCreateExpected: () => Promise<void>;
   onOpenFolder: (folderPath: string) => Promise<void>;
+  openedFolderPath: null | string;
   plan: OpenExternalFolderRecoveryPlan;
   reportContext: ReportContext;
 }
@@ -37,16 +44,20 @@ export class OpenRecoveryModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass('external-note-folders-wide-modal');
+    contentEl.addClass('external-note-folders-recovery-modal');
 
-    contentEl.createEl('h2', { text: 'Open external folder recovery' });
+    contentEl.createEl('h2', { text: 'External folder search results' });
     renderReportContext(contentEl, this.input.reportContext);
+    contentEl.createEl('p', { text: describeRecoveryReason(this.input.plan.expectedState) });
+    contentEl.createEl('p', { text: describeRecoveryOutcome(this.input.plan, this.input.openedFolderPath) });
     contentEl.createEl('p', { text: this.input.plan.summaryText });
     contentEl.createEl('p', {
       cls: 'setting-item-description',
-      text: 'Recovery is scoped to the active note. Full root-wide diagnosis still belongs to drift report and reconcile.'
+      text:
+        'The search checked this note’s UUID and folders with the expected name, following your configured ignores. Ignored or skipped folders are unchecked; see warnings below. Use the drift report for a full diagnosis.'
     });
 
-    this.renderSummary(contentEl);
+    renderModalDetails(contentEl, buildRecoveryDetails(this.input.plan, 'Searched root'));
     this.renderTextSection(contentEl, 'Errors', this.input.plan.errors, 'No blocking recovery errors detected.');
     this.renderTextSection(contentEl, 'Warnings', this.input.plan.warnings, 'No scan warnings detected.');
     this.renderActiveMatches(contentEl);
@@ -139,6 +150,9 @@ export class OpenRecoveryModal extends Modal {
       return;
     }
 
+    containerEl.createEl('p', {
+      text: 'A matching name alone does not confirm a binding. Review each folder’s marker and owner note before associating it with this note.'
+    });
     const tableEl = containerEl.createEl('table', {
       cls: 'external-note-folders-verify-table'
     });
@@ -186,23 +200,6 @@ export class OpenRecoveryModal extends Modal {
     actionsEl.createSpan({
       text: 'No safe expected-folder action is available from this recovery state.'
     });
-  }
-
-  private renderSummary(containerEl: HTMLElement): void {
-    const tableEl = containerEl.createEl('table', {
-      cls: 'external-note-folders-verify-table'
-    });
-    const bodyEl = tableEl.createEl('tbody');
-    this.renderSummaryRow(bodyEl, 'Vault file', this.input.plan.notePath);
-    this.renderSummaryRow(bodyEl, 'UUID', this.input.plan.uuid);
-    this.renderSummaryRow(bodyEl, 'Expected external folder', this.input.plan.expectedExternalFolder);
-    this.renderSummaryRow(bodyEl, 'Expected status', this.input.plan.expectedState.kind);
-  }
-
-  private renderSummaryRow(bodyEl: HTMLTableSectionElement, label: string, value: string): void {
-    const rowEl = bodyEl.createEl('tr');
-    rowEl.createEl('th', { text: label });
-    rowEl.createEl('td', { text: value });
   }
 
   private renderTextSection(

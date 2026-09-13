@@ -35,6 +35,14 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 
 Every report and dry-run plan begins with the absolute active-vault path and configured external-root path. The same context is prepended to its copyable text so captured reports can be traced to the filesystem roots they describe.
 
+When Open external folder cannot confirm the expected folder immediately, its
+search popup explains why and shows the note, full expected folder path, external
+root being searched, and matching `<uuid>.exnf` filename. Recovery also checks
+legacy markers and folders with the expected name. The results explain whether a
+match was opened, duplicates need resolution, no match was found, or scan errors
+blocked recovery. Same-name candidates require review before association, and
+warnings disclose ignored or skipped folders that were not checked.
+
 ## Pragmatic Solution
 
 Normal setup checks only the active note, its expected path, path ancestors, and

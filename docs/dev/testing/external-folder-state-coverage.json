@@ -2,6 +2,22 @@
   "schemaVersion": 1,
   "coveredScenarios": [
     {
+      "kind": "unit-test",
+      "domain": "open-recovery",
+      "scenario": "recovery-explanations",
+      "testPath": "src/openRecoveryPresentation.test.ts",
+      "stateIds": ["T0", "T2", "T7", "T8", "T9", "R0", "R2", "R3", "R15"],
+      "notes": "Covers readable initial failure reasons, actual search paths and marker filename, blocking-error precedence, confirmed opening, duplicate matches, and same-name candidates requiring review."
+    },
+    {
+      "kind": "integration-test",
+      "domain": "open-recovery",
+      "scenario": "pending-search-and-results",
+      "testPath": "test/integration/open-recovery.integration.test.ts",
+      "stateIds": ["T0", "R0"],
+      "notes": "Holds a sandbox recovery scan pending to inspect the actual progress modal, full selectable wrapping paths, marker filename, ignore disclosure, and subsequent no-match result."
+    },
+    {
       "kind": "semantic-fixture",
       "domain": "drift-report",
       "scenario": "basic-drift-matrix",
