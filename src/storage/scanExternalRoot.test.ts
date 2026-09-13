@@ -314,6 +314,27 @@ describe('external root scanning', () => {
     }]);
   });
 
+  it('distinguishes unreadable legacy markers from malformed legacy contents', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const markerPath = path.join(externalRootPath, '.exnf');
+    await writeFile(markerPath, 'not a UUID', 'utf8');
+    const readable = await scanExternalRoot(externalRootPath);
+    expect(readable.malformedMarkers).toHaveLength(1);
+    expect(readable.markerReadErrors).toEqual([]);
+
+    const unreadable = await scanExternalRoot(externalRootPath, {
+      fileSystem: {
+        readDirectoryEntries: async (directoryPath) => readdir(directoryPath, { encoding: 'utf8', withFileTypes: true }),
+        readMarkerFile: async () => {
+          throw Object.assign(new Error('permission denied'), { code: 'EACCES' });
+        },
+        resolveRealPath: realpath
+      }
+    });
+    expect(unreadable.markerReadErrors).toEqual([{ code: 'EACCES', location: markerPath, message: 'permission denied' }]);
+    expect(unreadable.malformedMarkers).toEqual([{ location: markerPath, message: 'permission denied' }]);
+  });
+
   it('reports legacy and UUID-named marker conflicts in the same folder', async () => {
     const externalRootPath = await createTempRoot(tempDirectories);
     const folderPath = path.join(externalRootPath, 'Projects', 'Alpha');

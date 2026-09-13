@@ -516,23 +516,7 @@ async function tryLstat(targetPath: string): Promise<Awaited<ReturnType<typeof l
 }
 
 async function writeMarker(boundFolderPath: string, uuid: string): Promise<void> {
-  const markerPath = buildMarkerPath(boundFolderPath, uuid);
-  try {
-    await access(markerPath);
-    const existingMarker = parseUuidNamedExnfMarkerFile(path.basename(markerPath));
-    if (existingMarker.uuid === uuid) {
-      return;
-    }
-
-    throw new Error(`Existing marker UUID ${existingMarker.uuid} does not match ${uuid}.`);
-  } catch (error: unknown) {
-    if (isMissingFileError(error)) {
-      await writeNewMarkerFile(markerPath, uuid);
-      return;
-    }
-
-    throw error;
-  }
+  await writeNewMarkerFile(buildMarkerPath(boundFolderPath, uuid), uuid);
 }
 
 async function writeNewMarkerFile(markerPath: string, uuid: string): Promise<void> {
@@ -543,10 +527,11 @@ async function writeNewMarkerFile(markerPath: string, uuid: string): Promise<voi
     });
   } catch (error: unknown) {
     if (isPathAlreadyExistsError(error)) {
-      const existingMarker = parseUuidNamedExnfMarkerFile(path.basename(markerPath));
-      if (existingMarker.uuid === uuid) {
+      const existingMarkerStat = await lstat(markerPath);
+      if (existingMarkerStat.isFile() && !existingMarkerStat.isSymbolicLink()) {
         return;
       }
+      throw new Error(`Existing marker path is not a regular file: ${markerPath}`, { cause: error });
     }
 
     throw error;

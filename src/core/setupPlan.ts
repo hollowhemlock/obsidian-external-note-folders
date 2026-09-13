@@ -5,6 +5,10 @@ import type {
 } from './verify.ts';
 
 import {
+  buildExistingIdentifiedNoteTargets,
+  findIdentifiedNoteConflict
+} from './identifiedNoteTargets.ts';
+import {
   deriveExternalFolderPath,
   normalizePathForIdentity
 } from './pathPolicy.ts';
@@ -75,6 +79,13 @@ export function buildSetupPlan(input: {
   }
 
   const errors = collectTopologyErrors(inspection);
+  const reservation = findIdentifiedNoteConflict(
+    buildExistingIdentifiedNoteTargets(input.vaultScan, inspection.externalRootPath),
+    normalizePathForIdentity(inspection.targetPath)
+  );
+  if (reservation) {
+    errors.push(reservation.message);
+  }
   if (errors.length > 0) {
     return blockPlan(input, errors, inspection);
   }
@@ -114,15 +125,7 @@ export function haveSameSetupPlan(left: SetupPlan, right: SetupPlan): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-export function validateSetupRestoration(
-  plan: SetupPlan,
-  externalScan: ExternalScanResult,
-  vaultScan: VaultScanResult
-): SetupPlan {
-  if (plan.action !== 'confirm-marker-restore' || !plan.uuid) {
-    return plan;
-  }
-
+export function validateSetupMarkerUniqueness(uuid: string, targetPath: string, externalScan: ExternalScanResult): string[] {
   const errors: string[] = [];
   if (externalScan.accessErrors.length > 0) {
     errors.push('The external root could not be scanned completely.');
@@ -133,16 +136,32 @@ export function validateSetupRestoration(
   if (externalScan.skippedDirectories.length > 0) {
     errors.push('Marker uniqueness cannot be proven because external directories were skipped.');
   }
+  if ((externalScan.markerReadErrors?.length ?? 0) > 0) {
+    errors.push('Marker uniqueness cannot be proven because external marker files could not be read.');
+  }
 
-  const singleMatch = externalScan.bindings.get(plan.uuid);
-  const matches = externalScan.duplicatePaths.get(plan.uuid)
+  const singleMatch = externalScan.bindings.get(uuid);
+  const matches = externalScan.duplicatePaths.get(uuid)
     ?? (singleMatch ? [singleMatch] : []);
   if (
     matches.length !== 1
-    || normalizePathForIdentity(matches[0] ?? '') !== normalizePathForIdentity(plan.targetPath)
+    || normalizePathForIdentity(matches[0] ?? '') !== normalizePathForIdentity(targetPath)
   ) {
-    errors.push(`Marker UUID ${plan.uuid} must occur exactly once at the expected folder.`);
+    errors.push(`Marker UUID ${uuid} must occur exactly once at the expected folder.`);
   }
+  return errors;
+}
+
+export function validateSetupRestoration(
+  plan: SetupPlan,
+  externalScan: ExternalScanResult,
+  vaultScan: VaultScanResult
+): SetupPlan {
+  if (plan.action !== 'confirm-marker-restore' || !plan.uuid) {
+    return plan;
+  }
+
+  const errors = validateSetupMarkerUniqueness(plan.uuid, plan.targetPath, externalScan);
   if (vaultScan.bindings.has(plan.uuid) || vaultScan.duplicatePaths.has(plan.uuid)) {
     errors.push(`Marker UUID ${plan.uuid} already belongs to a vault note.`);
   }

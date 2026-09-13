@@ -30,6 +30,10 @@ import {
 import { buildDriftReport } from './core/driftReport.ts';
 import { getExnfFrontmatterValue } from './core/frontmatter.ts';
 import {
+  buildExistingIdentifiedNoteTargets,
+  findIdentifiedNoteConflict
+} from './core/identifiedNoteTargets.ts';
+import {
   buildMarkerMigrationPlan,
   haveSameMarkerMigrationRows
 } from './core/markerMigrationPlan.ts';
@@ -45,6 +49,7 @@ import { buildReconcilePlan } from './core/reconcilePlan.ts';
 import {
   buildSetupPlan,
   haveSameSetupPlan,
+  validateSetupMarkerUniqueness,
   validateSetupRestoration
 } from './core/setupPlan.ts';
 import { generateUnusedCanonicalUuid } from './core/uuid.ts';
@@ -213,6 +218,17 @@ export class Plugin extends ObsidianPlugin {
     await this.saveData(this.settings);
   }
 
+  private async assertSetupJournalTargetSafe(journal: SetupJournal): Promise<void> {
+    const inspection = await inspectSetupTarget({
+      externalRootPath: journal.externalRootPath,
+      ignorePatterns: this.settings.externalRootIgnorePatterns,
+      notePath: journal.notePath
+    });
+    if (!isSetupResumeTargetSafe(inspection, journal, scanVault(this.app))) {
+      throw new Error('Expected folder topology, marker identity, or vault UUID ownership changed before setup could continue.');
+    }
+  }
+
   private buildAdoptionExecutionOperations(externalRootPath: string): AdoptionExecutionOperations {
     return {
       assertMarkerMatches: async (row, uuid): Promise<void> => {
@@ -269,25 +285,14 @@ export class Plugin extends ObsidianPlugin {
   private buildSetupExecutionOperations(): SetupExecutionOperations {
     return {
       assertComplete: async (journal): Promise<void> => {
-        await assertExpectedMarkerMatches({
-          externalRootPath: journal.externalRootPath,
-          notePath: journal.notePath,
-          uuid: journal.uuid
-        });
+        await this.assertSetupJournalTargetSafe(journal);
         await assertNoteUuidMatches(this.app, this.getMarkdownFileByPath(journal.notePath), journal.uuid);
       },
       createFolder: async (journal, resume): Promise<void> => {
         await createSetupTargetExclusively(journal.externalRootPath, journal.targetPath, resume);
       },
       writeMarker: async (journal): Promise<void> => {
-        const inspection = await inspectSetupTarget({
-          externalRootPath: journal.externalRootPath,
-          ignorePatterns: this.settings.externalRootIgnorePatterns,
-          notePath: journal.notePath
-        });
-        if (!isSetupResumeTargetSafe(inspection, journal)) {
-          throw new Error('Expected folder topology changed before marker creation.');
-        }
+        await this.assertSetupJournalTargetSafe(journal);
         await assertSetupMarkerWriteReady({
           allowPayload: journal.action === 'confirm-unmarked-adoption',
           targetPath: journal.targetPath,
@@ -300,6 +305,7 @@ export class Plugin extends ObsidianPlugin {
         });
       },
       writeNoteUuid: async (journal): Promise<void> => {
+        await this.assertSetupJournalTargetSafe(journal);
         await writeUuidToNoteIfMissing(this.app, this.getMarkdownFileByPath(journal.notePath), journal.uuid);
       }
     };
@@ -307,7 +313,6 @@ export class Plugin extends ObsidianPlugin {
 
   private async buildSetupPlanForFile(activeFile: TFile): Promise<SetupPlan> {
     const identity = this.getActiveFileUuidValue(activeFile);
-    const vaultScan = scanVault(this.app);
     if (identity.kind !== 'missing') {
       return buildSetupPlan({
         identity,
@@ -315,7 +320,7 @@ export class Plugin extends ObsidianPlugin {
         mutationSequence: this.mutationSequence,
         notePath: activeFile.path,
         notePaths: this.getMarkdownNotePaths(),
-        vaultScan
+        vaultScan: scanVault(this.app)
       });
     }
 
@@ -330,7 +335,7 @@ export class Plugin extends ObsidianPlugin {
       mutationSequence: this.mutationSequence,
       notePath: activeFile.path,
       notePaths: this.getMarkdownNotePaths(),
-      vaultScan
+      vaultScan: scanVault(this.app)
     });
     if (plan.action === 'confirm-marker-restore') {
       const externalScan = await this.withProgressModal(
@@ -341,7 +346,7 @@ export class Plugin extends ObsidianPlugin {
             ignorePatterns: this.settings.externalRootIgnorePatterns
           })
       );
-      plan = validateSetupRestoration(plan, externalScan, vaultScan);
+      plan = validateSetupRestoration(plan, externalScan, scanVault(this.app));
     }
     return plan;
   }
@@ -1219,7 +1224,7 @@ export class Plugin extends ObsidianPlugin {
         ignorePatterns: this.settings.externalRootIgnorePatterns,
         notePath: journal.notePath
       });
-      if (!isSetupResumeTargetSafe(inspection, journal)) {
+      if (!isSetupResumeTargetSafe(inspection, journal, vaultScan)) {
         new Notice('Cannot resume setup because the expected folder topology changed. Inspect the setup journal.');
         return false;
       }
@@ -1232,7 +1237,7 @@ export class Plugin extends ObsidianPlugin {
               ignorePatterns: this.settings.externalRootIgnorePatterns
             })
         );
-        if (!isSetupRestorationScanComplete(externalScan, journal)) {
+        if (validateSetupMarkerUniqueness(journal.uuid, journal.targetPath, externalScan).length > 0) {
           new Notice('Cannot resume marker restoration because UUID uniqueness can no longer be proven.');
           return false;
         }
@@ -1319,29 +1324,26 @@ export class Plugin extends ObsidianPlugin {
   }
 }
 
-function isSetupRestorationScanComplete(
-  externalScan: Awaited<ReturnType<typeof scanExternalRoot>>,
-  journal: SetupJournal
-): boolean {
-  const singlePath = externalScan.bindings.get(journal.uuid);
-  const paths = externalScan.duplicatePaths.get(journal.uuid)
-    ?? (singlePath ? [singlePath] : []);
-  return externalScan.accessErrors.length === 0
-    && externalScan.ignoreErrors.length === 0
-    && externalScan.skippedDirectories.length === 0
-    && paths.length === 1
-    && normalizePathForIdentity(paths[0] ?? '') === normalizePathForIdentity(journal.targetPath);
-}
-
 function isSetupResumeTargetSafe(
   inspection: Awaited<ReturnType<typeof inspectSetupTarget>>,
-  journal: SetupJournal
+  journal: SetupJournal,
+  vaultScan: ReturnType<typeof scanVault>
 ): boolean {
+  const reservation = findIdentifiedNoteConflict(
+    buildExistingIdentifiedNoteTargets(vaultScan, inspection.externalRootPath, journal.notePath),
+    normalizePathForIdentity(inspection.targetPath)
+  );
+  const requiresMarker = journal.stage === 'frontmatter-write' || journal.stage === 'complete';
+  const ownerPath = vaultScan.bindings.get(journal.uuid);
   return inspection.errors.length === 0
+    && !vaultScan.duplicatePaths.has(journal.uuid)
+    && (!ownerPath || ownerPath === journal.notePath)
     && normalizePathForIdentity(inspection.targetPath) === normalizePathForIdentity(journal.targetPath)
     && !inspection.targetIgnored
     && inspection.ancestorMarkerPaths.length === 0
     && inspection.descendantMarkerPaths.length === 0
     && inspection.skippedDirectories.length === 0
+    && !reservation
+    && (!requiresMarker || (inspection.targetKind === 'directory' && inspection.targetMarkerUuids.length === 1))
     && inspection.targetMarkerUuids.every((uuid) => uuid === journal.uuid);
 }

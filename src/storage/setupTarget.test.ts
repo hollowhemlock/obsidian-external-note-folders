@@ -2,6 +2,7 @@ import {
   mkdir,
   mkdtemp,
   rm,
+  symlink,
   writeFile
 } from 'node:fs/promises';
 import os from 'node:os';
@@ -49,6 +50,20 @@ describe('setup target inspection', () => {
     const inspection = await inspectSetupTarget({ externalRootPath: root, ignorePatterns: [], notePath: 'Parent/Alpha.md' });
     expect(inspection.ancestorMarkerPaths).toHaveLength(1);
     expect(inspection.descendantMarkerPaths).toHaveLength(1);
+  });
+
+  it('stops inspecting the target after detecting a linked ancestor', async () => {
+    const root = await tempRoot();
+    const outside = await tempRoot();
+    await mkdir(path.join(outside, 'Alpha', 'Child'), { recursive: true });
+    await writeFile(path.join(outside, 'Alpha', buildExnfMarkerFileName(UUID)), '');
+    await writeFile(path.join(outside, 'Alpha', 'Child', buildExnfMarkerFileName(UUID)), '');
+    await symlink(outside, path.join(root, 'Linked'), 'junction');
+    const inspection = await inspectSetupTarget({ externalRootPath: root, ignorePatterns: [], notePath: 'Linked/Alpha.md' });
+    expect(inspection.errors).toEqual([expect.stringContaining('ancestor crosses a symbolic link')]);
+    expect(inspection.directoryPaths).toEqual([]);
+    expect(inspection.targetMarkerUuids).toEqual([]);
+    expect(inspection.descendantMarkerPaths).toEqual([]);
   });
 
   it('ignores canonical contents but strictly validates legacy marker contents', async () => {

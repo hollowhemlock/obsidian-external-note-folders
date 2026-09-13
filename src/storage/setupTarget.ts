@@ -100,6 +100,9 @@ export async function inspectSetupTarget(input: {
   };
 
   await inspectAncestors(externalRootPath, targetPath, inspection);
+  if (inspection.errors.length > 0) {
+    return inspection;
+  }
   let targetStat: Awaited<ReturnType<typeof lstat>>;
   try {
     targetStat = await lstat(targetPath);

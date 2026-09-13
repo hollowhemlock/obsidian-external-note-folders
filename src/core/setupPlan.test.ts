@@ -1,3 +1,4 @@
+import path from 'node:path';
 import {
   describe,
   expect,
@@ -16,6 +17,7 @@ import {
 } from './setupPlan.ts';
 
 const UUID = '123e4567-e89b-42d3-a456-426614174000';
+const EXTERNAL_ROOT = path.resolve('External');
 
 describe('external folder setup planning', () => {
   it('creates a missing target without whole-root evidence', () => {
@@ -26,6 +28,39 @@ describe('external folder setup planning', () => {
     expect(buildPlan(inspection()).action).toBe('confirm-unmarked-adoption');
   });
 
+  it.each(['Alpha/Alpha.md', 'Alpha/Child.md', 'Parent.md'])(
+    'blocks a target reserved by identified note %s without external markers',
+    (ownerPath) => {
+      const targetPath = path.join(EXTERNAL_ROOT, ownerPath === 'Parent.md' ? 'Parent/Alpha' : 'Alpha');
+      for (const targetKind of ['missing', 'directory'] as const) {
+        for (
+          const vault of [
+            vaultScan({ bindings: new Map([[UUID, ownerPath]]) }),
+            vaultScan({ duplicatePaths: new Map([[UUID, [ownerPath, 'Other.md']]]) })
+          ]
+        ) {
+          const result = buildPlan(inspection({ targetKind, targetPath }), [], vault, ownerPath === 'Parent.md' ? 'Parent/Alpha.md' : 'Alpha.md');
+          expect(result.action).toBe('block');
+          expect(result.errors.join(' ')).toContain(ownerPath);
+        }
+      }
+    }
+  );
+
+  it('does not treat a path prefix as a reserved ancestor', () => {
+    expect(buildPlan(inspection(), [], vaultScan({ bindings: new Map([[UUID, 'Al.md']]) })).action)
+      .toBe('confirm-unmarked-adoption');
+  });
+
+  it('blocks restoration with unreadable markers but accepts unrelated malformed contents', () => {
+    const selected = buildPlan(inspection({ targetMarkerUuids: [UUID] }));
+    const issue = { location: path.join(EXTERNAL_ROOT, 'Other', '.exnf'), message: 'permission denied' };
+    expect(validateSetupRestoration(selected, externalScan({ malformedMarkers: [issue], markerReadErrors: [issue] }), vaultScan()).action)
+      .toBe('block');
+    expect(validateSetupRestoration(selected, externalScan({ malformedMarkers: [issue], markerReadErrors: [] }), vaultScan()).action)
+      .toBe('confirm-marker-restore');
+  });
+
   it('selects one imported target identity for restoration', () => {
     expect(buildPlan(inspection({ targetMarkerUuids: [UUID] }))).toMatchObject({
       action: 'confirm-marker-restore',
@@ -34,9 +69,9 @@ describe('external folder setup planning', () => {
   });
 
   it('blocks marker overlap, skipped evidence, and deeper exact candidates', () => {
-    expect(buildPlan(inspection({ descendantMarkerPaths: ['X:/External/Alpha/Child/id.exnf'] })).action).toBe('block');
-    expect(buildPlan(inspection({ skippedDirectories: ['X:/External/Alpha/Unreadable'] })).action).toBe('block');
-    expect(buildPlan(inspection({ directoryPaths: ['X:/External/Alpha/Child'] }), ['Alpha/Child.md']).action).toBe('block');
+    expect(buildPlan(inspection({ descendantMarkerPaths: [path.join(EXTERNAL_ROOT, 'Alpha/Child/id.exnf')] })).action).toBe('block');
+    expect(buildPlan(inspection({ skippedDirectories: [path.join(EXTERNAL_ROOT, 'Alpha/Unreadable')] })).action).toBe('block');
+    expect(buildPlan(inspection({ directoryPaths: [path.join(EXTERNAL_ROOT, 'Alpha/Child')] }), ['Alpha/Child.md']).action).toBe('block');
   });
 
   it('blocks ignored targets, distinct target identities, and UUIDs already owned in the vault', () => {
@@ -54,21 +89,21 @@ describe('external folder setup planning', () => {
 
     const skipped = validateSetupRestoration(
       selected,
-      externalScan({ skippedDirectories: [{ location: 'X:/External/Hidden', message: 'EPERM' }] }),
+      externalScan({ skippedDirectories: [{ location: path.join(EXTERNAL_ROOT, 'Hidden'), message: 'EPERM' }] }),
       vaultScan()
     );
     expect(skipped.action).toBe('block');
 
     const inaccessible = validateSetupRestoration(
       selected,
-      externalScan({ accessErrors: [{ location: 'X:/External', message: 'unreadable root' }] }),
+      externalScan({ accessErrors: [{ location: EXTERNAL_ROOT, message: 'unreadable root' }] }),
       vaultScan()
     );
     expect(inaccessible.action).toBe('block');
 
     const ignored = validateSetupRestoration(
       selected,
-      externalScan({ ignoredDirectories: [{ folderPath: 'X:/External/Ignored', relativePath: 'Ignored' }] }),
+      externalScan({ ignoredDirectories: [{ folderPath: path.join(EXTERNAL_ROOT, 'Ignored'), relativePath: 'Ignored' }] }),
       vaultScan()
     );
     expect(ignored).toMatchObject({ action: 'confirm-marker-restore', ignoredDirectoryCount: 1 });
@@ -77,7 +112,7 @@ describe('external folder setup planning', () => {
       selected,
       externalScan({
         bindings: new Map(),
-        duplicatePaths: new Map([[UUID, ['X:/External/Alpha', 'X:/External/Other']]])
+        duplicatePaths: new Map([[UUID, [path.join(EXTERNAL_ROOT, 'Alpha'), path.join(EXTERNAL_ROOT, 'Other')]]])
       }),
       vaultScan()
     );
@@ -88,14 +123,15 @@ describe('external folder setup planning', () => {
 function buildPlan(
   targetInspection: SetupTargetInspection,
   notePaths: string[] = [],
-  vault = vaultScan()
+  vault = vaultScan(),
+  notePath = 'Alpha.md'
 ): ReturnType<typeof buildSetupPlan> {
   return buildSetupPlan({
     identity: { kind: 'missing' },
     inspection: targetInspection,
     mutationSequence: 0,
-    notePath: 'Alpha.md',
-    notePaths: ['Alpha.md', ...notePaths],
+    notePath,
+    notePaths: [notePath, ...notePaths],
     vaultScan: vault
   });
 }
@@ -103,14 +139,14 @@ function buildPlan(
 function externalScan(overrides: Partial<ExternalScanResult> = {}): ExternalScanResult {
   return {
     accessErrors: [],
-    bindings: new Map([[UUID, 'X:/External/Alpha']]),
+    bindings: new Map([[UUID, path.join(EXTERNAL_ROOT, 'Alpha')]]),
     directories: [],
     duplicatePaths: new Map(),
     ignoredDirectories: [],
     ignoreErrors: [],
     ignorePatterns: [],
     malformedMarkers: [],
-    rootPath: 'X:/External',
+    rootPath: EXTERNAL_ROOT,
     skippedDirectories: [],
     ...overrides
   };
@@ -122,14 +158,14 @@ function inspection(overrides: Partial<SetupTargetInspection> = {}): SetupTarget
     descendantMarkerPaths: [],
     directoryPaths: [],
     errors: [],
-    externalRootPath: 'X:/External',
+    externalRootPath: EXTERNAL_ROOT,
     ignoredDirectories: [],
     legacyMarkerPaths: [],
     skippedDirectories: [],
     targetIgnored: false,
     targetKind: 'directory',
     targetMarkerUuids: [],
-    targetPath: 'X:/External/Alpha',
+    targetPath: path.join(EXTERNAL_ROOT, 'Alpha'),
     ...overrides
   };
 }

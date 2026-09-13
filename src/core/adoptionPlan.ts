@@ -1,3 +1,4 @@
+import type { IdentifiedNoteTarget } from './identifiedNoteTargets.ts';
 import type {
   ExternalScanResult,
   VaultScanResult
@@ -8,6 +9,10 @@ import {
   toExternalRelativeDisplayPath
 } from './displayPath.ts';
 import { formatIgnoredDirectoryWarnings } from './externalRootIgnore.ts';
+import {
+  buildExistingIdentifiedNoteTargets,
+  findIdentifiedNoteConflict
+} from './identifiedNoteTargets.ts';
 import {
   deriveExternalFolderPath,
   normalizePathForIdentity
@@ -104,11 +109,6 @@ interface AdoptionPlanningResult {
 interface DirectoryCandidate {
   folderPath: string;
   identity: string;
-}
-
-interface IdentifiedNoteTarget {
-  identity: string;
-  message: string;
 }
 
 interface MarkerIdentity {
@@ -347,38 +347,14 @@ function buildAdoptionRows(
       continue;
     }
 
-    const exactIdentifiedNoteConflict = findExactIdentifiedNoteConflict(context.identifiedNoteTargets, noteCandidate.identity);
-    if (exactIdentifiedNoteConflict) {
+    const identifiedNoteConflict = findIdentifiedNoteConflict(context.identifiedNoteTargets, noteCandidate.identity);
+    if (identifiedNoteConflict) {
       rows.push({
         externalFolder: noteCandidate.externalFolder,
         kind: 'blocked-note',
-        message: `Derived external folder path is already reserved by ${exactIdentifiedNoteConflict.message}.`,
+        message: identifiedNoteConflict.message,
         notePath: noteCandidate.notePath,
-        reason: 'target-already-identified'
-      });
-      continue;
-    }
-
-    const ancestorIdentifiedNoteConflict = findAncestorIdentifiedNoteConflict(context.identifiedNoteTargets, noteCandidate.identity);
-    if (ancestorIdentifiedNoteConflict) {
-      rows.push({
-        externalFolder: noteCandidate.externalFolder,
-        kind: 'blocked-note',
-        message: `Identified ancestor note reserves a folder containing this target: ${ancestorIdentifiedNoteConflict.message}`,
-        notePath: noteCandidate.notePath,
-        reason: 'ancestor-identified-note'
-      });
-      continue;
-    }
-
-    const descendantIdentifiedNoteConflict = findDescendantIdentifiedNoteConflict(context.identifiedNoteTargets, noteCandidate.identity);
-    if (descendantIdentifiedNoteConflict) {
-      rows.push({
-        externalFolder: noteCandidate.externalFolder,
-        kind: 'blocked-note',
-        message: `Identified descendant note reserves a folder inside this target: ${descendantIdentifiedNoteConflict.message}`,
-        notePath: noteCandidate.notePath,
-        reason: 'descendant-identified-note'
+        reason: identifiedNoteConflict.reason
       });
       continue;
     }
@@ -479,36 +455,6 @@ function buildEmptyPlanningResult(): AdoptionPlanningResult {
     rows: [],
     suppressedAncestorCandidates: 0
   };
-}
-
-function buildExistingIdentifiedNoteTargets(
-  vaultScan: VaultScanResult,
-  externalRootPath: string
-): IdentifiedNoteTarget[] {
-  const uuidByNotePath = new Map<string, string>();
-  for (const [uuid, notePath] of vaultScan.bindings) {
-    uuidByNotePath.set(notePath, uuid);
-  }
-
-  for (const [uuid, notePaths] of vaultScan.duplicatePaths) {
-    for (const notePath of notePaths) {
-      uuidByNotePath.set(notePath, uuid);
-    }
-  }
-
-  const targets: IdentifiedNoteTarget[] = [];
-  for (const [notePath, uuid] of sortEntries(uuidByNotePath)) {
-    try {
-      targets.push({
-        identity: normalizePathForIdentity(deriveExternalFolderPath(notePath, externalRootPath)),
-        message: `note ${notePath} (${uuid})`
-      });
-    } catch {
-      // Invalid identified note paths are reported by vault verification and cannot reserve a derived target.
-    }
-  }
-
-  return targets;
 }
 
 function buildExistingIdentityNotePaths(vaultScan: VaultScanResult): Set<string> {
@@ -716,30 +662,10 @@ function buildWarnings(vaultScan: VaultScanResult, externalScan: ExternalScanRes
   ].sort();
 }
 
-function findAncestorIdentifiedNoteConflict(
-  identifiedNoteTargets: readonly IdentifiedNoteTarget[],
-  targetIdentity: string
-): IdentifiedNoteTarget | null {
-  return identifiedNoteTargets.find((identifiedTarget) =>
-    identifiedTarget.identity !== targetIdentity
-    && isPathInsideOrEqualIdentity(targetIdentity, identifiedTarget.identity)
-  ) ?? null;
-}
-
 function findAncestorMarkerConflict(markerIdentities: readonly MarkerIdentity[], targetIdentity: string): MarkerIdentity | null {
   return markerIdentities.find((markerIdentity) =>
     markerIdentity.identity !== targetIdentity
     && isPathInsideOrEqualIdentity(targetIdentity, markerIdentity.identity)
-  ) ?? null;
-}
-
-function findDescendantIdentifiedNoteConflict(
-  identifiedNoteTargets: readonly IdentifiedNoteTarget[],
-  targetIdentity: string
-): IdentifiedNoteTarget | null {
-  return identifiedNoteTargets.find((identifiedTarget) =>
-    identifiedTarget.identity !== targetIdentity
-    && isPathInsideOrEqualIdentity(identifiedTarget.identity, targetIdentity)
   ) ?? null;
 }
 
@@ -748,13 +674,6 @@ function findDescendantMarkerConflict(markerIdentities: readonly MarkerIdentity[
     markerIdentity.identity !== targetIdentity
     && isPathInsideOrEqualIdentity(markerIdentity.identity, targetIdentity)
   ) ?? null;
-}
-
-function findExactIdentifiedNoteConflict(
-  identifiedNoteTargets: readonly IdentifiedNoteTarget[],
-  targetIdentity: string
-): IdentifiedNoteTarget | null {
-  return identifiedNoteTargets.find((identifiedTarget) => identifiedTarget.identity === targetIdentity) ?? null;
 }
 
 function findExactMarkerConflict(markerIdentities: readonly MarkerIdentity[], targetIdentity: string): MarkerIdentity | null {

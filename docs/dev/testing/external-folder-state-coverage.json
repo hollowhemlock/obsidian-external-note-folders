@@ -71,7 +71,7 @@
         "G11",
         "G12"
       ],
-      "notes": "Covers scanner-level global root states: unset, relative, missing, file root, unreadable root, empty root, skipped descendants, symlink entries, and invalid ignore settings."
+      "notes": "Covers scanner-level global root states: unset, relative, missing, file root, unreadable root, empty root, skipped descendants, symlink entries, and invalid ignore settings. Distinguishes unreadable legacy marker evidence from successfully read malformed contents while preserving existing diagnostics."
     },
     {
       "kind": "unit-test",
@@ -168,7 +168,7 @@
         "T22",
         "T26"
       ],
-      "notes": "Covers expected-folder files, unmarked directories, filename-authoritative UUID markers with opaque contents, legacy markers and conflicts, malformed marker filenames or legacy contents, multiple UUID-named markers, symlink/reparse rejection, parent creation, and root-boundary safety."
+      "notes": "Covers expected-folder files, unmarked directories, filename-authoritative UUID markers with opaque contents, legacy markers and conflicts, malformed marker filenames or legacy contents, multiple UUID-named markers, symlink/reparse rejection, parent creation, and root-boundary safety. Marker writers reject directories and junctions occupying the canonical marker path while preserving an opaque regular marker that appears after inspection."
     },
     {
       "kind": "unit-test",
@@ -343,7 +343,32 @@
         "R28",
         "R29"
       ],
-      "notes": "Covers missing and unmarked exact targets, imported marker restoration, vault and external UUID conflicts, incomplete scan evidence, ignored evidence disclosure, leaf-first topology, and stale target plans."
+      "notes": "Covers missing and unmarked exact targets, imported marker restoration, vault and external UUID conflicts, unreadable marker and incomplete scan evidence, ignored evidence disclosure, and leaf-first topology. Exact, ancestor, and descendant identified-note reservations include duplicate vault owners and apply before creating missing targets; fixtures use native absolute paths."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "setup-command",
+      "scenario": "setup-preflight-and-resume-safety",
+      "testPath": "src/Plugin.setup.test.ts",
+      "stateIds": [
+        "V21",
+        "T27",
+        "R28",
+        "J16",
+        "J17",
+        "J18"
+      ],
+      "notes": "Exercises actual Plugin setup operations with temporary external folders: live preflight and immediate-before-write reservation checks, missing/replaced/competing resume markers, stage and UUID preservation without note writes on failure, early empty-target resume, successful and idempotent frontmatter resume, incomplete complete-stage revalidation, and unreadable legacy markers blocking initial restoration and resume. Restoration refreshes vault ownership after scanning and rejects single or duplicate UUID owners introduced during resume scans or immediately before frontmatter writes."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "setup-target",
+      "scenario": "stop-at-unsafe-ancestor",
+      "testPath": "src/storage/setupTarget.test.ts",
+      "stateIds": [
+        "T19"
+      ],
+      "notes": "A real directory link in the expected target's ancestors blocks inspection before traversing the linked target or collecting its marker and descendant evidence."
     },
     {
       "kind": "unit-test",

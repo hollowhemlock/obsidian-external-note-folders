@@ -60,6 +60,7 @@ export async function scanExternalRoot(
     legacyMarkers: [],
     malformedMarkers: [],
     markerConflicts: [],
+    markerReadErrors: [],
     markers: [],
     rootPath: trimmedRootPath,
     skippedDirectories: []
@@ -201,10 +202,23 @@ async function walkDirectory(
       continue;
     }
 
+    let legacyContents = '';
+    if (markerFileName.kind === 'legacy') {
+      try {
+        legacyContents = await fileSystem.readMarkerFile(entryPath);
+      } catch (error: unknown) {
+        const issue = { location: entryPath, message: getErrorMessage(error) };
+        const code = getErrorCode(error);
+        result.markerReadErrors?.push({ ...issue, ...(code ? { code } : {}) });
+        result.malformedMarkers.push(issue);
+        continue;
+      }
+    }
+
     try {
       const marker = markerFileName.kind === 'uuid-named'
         ? parseUuidNamedExnfMarkerFile(entry.name)
-        : parseLegacyExnfMarkerFile(entry.name, await fileSystem.readMarkerFile(entryPath));
+        : parseLegacyExnfMarkerFile(entry.name, legacyContents);
       const record: ExternalMarkerRecord = {
         folderPath: directoryPath,
         format: marker.format,
