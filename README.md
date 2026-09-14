@@ -315,6 +315,57 @@ reconciliation.
 - `npm run release:check-assets`
 - `npm run fixtures:new-sandbox`
 
+### Standalone read-only adoption audit
+
+From this repository in PowerShell, run:
+
+```powershell
+npx --no-install jiti scripts/audit-adoption.ts `
+  --vault 'C:\Users\ryanh\ship\cabin' `
+  --external-root 'C:\Users\ryanh\ship\hangar' `
+  --output '.\tmp'
+```
+
+These are also the default source roots; the default output parent is this
+repository's ignored `tmp` directory. Each run writes a fresh timestamped directory
+and prints its absolute path. The command uses the locally installed `jiti` and
+`yaml` packages from the current dependency tree; it does not install packages or
+require a running Obsidian instance. Use `--help` for options.
+
+The audit reads actual files recursively, without using Obsidian's cache or plugin
+ignore settings. Under `cabin`, it reads markdown files and parses top-level YAML
+`exnf` properties. Under `hangar`, it inventories directories and marker files.
+Hidden folders, repositories, dependencies, and fixtures are included. The external
+root itself is scan context, not a row in the descendant-folder inventory; markers
+directly in that root are still inspected. Links and junctions are not followed.
+The source files, folders, and markers are never changed.
+
+| Report | Contents |
+| --- | --- |
+| `markdown-files.csv` | Absolute paths of all discovered markdown files. |
+| `markdown-with-exnf.csv` | Parsed top-level `exnf` properties, values, UUIDs, and validation status, including empty or invalid values. |
+| `external-folders.csv` | Absolute paths of discovered external directories. |
+| `exnf-files.csv` | Marker and folder paths, UUIDs, formats, and validation status. |
+| `correctly-adopted.csv` | Unambiguous note–folder UUID matches, expected/actual paths, and path drift. |
+| `possibly-missing.csv` | Missing counterparts, adoption candidates/blocks, unassigned items, conflicts, migration needs, and unchecked evidence. |
+| `summary.md` | Source roots, coverage, counts, and report links. |
+
+The CSV files use UTF-8 with a BOM and quoted fields for Windows spreadsheet import.
+Canonical marker contents are ignored; legacy `.exnf` contents follow the plugin's
+strict parsing rules. Matching UUIDs establish current binding state, not historical
+proof of adoption. A matching UUID at a different path is retained with a drift flag.
+Candidate selection reuses the plugin's path and deepest exact-match adoption rules.
+Unassigned notes and unmarked folders are review items, not automatic errors.
+
+Unreadable paths, skipped links, and unparseable YAML are reported as unchecked.
+When identity coverage is incomplete, otherwise matching pairs are listed as
+provisional bindings instead of confirmed adoptions, and absence claims are
+provisional. Invalid YAML cannot reliably establish whether an `exnf` property is
+present; those files remain in the markdown inventory and unchecked findings.
+This is a live scan, not an atomic filesystem snapshot; rerun if files change during
+the scan. Exit codes are `0` for a complete scan (which may have findings), `2` for
+incomplete coverage with reports, and `1` for a command/output failure.
+
 ### Commit conventions
 
 Use format: `<type>: <description>`
