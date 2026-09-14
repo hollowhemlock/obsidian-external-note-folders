@@ -113,7 +113,8 @@ export function buildAuditReports(scan: AuditScan): AuditReports {
       columns: ['notePath', 'value', 'uuid', 'status'],
       rows: scan.notes.filter((note) => note.hasExnf).map((note) => ({ notePath: note.notePath, status: note.status, uuid: note.uuid, value: note.value }))
     },
-    'possibly-missing.csv': { columns: ['category', 'location', 'uuid', 'relatedPath', 'confidence', 'reason'], rows: findings }
+    'possibly-missing.csv': { columns: ['category', 'location', 'uuid', 'relatedPath', 'confidence', 'reason'], rows: findings },
+    'unmarked-leaf-folders.csv': { columns: ['folderPath', 'relativePath'], rows: buildUnmarkedLeafFolderRows(scan) }
   };
   const counts = Map.groupBy(findings, (row) => row['category'] ?? 'unknown');
   const summary = [
@@ -130,6 +131,8 @@ export function buildAuditReports(scan: AuditScan): AuditReports {
     'Correctly adopted describes current unambiguous UUID bindings, not their creation history.',
     'Unassigned notes and unmarked folders are review items, not automatic errors.',
     'Property inventories include parsed top-level exnf keys. Unreadable or unparseable frontmatter is listed as unchecked.',
+    'Unmarked leaf folders have no subfolders and no .exnf marker anywhere along their path, including the leaf and external root.',
+    'That list excludes locally unchecked paths; unrelated vault or external scan gaps do not disqualify checked branches.',
     '',
     '## Reports',
     '',
@@ -161,6 +164,37 @@ export async function writeAuditReports(reports: AuditReports, outputParent: str
   }
   await writeFile(path.join(outputDirectory, 'summary.md'), reports.summary, { encoding: 'utf8', flag: 'wx' });
   return outputDirectory;
+}
+
+function buildUnmarkedLeafFolderRows(scan: AuditScan): CsvRow[] {
+  const root = normalizePathForIdentity(scan.externalRoot);
+  const nonLeaves = new Set(scan.folders.map((folder) => normalizePathForIdentity(path.dirname(folder))));
+  const blocked = new Set(scan.markers.map((marker) => normalizePathForIdentity(marker.folderPath)));
+  for (const issue of [...scan.external.accessErrors, ...scan.external.skippedDirectories]) {
+    blocked.add(normalizePathForIdentity(issue.location));
+    // An uninspected child may be a directory; do not claim its parent is a leaf.
+    nonLeaves.add(normalizePathForIdentity(path.dirname(issue.location)));
+    if (issue.location.toLowerCase().endsWith('.exnf')) {
+      blocked.add(normalizePathForIdentity(path.dirname(issue.location)));
+    }
+  }
+  return scan.folders.filter((folder) => {
+    let current = normalizePathForIdentity(folder);
+    if (nonLeaves.has(current)) {
+      return false;
+    }
+    while (current !== root) {
+      if (blocked.has(current)) {
+        return false;
+      }
+      const parent = path.dirname(current);
+      if (parent === current) {
+        return false;
+      }
+      current = parent;
+    }
+    return !blocked.has(root);
+  }).map((folderPath) => ({ folderPath, relativePath: path.relative(scan.externalRoot, folderPath) }));
 }
 
 function reportMarkers(scan: AuditScan, addFinding: AddFinding): Set<string> {

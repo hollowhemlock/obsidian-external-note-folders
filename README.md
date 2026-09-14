@@ -348,6 +348,7 @@ The source files, folders, and markers are never changed.
 | `exnf-files.csv` | Marker and folder paths, UUIDs, formats, and validation status. |
 | `correctly-adopted.csv` | Unambiguous note–folder UUID matches, expected/actual paths, and path drift. |
 | `possibly-missing.csv` | Missing counterparts, adoption candidates/blocks, unassigned items, conflicts, migration needs, and unchecked evidence. |
+| `unmarked-leaf-folders.csv` | Absolute and root-relative leaf-folder paths with no `.exnf` marker in the leaf or any ancestor through the external root. |
 | `summary.md` | Source roots, coverage, counts, and report links. |
 
 The CSV files use UTF-8 with a BOM and quoted fields for Windows spreadsheet import.
@@ -356,6 +357,15 @@ strict parsing rules. Matching UUIDs establish current binding state, not histor
 proof of adoption. A matching UUID at a different path is retained with a drift flag.
 Candidate selection reuses the plugin's path and deepest exact-match adoption rules.
 Unassigned notes and unmarked folders are review items, not automatic errors.
+
+For `unmarked-leaf-folders.csv`, a leaf is a descendant directory with no subfolders;
+it may contain ordinary files. Every `.exnf` or `*.exnf` file counts as a marker,
+including malformed files and uppercase extensions. A marker in a sibling branch
+does not disqualify the leaf. A marker directly in the external root disqualifies
+all descendants. Unreadable directories and leaves with uninspected children are
+excluded, as are paths with skipped marker links. Unrelated scan gaps, including
+vault YAML problems, do not disqualify locally checked branches; the list may still
+omit leaves in unscanned areas.
 
 Unreadable paths, skipped links, and unparseable YAML are reported as unchecked.
 When identity coverage is incomplete, otherwise matching pairs are listed as

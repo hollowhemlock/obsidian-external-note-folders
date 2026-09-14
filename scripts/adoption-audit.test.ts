@@ -90,7 +90,7 @@ describe('standalone adoption audit', () => {
       expect.objectContaining({ category: 'path-drift' })
     ]));
     const output = await writeAuditReports(reports, path.join(root, 'reports'));
-    expect(await readdir(output)).toHaveLength(7);
+    expect(await readdir(output)).toHaveLength(8);
     expect(await snapshot(vault)).toEqual(beforeVault);
     expect(await snapshot(external)).toEqual(beforeExternal);
     expect(await writeAuditReports(reports, path.join(root, 'reports'))).not.toBe(output);
@@ -227,5 +227,44 @@ describe('standalone adoption audit', () => {
     const reports = buildAuditReports(await scanAdoptionAudit(vault, external));
     expect(reports.tables['correctly-adopted.csv']?.rows).toHaveLength(1);
     expect(reports.tables['possibly-missing.csv']?.rows.map((row) => row['category'])).toEqual(['legacy-migration']);
+  });
+
+  it('lists only leaves whose entire path from the external root contains no marker files', async () => {
+    const { external, vault } = await fixture();
+    await put(external, 'Clear/Leaf/content.txt');
+    await mkdir(path.join(external, 'Empty'));
+    await put(external, `Marked/${UUID}.exnf`);
+    await mkdir(path.join(external, 'Marked/Child'), { recursive: true });
+    await put(external, 'Legacy/.exnf', 'malformed contents still count as a marker');
+    await mkdir(path.join(external, 'Legacy/Child'), { recursive: true });
+    await put(external, 'BadLeaf/not-a-uuid.EXNF');
+    // A marker in a sibling branch does not disqualify Clear/Leaf.
+    await put(external, 'Clear/Sibling/.exnf', UUID);
+    const reports = buildAuditReports(await scanAdoptionAudit(vault, external));
+    expect(reports.tables['unmarked-leaf-folders.csv']?.rows).toEqual([
+      { folderPath: path.join(external, 'Clear/Leaf'), relativePath: path.join('Clear', 'Leaf') },
+      { folderPath: path.join(external, 'Empty'), relativePath: 'Empty' }
+    ]);
+    await put(external, `${OTHER_UUID}.exnf`);
+    const rootMarked = buildAuditReports(await scanAdoptionAudit(vault, external));
+    expect(rootMarked.tables['unmarked-leaf-folders.csv']?.rows).toEqual([]);
+  });
+
+  it('excludes uncertain leaves without discarding unrelated checked branches', async () => {
+    const { external, vault } = await fixture();
+    await mkdir(path.join(external, 'Checked'));
+    await mkdir(path.join(external, 'Unknown'));
+    await mkdir(path.join(external, 'WithLink'));
+    await symlink(external, path.join(external, 'WithLink/child'), process.platform === 'win32' ? 'junction' : 'dir');
+    await put(vault, 'Bad.md', '---\nexnf: [\n---\n');
+    const scan = await scanAdoptionAudit(vault, external);
+    scan.external.skippedDirectories.push({ location: path.join(external, 'Unknown'), message: 'Directory could not be read.' });
+    const reports = buildAuditReports(scan);
+    expect(reports.complete).toBe(false);
+    expect(reports.tables['unmarked-leaf-folders.csv']?.rows).toEqual([
+      { folderPath: path.join(external, 'Checked'), relativePath: 'Checked' }
+    ]);
+    scan.external.skippedDirectories.push({ location: path.join(external, 'linked.exnf'), message: 'Marker link was not followed.' });
+    expect(buildAuditReports(scan).tables['unmarked-leaf-folders.csv']?.rows).toEqual([]);
   });
 });
