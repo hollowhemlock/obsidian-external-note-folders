@@ -30,6 +30,7 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 - `Adopt exact-path external folders`: Builds a leaf-first dry-run plan for exact derived-path matches from notes that do not already have `exnf` identity. When exact candidates overlap, only the deepest candidates are eligible, and targets overlapping an already-identified note or marked folder are blocked, so adoption never creates nested identities or bound folders. After confirmation, the command writes `<uuid>.exnf` markers first and note frontmatter second. The legacy command ID remains unchanged so existing hotkeys continue to work.
 - `Suggest moved external folder matches`: Builds a read-only report of unassigned notes and unmarked external folders with identical literal names but divergent relative paths. Only names that are unique among checked eligible paths are suggested; ambiguous names are summarized, and ignored or skipped subtrees are explicitly unchecked. This command never assigns UUIDs, writes markers, moves folders, or adopts a suggestion.
 - `Report external folder drift`: Read-only report that compares current note-derived external folder paths against existing external folders, highlights integrity errors, missing/orphaned/unexpected/occupied paths, and suggests likely matches.
+- `Explore unmarked external leaf folders`: Opens or focuses a read-only report tab for the active filesystem vault and configured external root. It scans physical files without applying ignore patterns. Refresh explicitly to rescan; Cancel retains the previous completed result.
 - `Reconcile external folders`: Builds a dry-run move plan and, only after explicit confirmation, moves existing bound external folders to their current note-derived paths. It never deletes folders or marker files and stops on first failure.
 - `Migrate legacy marker files`: Builds a dry-run plan that renames legacy fixed `.exnf` markers to `<uuid>.exnf` and executes only after explicit confirmation.
 
@@ -350,6 +351,7 @@ The source files, folders, and markers are never changed.
 | `possibly-missing.csv` | Missing counterparts, adoption candidates/blocks, unassigned items, conflicts, migration needs, and unchecked evidence. |
 | `unmarked-leaf-folders.csv` | Absolute and root-relative leaf-folder paths with no `.exnf` marker in the leaf or any ancestor through the external root. |
 | `summary.md` | Source roots, coverage, counts, and report links. |
+| `report.html` | Offline interactive view of unmarked leaves, grouped and searchable, with CSV downloads. |
 
 The CSV files use UTF-8 with a BOM and quoted fields for Windows spreadsheet import.
 Canonical marker contents are ignored; legacy `.exnf` contents follow the plugin's
@@ -375,6 +377,61 @@ present; those files remain in the markdown inventory and unchecked findings.
 This is a live scan, not an atomic filesystem snapshot; rerun if files change during
 the scan. Exit codes are `0` for a complete scan (which may have findings), `2` for
 incomplete coverage with reports, and `1` for a command/output failure.
+
+### Exploring unmarked leaves
+
+Open `report.html` in a browser, or run **Explore unmarked external leaf folders**
+in Obsidian. The question is: which descendant leaf folders have no `.exnf` or
+`*.exnf` file in the leaf itself or any ancestor through the external root?
+Keep the HTML and sibling CSV files together; the page embeds its code and data
+and needs no server, CDN, or network connection.
+
+The initial view hides paths with exact, case-insensitive components `.git`,
+`node_modules`, `build`, `dist`, `.cache`, `__pycache__`, or `.venv`.
+**Show all paths** reveals them. Categories can overlap, but leaf counts do not
+double-count rows. These labels are heuristics for review, never scan exclusions.
+Search matches relative folder paths and exact matched note paths. Groups use the
+first two parent-path segments by default; choose depths one through four.
+There are 50 groups per page and 100 leaves per expanded group. Direct children
+belong to the root group. Only one group expands at a time.
+
+Expand a leaf to inspect its absolute path and note matches. Notes match only by
+the plugin's derived paths, including folder-note collapsing. Identity status and
+multiple-note matches are shown; a path match does not establish adoption.
+In Obsidian, existing notes and folders can be opened without creating anything.
+Both hosts offer copy-path actions and filtered/all-leaf CSV exports.
+
+The tab labels its scope **Full physical audit — ignore patterns not applied**.
+This audit explicitly permits raw, read-only filesystem reads of the active vault;
+it does not use cached frontmatter. Vault adapters without an absolute filesystem
+root are unsupported. Existing commands keep their vault adapters, ignore rules,
+and mutation safeguards. The report runs outside the mutation lock and displays
+**Results may not reflect in-progress mutations** if mutation activity overlaps
+the scan. Snapshots and review decisions are not persisted.
+
+In Obsidian, export asks for an existing writable absolute destination directory.
+The destination is remembered only for that tab session. Each export creates a
+fresh timestamped child directory and displays its location. Full audit tables are
+computed only when selected for export, from the same captured snapshot. Exported
+summaries retain scan coverage, unchecked-item counts, and any mutation-overlap
+warning, including filtered and all-leaf exports. Cancelled
+or failed exports can leave a partial output directory; existing reports are never
+overwritten. Closing the tab or unloading the plugin cancels pending work.
+
+The shared implementation separates pure audit models, classification, leaf
+analysis, and CSV serialization in `src/core/` from the physical scanner and writer
+in `src/storage/`. Browser-safe query logic imports no Node or Obsidian modules.
+The standard DOM interface in `src/ui/` has mount/update/dispose lifecycle methods;
+the standalone HTML builder and Obsidian tab provide host actions. Scheduled
+generators share computation with synchronous wrappers and allow cancellation
+between batches. Full scans remain live observations, not atomic snapshots.
+
+Run `npx --no-install jiti scripts/audit-performance.ts` for a disposable physical
+fixture with 20,000 leaves and notes. It records scan event-loop delay, analysis and
+CSV slice durations, and export time in `tmp/audit-performance.json`. The sandbox
+integration suite also measures shared-interface rendering and filtering with
+20,000 leaves. Performance varies with hardware, path depth, and file sizes;
+one filesystem response or individual YAML document cannot be interrupted midway.
 
 ### Commit conventions
 

@@ -1,11 +1,13 @@
+import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import {
-  buildAuditReports,
-  writeAuditReports
-} from './adoption-audit-report.ts';
+import { runAuditSteps } from '../src/auditScheduler.ts';
+import { buildAuditReportSteps } from '../src/core/auditReport.ts';
+import { buildLeafReportSteps } from '../src/core/leafReport.ts';
+import { writeAuditReports } from './adoption-audit-report.ts';
 import { scanAdoptionAudit } from './adoption-audit-scan.ts';
+import { buildAuditHtml } from './audit-html.ts';
 
 async function main(): Promise<void> {
   const options = new Map([
@@ -33,8 +35,11 @@ async function main(): Promise<void> {
   console.log(`Scanning vault: ${vaultRoot}`);
   console.log(`Scanning external root: ${externalRoot}`);
   const scan = await scanAdoptionAudit(vaultRoot, externalRoot);
-  const reports = buildAuditReports(scan);
+  const model = await runAuditSteps(buildLeafReportSteps(scan));
+  const reports = await runAuditSteps(buildAuditReportSteps(scan));
+  reports.summary += '\n[Open the interactive leaf report](report.html)\n';
   const directory = await writeAuditReports(reports, output);
+  await writeFile(path.join(directory, 'report.html'), await buildAuditHtml(model), { encoding: 'utf8', flag: 'wx' });
   console.log(`Reports: ${directory}`);
   console.log(`Coverage: ${reports.complete ? 'complete' : 'incomplete; see unchecked and provisional findings'}`);
   // eslint-disable-next-line require-atomic-updates -- This standalone command is the only writer of the exit status during its scan.

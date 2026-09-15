@@ -4,6 +4,7 @@ import type {
   VaultScanResult
 } from './verify.ts';
 
+import { finishAuditSteps } from './auditSteps.ts';
 import {
   normalizeDisplayPath,
   toExternalRelativeDisplayPath
@@ -183,6 +184,20 @@ export function buildExactPathAdoptionPlan(input: {
 
 export const buildAdoptionPlan = buildExactPathAdoptionPlan;
 
+/** Reuse adoption eligibility without building mutation-preview presentation or residual groups. */
+export function* buildExactPathAdoptionRowsSteps(input: {
+  externalScan: ExternalScanResult;
+  notePaths: readonly string[];
+  vaultScan: VaultScanResult;
+}): Generator<void, { errors: string[]; rows: AdoptionPlanRow[] }> {
+  const errors = buildGlobalErrors(input.externalScan);
+  if (errors.length > 0) {
+    return { errors, rows: [] };
+  }
+  const result = yield* buildAdoptionRowsSteps(input.notePaths, input.vaultScan, input.externalScan, false);
+  return { errors, rows: result.rows };
+}
+
 export function buildExactPathCandidateIdentities(input: {
   externalScan: ExternalScanResult;
   notePaths: readonly string[];
@@ -261,15 +276,25 @@ function buildAdoptionRows(
   vaultScan: VaultScanResult,
   externalScan: ExternalScanResult
 ): AdoptionPlanningResult {
+  return finishAuditSteps(buildAdoptionRowsSteps(notePaths, vaultScan, externalScan));
+}
+
+function* buildAdoptionRowsSteps(
+  notePaths: readonly string[],
+  vaultScan: VaultScanResult,
+  externalScan: ExternalScanResult,
+  includeResidual = true
+): Generator<void, AdoptionPlanningResult> {
   const {
     blockedRows,
     noteCandidates
-  } = buildNoteCandidates(notePaths, vaultScan, externalScan.rootPath);
+  } = yield* buildNoteCandidateSteps(notePaths, vaultScan, externalScan.rootPath);
   const noteCandidatesByIdentity = groupByIdentity(noteCandidates);
-  const directoryCandidates = externalScan.directories.map((folderPath): DirectoryCandidate => ({
-    folderPath,
-    identity: normalizePathForIdentity(folderPath)
-  }));
+  const directoryCandidates: DirectoryCandidate[] = [];
+  for (const folderPath of externalScan.directories) {
+    yield;
+    directoryCandidates.push({ folderPath, identity: normalizePathForIdentity(folderPath) });
+  }
   const context: PlannerContext = {
     directoryCandidatesByIdentity: groupByIdentity(directoryCandidates),
     externalScan,
@@ -278,15 +303,12 @@ function buildAdoptionRows(
     markerIdentities: buildMarkerIdentities(externalScan),
     skippedDirectoryIdentities: externalScan.skippedDirectories.map((issue) => normalizePathForIdentity(issue.location))
   };
-  const relevantCandidates = noteCandidates.filter((noteCandidate) => hasMatchingExternalBranch(noteCandidate, context));
-  const topologyCandidates = relevantCandidates.filter((noteCandidate) =>
-    ![...context.ignoredDirectoryIdentities]
-      .some((ignoredIdentity) => isPathInsideOrEqualIdentity(noteCandidate.identity, ignoredIdentity))
-  );
-  const suppressedCandidateIdentities = findSuppressedCandidateIdentities(topologyCandidates);
+  const { relevantCandidates, topologyCandidates } = yield* selectRelevantCandidateSteps(noteCandidates, context);
+  const suppressedCandidateIdentities = yield* findSuppressedCandidateIdentitySteps(topologyCandidates);
   const rows: AdoptionPlanRow[] = [...blockedRows];
 
   for (const noteCandidate of relevantCandidates) {
+    yield;
     if (suppressedCandidateIdentities.has(noteCandidate.identity)) {
       continue;
     }
@@ -421,6 +443,9 @@ function buildAdoptionRows(
     });
   }
 
+  if (!includeResidual) {
+    return { prunedExistingBindings: 0, residualGroups: [], rows, suppressedAncestorCandidates: suppressedCandidateIdentities.size };
+  }
   const adoptableFolderIdentities = new Set(
     rows
       .filter((row): row is AdoptionAdoptRow => row.kind === 'adopt')
@@ -530,11 +555,20 @@ function buildNoteCandidates(
   vaultScan: VaultScanResult,
   externalRootPath: string
 ): NoteCandidateBuildResult {
+  return finishAuditSteps(buildNoteCandidateSteps(notePaths, vaultScan, externalRootPath));
+}
+
+function* buildNoteCandidateSteps(
+  notePaths: readonly string[],
+  vaultScan: VaultScanResult,
+  externalRootPath: string
+): Generator<void, NoteCandidateBuildResult> {
   const blockedRows: AdoptionBlockedNoteRow[] = [];
   const noteCandidates: NoteCandidate[] = [];
   const existingIdentityNotePaths = buildExistingIdentityNotePaths(vaultScan);
   const invalidFrontmatterNotePaths = new Set(vaultScan.invalidFrontmatter.map((issue) => issue.location));
   for (const notePath of notePaths) {
+    yield;
     if (existingIdentityNotePaths.has(notePath) || invalidFrontmatterNotePaths.has(notePath)) {
       continue;
     }
@@ -680,10 +714,11 @@ function findExactMarkerConflict(markerIdentities: readonly MarkerIdentity[], ta
   return markerIdentities.find((markerIdentity) => markerIdentity.identity === targetIdentity) ?? null;
 }
 
-function findSuppressedCandidateIdentities(noteCandidates: readonly NoteCandidate[]): Set<string> {
+function* findSuppressedCandidateIdentitySteps(noteCandidates: readonly NoteCandidate[]): Generator<void, Set<string>> {
   const candidateIdentities = new Set(noteCandidates.map((candidate) => candidate.identity));
   const suppressedIdentities = new Set<string>();
   for (const candidateIdentity of candidateIdentities) {
+    yield;
     for (const ancestorIdentity of getAncestorOrSelfIdentities(candidateIdentity).slice(1)) {
       const normalizedAncestorIdentity = normalizePathForIdentity(ancestorIdentity);
       if (candidateIdentities.has(normalizedAncestorIdentity)) {
@@ -862,6 +897,25 @@ function isRelatedToRelevantFolder(directoryIdentity: string, relevantFolderInde
   }
 
   return false;
+}
+
+function* selectRelevantCandidateSteps(
+  noteCandidates: readonly NoteCandidate[],
+  context: PlannerContext
+): Generator<void, { relevantCandidates: NoteCandidate[]; topologyCandidates: NoteCandidate[] }> {
+  const relevantCandidates: NoteCandidate[] = [];
+  const topologyCandidates: NoteCandidate[] = [];
+  for (const candidate of noteCandidates) {
+    yield;
+    if (!hasMatchingExternalBranch(candidate, context)) {
+      continue;
+    }
+    relevantCandidates.push(candidate);
+    if (![...context.ignoredDirectoryIdentities].some((ignoredIdentity) => isPathInsideOrEqualIdentity(candidate.identity, ignoredIdentity))) {
+      topologyCandidates.push(candidate);
+    }
+  }
+  return { relevantCandidates, topologyCandidates };
 }
 
 function sortEntries<T>(map: Map<string, T>): [string, T][] {

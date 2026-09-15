@@ -59,6 +59,10 @@ import { DriftReportModal } from './DriftReportModal.ts';
 import { MarkerMigrationPlanModal } from './MarkerMigrationPlanModal.ts';
 import { MovedFolderSuggestionModal } from './MovedFolderSuggestionModal.ts';
 import { assignUuidToNote } from './obsidian/assignUuidToNote.ts';
+import {
+  LEAF_REPORT_VIEW_TYPE,
+  LeafReportTab
+} from './obsidian/LeafReportTab.ts';
 import { scanVault } from './obsidian/scanVault.ts';
 import {
   assertNoteUuidMatches,
@@ -133,10 +137,37 @@ export class Plugin extends ObsidianPlugin {
   public settings: PluginSettings = DEFAULT_SETTINGS;
 
   private isMutationInProgress = false;
+  private mutationActivitySequence = 0;
   private mutationSequence = 0;
 
   public override async onload(): Promise<void> {
     await this.loadSettings();
+    this.registerView(LEAF_REPORT_VIEW_TYPE, (leaf) =>
+      new LeafReportTab(leaf, {
+        externalRoot: (): string => this.settings.externalRootPath,
+        mutationState: (): { active: boolean; activity: number; sequence: number } => ({
+          active: this.isMutationInProgress,
+          activity: this.mutationActivitySequence,
+          sequence: this.mutationSequence
+        })
+      }));
+    this.register(() => {
+      for (const leaf of this.app.workspace.getLeavesOfType(LEAF_REPORT_VIEW_TYPE)) {
+        if (leaf.view instanceof LeafReportTab) {
+          leaf.view.shutdown();
+        }
+      }
+      this.app.workspace.detachLeavesOfType(LEAF_REPORT_VIEW_TYPE);
+    });
+    this.addCommand({
+      callback: () => {
+        this.openLeafReport().catch((error: unknown) => {
+          this.showUnexpectedError(error);
+        });
+      },
+      id: 'explore-unmarked-external-leaf-folders',
+      name: 'Explore unmarked external leaf folders'
+    });
 
     this.addSettingTab(new PluginSettingsTab(this.app, this));
 
@@ -524,6 +555,15 @@ export class Plugin extends ObsidianPlugin {
     });
   }
 
+  private async openLeafReport(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(LEAF_REPORT_VIEW_TYPE)[0];
+    const leaf = existing ?? this.app.workspace.getLeaf('tab');
+    if (!existing) {
+      await leaf.setViewState({ active: true, type: LEAF_REPORT_VIEW_TYPE });
+    }
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
   private openRecoveryModal(plan: OpenExternalFolderRecoveryPlan, openedFolderPath: null | string): void {
     new OpenRecoveryModal(this.app, {
       onAdoptCandidate: async (row: OpenRecoveryCandidateRow): Promise<void> => {
@@ -904,6 +944,7 @@ export class Plugin extends ObsidianPlugin {
     }
 
     this.isMutationInProgress = true;
+    this.mutationActivitySequence += 1;
     let shouldAdvanceMutationSequence = true;
     try {
       shouldAdvanceMutationSequence = await operation() !== false;

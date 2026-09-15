@@ -6,9 +6,11 @@ import type {
 /* eslint-disable @typescript-eslint/no-extraneous-class -- Obsidian runtime constructors are stubbed for headless adapter tests. */
 export class ButtonComponent {}
 export class Modal {}
+export class ItemView {}
 export class Notice {}
 export class Plugin {
-  public constructor(public app: App, public manifest: PluginManifest) {}
+  public constructor(public app: App, public manifest: PluginManifest) {
+  }
 }
 export class PluginSettingTab {}
 export class Setting {}
