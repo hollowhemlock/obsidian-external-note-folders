@@ -28,8 +28,11 @@ import { AuditExportModal } from './AuditExportModal.ts';
 
 export const LEAF_REPORT_VIEW_TYPE = 'external-note-folders-leaf-report';
 export interface LeafReportTabOptions {
+  adopt?: (folder: string) => void;
   externalRoot: () => string;
   mutationState: () => AuditMutationState;
+  pending?: () => Promise<number>;
+  resume?: () => Promise<void>;
 }
 
 export class LeafReportTab extends ItemView {
@@ -52,6 +55,13 @@ export class LeafReportTab extends ItemView {
     return LEAF_REPORT_VIEW_TYPE;
   }
 
+  public markAdopted(folder: string, note: null | string): void {
+    if (this.session?.model) {
+      this.session.model.stale = true;
+    }
+    this.report?.adopted(folder, note);
+  }
+
   public override onClose(): Promise<void> {
     this.shutdown();
     return Promise.resolve();
@@ -60,6 +70,8 @@ export class LeafReportTab extends ItemView {
   public override async onOpen(): Promise<void> {
     this.contentEl.replaceChildren();
     this.report = mountLeafReport(this.contentEl, {
+      ...(this.options.adopt ? { adopt: this.options.adopt } : {}),
+      ...(this.options.resume ? { resume: this.options.resume } : {}),
       cancel: () => this.session?.cancel(),
       copy: async (text) => navigator.clipboard.writeText(text),
       exportLeaves: async (rows, filtered) => this.exportRows(rows, filtered),
@@ -90,6 +102,14 @@ export class LeafReportTab extends ItemView {
       update: async (model, signal): Promise<void> => this.report?.update(model, signal)
     });
     await this.session.refresh();
+    try {
+      const pending = await this.options.pending?.();
+      if (pending) {
+        this.showReportStatus(`${String(pending)} pending folder adoption(s). Use Resume folder adoption.`);
+      }
+    } catch (error: unknown) {
+      this.showReportStatus(`Cannot inspect pending adoptions: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   public shutdown(): void {
@@ -150,5 +170,9 @@ export class LeafReportTab extends ItemView {
         signal
       );
     });
+  }
+
+  private showReportStatus(message: string): void {
+    this.report?.status(message, false);
   }
 }

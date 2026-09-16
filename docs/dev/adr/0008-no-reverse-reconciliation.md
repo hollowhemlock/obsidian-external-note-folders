@@ -25,13 +25,17 @@ mutate vault content, it introduces deletion semantics and significant ambiguity
 
 ## Decision Outcome
 
-External state never drives vault changes.
+External state never automatically drives vault changes.
+
+ADR-0032 adds explicit, confirmed single-folder adoption from the report: users may
+create a matching note or move a selected note to the matching location. This does
+not change the direction of reconciliation or permit automatic synchronization.
 
 ADR-0031 adds one explicit exception: an unassigned note may restore the unique UUID marker identity
 from its exact expected folder after a complete non-ignored-root scan and user confirmation. This is
 not automatic reconciliation and does not create, move, rename, or delete notes.
 
-The plugin does not:
+Outside the explicit ADR-0032 workflow, the plugin does not:
 - Create notes from external folders
 - Move notes based on external changes
 - Delete notes when external folders disappear

@@ -9,6 +9,14 @@ import { buildAuditExportSummary } from './auditExportSummary.ts';
 import { buildLeafReport } from './leafReport.ts';
 
 describe('audit export summaries', () => {
+  it('labels post-adoption exports as historical without changing scan times or counts', () => {
+    const model = buildLeafReport(auditFixture(2));
+    model.stale = true;
+    const summary = buildAuditExportSummary(model, 'unmarked-leaf-folders.csv', model.rows.length);
+    expect(summary).toContain('This snapshot predates mutations');
+    expect(summary).toContain(model.finishedAt);
+    expect(summary).toContain('2 rows');
+  });
   it.each(['unmarked-leaf-folders.csv', 'filtered-unmarked-leaf-folders.csv', 'correctly-adopted.csv'])(
     'retains incomplete coverage and mutation warnings for %s',
     (filename) => {

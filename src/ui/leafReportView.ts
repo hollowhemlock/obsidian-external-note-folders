@@ -9,9 +9,9 @@ import type {
 import { runAuditSteps } from '../auditScheduler.ts';
 import {
   DEFAULT_LEAF_QUERY,
-  GROUP_DEPTHS,
   GROUP_PAGE_SIZE,
   LEAF_PAGE_SIZE,
+  maximumGroupDepth,
   queryLeafSteps
 } from '../core/leafQuery.ts';
 import { LEAF_REPORT_CSS } from './leafStyles.ts';
@@ -26,6 +26,7 @@ export const AUDIT_CSV_NAMES = [
   'unmarked-leaf-folders.csv'
 ];
 export interface LeafReportHost {
+  adopt?: (folder: string) => Promise<void> | void;
   cancel?: () => void;
   copy: (text: string) => Promise<void>;
   csvBaseUrl?: string;
@@ -34,8 +35,10 @@ export interface LeafReportHost {
   openFolder?: (folderPath: string) => Promise<void>;
   openNote?: (notePath: string) => Promise<void>;
   refresh?: () => Promise<void>;
+  resume?: () => Promise<void>;
 }
 export interface LeafReportView {
+  adopted: (folder: string, note: null | string) => void;
   dispose: () => void;
   status: (message: string, busy?: boolean) => void;
   update: (model: LeafReportModel, signal?: AbortSignal) => Promise<void>;
@@ -58,6 +61,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   let expanded = '';
   let disposed = false;
   let busy = false;
+  const adoptions = new Map<string, null | string>();
 
   function element<K extends keyof HTMLElementTagNameMap>(tag: K, text: string, parent: HTMLElement, cls = ''): HTMLElementTagNameMap[K] {
     const node = doc.createElement(tag);
@@ -98,13 +102,22 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     const option = element('option', label ?? '', category);
     option.value = value ?? '';
   }
-  const depth = element('select', '', toolbar);
+  element('span', 'Group depth', toolbar);
+  const depth = element('input', '', toolbar);
+  depth.type = 'number';
+  depth.min = '1';
+  depth.step = '1';
   depth.setAttribute('aria-label', 'Grouping depth');
-  for (const value of GROUP_DEPTHS) {
-    const option = element('option', `Group depth ${String(value)}`, depth);
-    option.value = String(value);
-  }
   depth.value = '2';
+  const slider = element('input', '', toolbar);
+  slider.type = 'range';
+  slider.min = '1';
+  slider.step = '1';
+  slider.value = '2';
+  slider.setAttribute('aria-label', 'Grouping depth slider');
+  if (host.resume) {
+    action('Resume folder adoption…', toolbar, host.resume);
+  }
   const showAll = action('Show all paths', toolbar, async () => {
     query.showGenerated = !query.showGenerated;
     await refilter();
@@ -158,6 +171,9 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       return;
     }
     busy = running;
+    for (const button of root.querySelectorAll<HTMLButtonElement>('button[data-adoption-blocked]')) {
+      button.disabled = busy || button.dataset['adoptionBlocked'] === 'true';
+    }
     status.textContent = message;
     if (refresh) {
       refresh.disabled = busy;
@@ -249,7 +265,8 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   }
   function renderGroup(group: LeafGroup): void {
     const section = element('div', '', groups, 'leaf-group');
-    const toggle = action(`${group.key} · ${group.rows.length.toLocaleString()} ${group.rows.length === 1 ? 'leaf' : 'leaves'}`, section, () => {
+    const header = element('div', '', section, 'leaf-group-header');
+    const toggle = action(`${group.key} · ${group.rows.length.toLocaleString()} ${group.rows.length === 1 ? 'leaf' : 'leaves'}`, header, () => {
       expanded = expanded === group.key ? '' : group.key;
       leafPage = 0;
       renderGroups();
@@ -257,6 +274,27 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     toggle.className = 'leaf-group-toggle';
     toggle.dataset['groupKey'] = group.key;
     toggle.setAttribute('aria-expanded', String(expanded === group.key));
+    if (host.adopt) {
+      const affected = [...adoptions].find(([folder]) => {
+        const a = folder.replaceAll('\\', '/').toLowerCase();
+        const b = group.folderPath.replaceAll('\\', '/').toLowerCase();
+        return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+      });
+      let label = 'Adopt this folder…';
+      if (affected) {
+        label = affected[1] ? 'Adopted — refresh to update counts' : 'Pending recovery';
+      }
+      const button = action(
+        label,
+        header,
+        () => host.adopt?.(group.folderPath)
+      );
+      button.disabled = busy || !!affected;
+      button.dataset['adoptionBlocked'] = String(!!affected);
+      if (affected?.[1] && host.openNote) {
+        action('Open note', header, () => host.openNote?.(affected[1] ?? ''));
+      }
+    }
     if (expanded !== group.key) {
       return;
     }
@@ -317,11 +355,26 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     changed();
   });
   depth.addEventListener('change', () => {
-    query.depth = Number(depth.value);
+    query.depth = Math.max(1, Math.min(model ? maximumGroupDepth(model) : 1, Math.floor(Number(depth.value)) || 1));
+    depth.value = String(query.depth);
+    slider.value = depth.value;
     changed();
+  });
+  slider.addEventListener('input', () => {
+    depth.value = slider.value;
+    depth.dispatchEvent(new Event('change'));
   });
   setStatus('Ready.', false);
   return {
+    adopted(folder, note): void {
+      adoptions.set(folder, note);
+      if (model) {
+        model.stale = true;
+      }
+      warning.hidden = false;
+      warning.textContent = 'This snapshot predates mutations. Refresh to update results and counts. Pending operations can be resumed.';
+      renderGroups();
+    },
     dispose(): void {
       disposed = true;
       queryAbort?.abort();
@@ -333,6 +386,12 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
         return;
       }
       let filtered: LeafQueryResult;
+      const maximum = maximumGroupDepth(next);
+      query.depth = Math.min(query.depth, maximum);
+      depth.max = String(maximum);
+      slider.max = depth.max;
+      depth.value = String(query.depth);
+      slider.value = depth.value;
       let captured: string;
       do {
         captured = JSON.stringify(query);
@@ -345,10 +404,12 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       }
       queryAbort?.abort();
       model = next;
+      adoptions.clear();
       context.textContent = `Vault: ${next.vaultRoot}\nExternal root: ${next.externalRoot}\nScanned: ${next.startedAt} – ${next.finishedAt}\nCoverage: ${
         next.uncheckedCount > 0 ? 'incomplete' : 'complete'
       }`;
       warning.textContent = [
+        next.stale ? 'This snapshot predates mutations. Refresh to update results and counts.' : '',
         next.mutationWarning ? 'Results may not reflect in-progress mutations.' : '',
         next.uncheckedCount > 0
           ? `${next.uncheckedCount.toLocaleString()} unchecked items. Only locally checked leaf paths are listed; unscanned areas may contain more.`

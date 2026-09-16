@@ -59,6 +59,7 @@ import { DriftReportModal } from './DriftReportModal.ts';
 import { MarkerMigrationPlanModal } from './MarkerMigrationPlanModal.ts';
 import { MovedFolderSuggestionModal } from './MovedFolderSuggestionModal.ts';
 import { assignUuidToNote } from './obsidian/assignUuidToNote.ts';
+import { GroupAdoptionController } from './obsidian/GroupAdoptionController.ts';
 import {
   LEAF_REPORT_VIEW_TYPE,
   LeafReportTab
@@ -136,20 +137,51 @@ const LOG_PREFIX = '[external-note-folders]';
 export class Plugin extends ObsidianPlugin {
   public settings: PluginSettings = DEFAULT_SETTINGS;
 
+  private groupAdoption: GroupAdoptionController | undefined;
   private isMutationInProgress = false;
   private mutationActivitySequence = 0;
   private mutationSequence = 0;
 
   public override async onload(): Promise<void> {
     await this.loadSettings();
+    this.groupAdoption = new GroupAdoptionController(this.app, this.manifest.id, {
+      changed: (folder, note): void => {
+        for (const leaf of this.app.workspace.getLeavesOfType(LEAF_REPORT_VIEW_TYPE)) {
+          if (leaf.view instanceof LeafReportTab) {
+            leaf.view.markAdopted(folder, note);
+          }
+        }
+      },
+      mutate: async (operation): Promise<void> => {
+        if (this.isMutationInProgress) {
+          throw new Error('Another mutation is running. Try again when it finishes.');
+        }
+        await this.runMutatingCommand('adopt folder group', operation);
+      },
+      sequence: (): number => this.mutationSequence,
+      settings: (): PluginSettings => this.settings
+    });
+    this.register(() => this.groupAdoption?.dispose());
+    this.addCommand({
+      callback: () => {
+        this.groupAdoption?.showRecovery().catch((error: unknown) => {
+          this.showUnexpectedError(error);
+        });
+      },
+      id: 'resume-folder-adoption',
+      name: 'Resume folder adoption…'
+    });
     this.registerView(LEAF_REPORT_VIEW_TYPE, (leaf) =>
       new LeafReportTab(leaf, {
+        adopt: (folder): void => this.groupAdoption?.open(folder),
         externalRoot: (): string => this.settings.externalRootPath,
         mutationState: (): { active: boolean; activity: number; sequence: number } => ({
           active: this.isMutationInProgress,
           activity: this.mutationActivitySequence,
           sequence: this.mutationSequence
-        })
+        }),
+        pending: async (): Promise<number> => (await this.groupAdoption?.pending())?.length ?? 0,
+        resume: async (): Promise<void> => this.groupAdoption?.showRecovery()
       }));
     this.register(() => {
       for (const leaf of this.app.workspace.getLeavesOfType(LEAF_REPORT_VIEW_TYPE)) {

@@ -18,6 +18,8 @@ export const LEAF_REPORT_CSS = `
 .exnf-leaf-report .leaf-groups{border:1px solid var(--background-modifier-border,#d6dfe9);border-radius:8px;overflow:hidden;background:var(--background-secondary,#fff)}
 .exnf-leaf-report .leaf-group{border-bottom:1px solid var(--background-modifier-border,#d6dfe9)}
 .exnf-leaf-report .leaf-group:last-child{border-bottom:0}
+.exnf-leaf-report .leaf-group-header{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-right:8px}
+.exnf-leaf-report .leaf-group-header>.leaf-group-toggle{flex:1;min-width:200px;width:auto}
 .exnf-leaf-report .leaf-group-toggle{display:flex;justify-content:space-between;gap:16px;text-align:left;width:100%;border:0;border-radius:0;padding:14px 18px;overflow-wrap:anywhere}
 .exnf-leaf-report .leaf-rows{padding:0 18px 14px}
 .exnf-leaf-report .leaf-row{padding:12px 0;border-top:1px solid var(--background-modifier-border,#e1e7ef);overflow-wrap:anywhere}

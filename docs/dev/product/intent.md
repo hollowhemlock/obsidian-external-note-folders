@@ -99,6 +99,11 @@ External state may be incomplete, unavailable, stale, or reorganized outside Obs
 not used to automatically rewrite vault identity. One exact-path imported marker identity may be
 restored only through the explicit confirmation and uniqueness proof defined by ADR-0031.
 
+[ADR-0032](../adr/0032-explicit-folder-group-adoption.md) permits explicit, previewed
+single-folder adoption from the report, including creating a note or moving a
+selected note to match the external layout. Names and aliases suggest candidates;
+they never establish identity. Reconciliation remains note-driven.
+
 References:
 
 - [ADR-0001](../adr/0001-vault-is-source-of-truth.md)

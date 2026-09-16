@@ -30,7 +30,8 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 - `Adopt exact-path external folders`: Builds a leaf-first dry-run plan for exact derived-path matches from notes that do not already have `exnf` identity. When exact candidates overlap, only the deepest candidates are eligible, and targets overlapping an already-identified note or marked folder are blocked, so adoption never creates nested identities or bound folders. After confirmation, the command writes `<uuid>.exnf` markers first and note frontmatter second. The legacy command ID remains unchanged so existing hotkeys continue to work.
 - `Suggest moved external folder matches`: Builds a read-only report of unassigned notes and unmarked external folders with identical literal names but divergent relative paths. Only names that are unique among checked eligible paths are suggested; ambiguous names are summarized, and ignored or skipped subtrees are explicitly unchecked. This command never assigns UUIDs, writes markers, moves folders, or adopts a suggestion.
 - `Report external folder drift`: Read-only report that compares current note-derived external folder paths against existing external folders, highlights integrity errors, missing/orphaned/unexpected/occupied paths, and suggests likely matches.
-- `Explore unmarked external leaf folders`: Opens or focuses a read-only report tab for the active filesystem vault and configured external root. It scans physical files without applying ignore patterns. Refresh explicitly to rescan; Cancel retains the previous completed result.
+- `Explore unmarked external leaf folders`: Opens or focuses a report tab for the active filesystem vault and configured external root. Scanning is read-only and does not apply ignore patterns. Group headers offer explicit single-folder adoption with preview and confirmation. Refresh explicitly to rescan; Cancel retains the previous completed result.
+- `Resume folder adoption…`: Lists pending single-folder operations, even when their markers hide them from the unmarked report. Revalidates before resuming. An uncertain rename requires manual inspection of note locations and links before verifying completion.
 - `Reconcile external folders`: Builds a dry-run move plan and, only after explicit confirmation, moves existing bound external folders to their current note-derived paths. It never deletes folders or marker files and stops on first failure.
 - `Migrate legacy marker files`: Builds a dry-run plan that renames legacy fixed `.exnf` markers to `<uuid>.exnf` and executes only after explicit confirmation.
 
@@ -391,15 +392,59 @@ The initial view hides paths with exact, case-insensitive components `.git`,
 **Show all paths** reveals them. Categories can overlap, but leaf counts do not
 double-count rows. These labels are heuristics for review, never scan exclusions.
 Search matches relative folder paths and exact matched note paths. Groups use the
-first two parent-path segments by default; choose depths one through four.
-There are 50 groups per page and 100 leaves per expanded group. Direct children
-belong to the root group. Only one group expands at a time.
+first two folder-path segments by default. A slider and numeric input support
+depths one through the deepest leaf in the snapshot. Shallower leaves become
+their own groups; at sufficient depth every leaf is a group. There are 50 groups
+per page and 100 leaves per expanded group. Only one group expands at a time.
 
 Expand a leaf to inspect its absolute path and note matches. Notes match only by
 the plugin's derived paths, including folder-note collapsing. Identity status and
 multiple-note matches are shown; a path match does not establish adoption.
 In Obsidian, existing notes and folders can be opened without creating anything.
 Both hosts offer copy-path actions and filtered/all-leaf CSV exports.
+
+In Obsidian, **Adopt this folder…** on a group binds that directory and its
+entire subtree to one note, including content hidden by filters. It opens a
+dialog; nothing changes until **Confirm adoption**. Suggestions include exact
+derived paths, matching filenames, and aliases. Search the vault for other
+notes. **Open note** inspects a candidate without selecting or adopting it;
+the return notification restores the dialog's choices.
+
+New notes default to the matching path (`Projects/Example.md`) and contain only
+`exnf` frontmatter. Existing notes default to **Bind without moving**. The preview
+shows the future reconcile destination and known occupancy blockers. Alternatively,
+**Move note to match this folder** explicitly relocates or renames the note,
+preserving its old basename as an alias. Obsidian may ask whether to update links.
+External folders never move during adoption. Future reconciliation remains
+note-driven. Hidden vault paths and paths that cannot round-trip through the
+plugin's path rules cannot be new-note or move destinations.
+
+Adoption respects ignore settings and checks the entire selected subtree for
+markers and unsafe evidence, including physically present ignored descendants.
+Existing bindings prevent nested adoption. Matching unassigned child notes require
+acknowledgment; they remain unchanged but cannot have separate nested bindings.
+An existing UUID is reused only after fresh uniqueness checks. Alias problems,
+identity conflicts, destination collisions, and changed previews fail closed.
+
+Writes are serialized and journaled: marker first, note identity and aliases next,
+then an optional note move. Journals under the plugin's `journal/group-adoption`
+directory include note content for recovery checks; they are not audit exports.
+Failures preserve completed effects and provide a journal path. **Resume folder
+adoption…** remains available after closing the report or restarting Obsidian.
+Resume checks saved note content before writing markers or note properties. Edited
+source notes block further writes. Newly discovered descendant notes are listed
+in the recovery dialog and require acknowledgment before resuming; further
+additions require acknowledgment again.
+An interrupted rename is never blindly repeated. Once the note is at the intended
+destination and links have been checked manually, **I checked links — verify
+completion** validates the binding and finishes the journal without another move.
+No rollback deletes notes, directories, or markers.
+
+After adoption, stay in the report and use **Open note** if desired. Affected
+groups are marked adopted or pending recovery. Counts and exports remain a
+historical snapshot, with a stale warning until **Refresh**. Standalone HTML has
+no adoption controls. Single-folder writes avoid creating unwanted notes, but
+safety checks can still require full-root scans.
 
 The tab labels its scope **Full physical audit — ignore patterns not applied**.
 This audit explicitly permits raw, read-only filesystem reads of the active vault;
@@ -416,7 +461,8 @@ computed only when selected for export, from the same captured snapshot. Exporte
 summaries retain scan coverage, unchecked-item counts, and any mutation-overlap
 warning, including filtered and all-leaf exports. Cancelled
 or failed exports can leave a partial output directory; existing reports are never
-overwritten. Closing the tab or unloading the plugin cancels pending work.
+overwritten. Closing the tab cancels report work; an already-started adoption is
+owned by the plugin and retains its journal independently of the tab.
 
 The shared implementation separates pure audit models, classification, leaf
 analysis, and CSV serialization in `src/core/` from the physical scanner and writer

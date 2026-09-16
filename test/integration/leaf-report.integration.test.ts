@@ -55,6 +55,9 @@ describe('shared leaf report integration', () => {
     runSandboxCli(['command', `id=${command}`]);
 
     expect((await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR)).stdout).toContain('Full physical audit');
+    expect(evaluate(`Array.from(document.querySelectorAll('${REPORT_SELECTOR} button[data-adoption-blocked]')).some(button=>!button.disabled)`)).toContain(
+      'true'
+    );
 
     runSandboxCli(['command', `id=${command}`]);
 
@@ -132,7 +135,7 @@ describe('shared leaf report integration', () => {
     const rendered = evaluate(
       `(async()=>{const v=${view};const m=JSON.parse(require('fs').readFileSync(${
         JSON.stringify(modelPath)
-      },'utf8'));let maxTask=0;const observer=new PerformanceObserver(list=>{for(const entry of list.getEntries())maxTask=Math.max(maxTask,entry.duration)});observer.observe({entryTypes:['longtask']});const started=performance.now();await v.report.update(m);await new Promise(r=>setTimeout(r,30));const el=v.contentEl;el.querySelector('.leaf-group-toggle').click();await new Promise(r=>setTimeout(r,30));const rows=el.querySelectorAll('.leaf-row').length;const page=el.querySelector('.leaf-rows .leaf-pagination');page.querySelectorAll('button')[1].click();await new Promise(r=>setTimeout(r,30));const secondPage=el.querySelector('.leaf-rows .leaf-pagination').textContent;const groups=el.querySelectorAll('.leaf-group').length;const search=el.querySelector('input[type=search]');search.value='folder-19999';search.dispatchEvent(new Event('input'));await new Promise(r=>setTimeout(r,100));const filtered=el.querySelector('.leaf-stats').textContent;observer.disconnect();return JSON.stringify({totalMs:performance.now()-started,maxTask,rows,groups,secondPage,filtered});})()`
+      },'utf8'));let maxTask=0;const observer=new PerformanceObserver(list=>{for(const entry of list.getEntries())maxTask=Math.max(maxTask,entry.duration)});observer.observe({entryTypes:['longtask']});const started=performance.now();await v.report.update(m);await new Promise(r=>setTimeout(r,30));const el=v.contentEl;const depth=el.querySelector('input[type=number]');depth.value='1';depth.dispatchEvent(new Event('change'));await new Promise(r=>setTimeout(r,50));el.querySelector('.leaf-group-toggle').click();await new Promise(r=>setTimeout(r,30));const rows=el.querySelectorAll('.leaf-row').length;const page=el.querySelector('.leaf-rows .leaf-pagination');page.querySelectorAll('button')[1].click();await new Promise(r=>setTimeout(r,30));const secondPage=el.querySelector('.leaf-rows .leaf-pagination').textContent;const groups=el.querySelectorAll('.leaf-group').length;const search=el.querySelector('input[type=search]');search.value='folder-19999';search.dispatchEvent(new Event('input'));await new Promise(r=>setTimeout(r,100));const filtered=el.querySelector('.leaf-stats').textContent;observer.disconnect();return JSON.stringify({totalMs:performance.now()-started,maxTask,rows,groups,secondPage,filtered});})()`
     );
 
     expect(rendered).toContain('"rows":100');

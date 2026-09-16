@@ -90,7 +90,7 @@ describe('shared leaf report', () => {
 
     expect(result.rows).toHaveLength(4);
 
-    expect(result.groups.map((group) => group.key)).toEqual(['a/b', '(root)', 'a/c']);
+    expect(result.groups.map((group) => group.key)).toEqual(['a/b', 'a/c', 'direct']);
 
     const all = { ...DEFAULT_LEAF_QUERY, depth: 1, showGenerated: true };
 

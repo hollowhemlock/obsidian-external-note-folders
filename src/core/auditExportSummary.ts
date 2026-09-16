@@ -13,6 +13,7 @@ export function buildAuditExportSummary(model: LeafReportModel, filename: string
       ? ['Unscanned areas may contain additional results. Identity and absence conclusions are provisional; locally unchecked leaf paths are excluded.']
       : []),
     ...(model.mutationWarning ? ['', '**Results may not reflect in-progress mutations**.'] : []),
+    ...(model.stale ? ['', '**This snapshot predates mutations. Refresh before exporting current results.**'] : []),
     '',
     `[${filename}](${filename}): ${String(rowCount)} rows`,
     ''

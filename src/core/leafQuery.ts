@@ -5,6 +5,7 @@ import {
 
 export type LeafCategory = 'dependencies' | 'generated' | 'git';
 export interface LeafGroup {
+  folderPath: string;
   key: string;
   rows: LeafRow[];
 }
@@ -30,6 +31,7 @@ export interface LeafReportModel {
   finishedAt: string;
   mutationWarning: boolean;
   rows: LeafRow[];
+  stale?: boolean;
   startedAt: string;
   uncheckedCount: number;
   vaultRoot: string;
@@ -42,10 +44,11 @@ export interface LeafRow {
   searchText: string;
   segments: string[];
 }
-// eslint-disable-next-line no-magic-numbers -- Supported grouping depths are a user-facing enumeration.
-export const GROUP_DEPTHS = [1, 2, 3, 4] as const;
+
 const DEFAULT_DEPTH = 2;
-const MAX_DEPTH = 4;
+export function maximumGroupDepth(model: LeafReportModel): number {
+  return model.rows.reduce((maximum, row) => Math.max(maximum, row.segments.length), 1);
+}
 export const DEFAULT_LEAF_QUERY: LeafQuery = { category: 'all', depth: DEFAULT_DEPTH, search: '', showGenerated: false };
 export const GROUP_PAGE_SIZE = 50;
 export const LEAF_PAGE_SIZE = 100;
@@ -70,7 +73,8 @@ export function* queryLeafSteps(model: LeafReportModel, query: LeafQuery): Gener
   const byGroup = new Map<string, LeafRow[]>();
   let hiddenCount = 0;
   const search = query.search.trim().toLowerCase();
-  const depth = Math.min(MAX_DEPTH, Math.max(1, query.depth));
+  const depth = Math.min(maximumGroupDepth(model), Math.max(1, Math.floor(query.depth) || 1));
+  const folders = new Map<string, string>();
   for (const row of model.rows) {
     yield;
     if (!query.showGenerated && row.categories.length > 0) {
@@ -87,13 +91,18 @@ export function* queryLeafSteps(model: LeafReportModel, query: LeafQuery): Gener
       continue;
     }
     rows.push(row);
-    const key = row.segments.slice(0, Math.min(depth, row.segments.length - 1)).join('/') || '(root)';
+    const count = Math.min(depth, row.segments.length);
+    const key = row.segments.slice(0, count).join('/');
+    // Absolute paths were computed by the Node adapter; only remove known trailing components here.
+    const suffixLength = row.segments.slice(count).reduce((length, segment) => length + segment.length + 1, 0);
+    const folderPath = suffixLength ? row.folderPath.slice(0, -suffixLength) : row.folderPath;
+    folders.set(key, folderPath);
     const group = byGroup.get(key) ?? [];
     group.push(row);
     byGroup.set(key, group);
   }
   const groups = yield* sortAuditSteps(
-    [...byGroup].map(([key, groupedRows]) => ({ key, rows: groupedRows })),
+    [...byGroup].map(([key, groupedRows]) => ({ folderPath: folders.get(key) ?? '', key, rows: groupedRows })),
     (a, b) => b.rows.length - a.rows.length || a.key.localeCompare(b.key)
   );
   return { groups, hiddenCount, rows, total: model.rows.length };
