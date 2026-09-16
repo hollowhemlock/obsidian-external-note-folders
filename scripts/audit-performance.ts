@@ -11,11 +11,11 @@ import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { runAuditSteps } from '../src/auditScheduler.ts';
 import { serializeAuditCsvSteps } from '../src/core/auditCsv.ts';
 import { buildAuditReportSteps } from '../src/core/auditReport.ts';
-import {
-  DEFAULT_LEAF_QUERY,
-  queryLeafSteps
-} from '../src/core/leafQuery.ts';
 import { buildLeafReportSteps } from '../src/core/leafReport.ts';
+import {
+  DEFAULT_TREE_QUERY,
+  queryTreeSteps
+} from '../src/core/leafTree.ts';
 import { scanAdoptionAudit } from '../src/storage/auditScan.ts';
 import { writeAuditReports } from '../src/storage/auditWriter.ts';
 
@@ -76,7 +76,8 @@ try {
 
   const model = await measure('leafAnalysis', buildLeafReportSteps(snapshot));
 
-  await measure('query', queryLeafSteps(model, DEFAULT_LEAF_QUERY));
+  await measure('query', queryTreeSteps(model, DEFAULT_TREE_QUERY));
+  await measure('broadSearch', queryTreeSteps(model, { ...DEFAULT_TREE_QUERY, mode: 'all', search: 'leaf', sort: 'count' }));
 
   const audit = await measure('fullAudit', buildAuditReportSteps(snapshot));
 

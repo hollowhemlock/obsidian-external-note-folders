@@ -4,8 +4,10 @@ import type {
 } from './verify.ts';
 
 export interface AuditIssue {
+  kind?: 'directory' | 'link' | 'marker' | 'note';
   location: string;
   reason: string;
+  scope?: 'external' | 'vault';
   unchecked: boolean;
 }
 

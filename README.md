@@ -30,7 +30,7 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 - `Adopt exact-path external folders`: Builds a leaf-first dry-run plan for exact derived-path matches from notes that do not already have `exnf` identity. When exact candidates overlap, only the deepest candidates are eligible, and targets overlapping an already-identified note or marked folder are blocked, so adoption never creates nested identities or bound folders. After confirmation, the command writes `<uuid>.exnf` markers first and note frontmatter second. The legacy command ID remains unchanged so existing hotkeys continue to work.
 - `Suggest moved external folder matches`: Builds a read-only report of unassigned notes and unmarked external folders with identical literal names but divergent relative paths. Only names that are unique among checked eligible paths are suggested; ambiguous names are summarized, and ignored or skipped subtrees are explicitly unchecked. This command never assigns UUIDs, writes markers, moves folders, or adopts a suggestion.
 - `Report external folder drift`: Read-only report that compares current note-derived external folder paths against existing external folders, highlights integrity errors, missing/orphaned/unexpected/occupied paths, and suggests likely matches.
-- `Explore unmarked external leaf folders`: Opens or focuses a report tab for the active filesystem vault and configured external root. Scanning is read-only and does not apply ignore patterns. Group headers offer explicit single-folder adoption with preview and confirmation. Refresh explicitly to rescan; Cancel retains the previous completed result.
+- `Explore unmarked external leaf folders`: Opens or focuses a report tab for the active filesystem vault and configured external root. Scanning is read-only and does not apply ignore patterns. Selected-folder details offer explicit single-folder adoption with preview and confirmation. Refresh explicitly to rescan; Cancel retains the previous completed result.
 - `Resume folder adoption…`: Lists pending single-folder operations, even when their markers hide them from the unmarked report. Revalidates before resuming. An uncertain rename requires manual inspection of note locations and links before verifying completion.
 - `Reconcile external folders`: Builds a dry-run move plan and, only after explicit confirmation, moves existing bound external folders to their current note-derived paths. It never deletes folders or marker files and stops on first failure.
 - `Migrate legacy marker files`: Builds a dry-run plan that renames legacy fixed `.exnf` markers to `<uuid>.exnf` and executes only after explicit confirmation.
@@ -352,7 +352,7 @@ The source files, folders, and markers are never changed.
 | `possibly-missing.csv` | Missing counterparts, adoption candidates/blocks, unassigned items, conflicts, migration needs, and unchecked evidence. |
 | `unmarked-leaf-folders.csv` | Absolute and root-relative leaf-folder paths with no `.exnf` marker in the leaf or any ancestor through the external root. |
 | `summary.md` | Source roots, coverage, counts, and report links. |
-| `report.html` | Offline interactive view of unmarked leaves, grouped and searchable, with CSV downloads. |
+| `report.html` | Offline interactive view of unmarked leaves, tree-based and searchable, with CSV downloads. |
 
 The CSV files use UTF-8 with a BOM and quoted fields for Windows spreadsheet import.
 Canonical marker contents are ignored; legacy `.exnf` contents follow the plugin's
@@ -389,21 +389,39 @@ and needs no server, CDN, or network connection.
 
 The initial view hides paths with exact, case-insensitive components `.git`,
 `node_modules`, `build`, `dist`, `.cache`, `__pycache__`, or `.venv`.
-**Show all paths** reveals them. Categories can overlap, but leaf counts do not
-double-count rows. These labels are heuristics for review, never scan exclusions.
-Search matches relative folder paths and exact matched note paths. Groups use the
-first two folder-path segments by default. A slider and numeric input support
-depths one through the deepest leaf in the snapshot. Shallower leaves become
-their own groups; at sufficient depth every leaf is a group. There are 50 groups
-per page and 100 leaves per expanded group. Only one group expands at a time.
+**Show all generated/internal paths** reveals them. Categories can overlap, but
+leaf counts do not double-count rows. These are display filters, never scan exclusions.
 
-Expand a leaf to inspect its absolute path and note matches. Notes match only by
-the plugin's derived paths, including folder-note collapsing. Identity status and
-multiple-note matches are shown; a path match does not establish adoption.
+The default **Result branches** tree shows qualifying leaves and their ancestors.
+**All scanned folders** also shows marked and unchecked directories; skipped links
+are labeled placeholders and are never followed. The external root is a header,
+not an adoption target. Expand several branches at once, select a folder to inspect
+its details, and use **Name** (natural alphabetic order) or **Most unmarked leaves**
+to sort siblings. Count sorting uses totals from the captured snapshot, so filtering
+does not reshuffle siblings. Filtered counts show matching/total known leaves.
+
+Search matches relative folder paths and exact matched note paths, including notes
+associated with ancestor folders. A matching folder includes its qualifying
+subtree, subject to category/generated-path filters. Search temporarily expands
+matching branches; clearing it restores normal expansion. Selection and expansion
+survive sorting and refresh when their paths still exist. A hidden selection stays
+in the details panel with a notice; a removed selection is cleared.
+
+Each parent initially reveals 100 children, with **Show next 100** for more. The
+scrolling tree windows its rendered rows to remain responsive for broad searches.
+Arrow keys navigate and expand/collapse; Home/End reach the first/last revealed
+item, and Enter selects it. Details appear beside the tree, or below on narrow
+screens. Blue note-match, gray marker, green session-adoption, amber uncertainty,
+and red conflict indicators have text labels; marker/path evidence is not proof
+of a verified binding. Notes match only by plugin-derived paths, including
+folder-note collapsing, and show identity status and multiple-note matches.
+
 In Obsidian, existing notes and folders can be opened without creating anything.
-Both hosts offer copy-path actions and filtered/all-leaf CSV exports.
+Both hosts offer copy-path actions and filtered/all-leaf CSV exports. Filtered
+exports include matching leaves in collapsed or unrevealed branches; changing
+view mode or sort order does not change export membership.
 
-In Obsidian, **Adopt this folder…** on a group binds that directory and its
+In Obsidian, **Adopt this folder…** in the selected folder details binds that directory and its
 entire subtree to one note, including content hidden by filters. It opens a
 dialog; nothing changes until **Confirm adoption**. Suggestions include exact
 derived paths, matching filenames, and aliases. Search the vault for other
@@ -441,7 +459,7 @@ completion** validates the binding and finishes the journal without another move
 No rollback deletes notes, directories, or markers.
 
 After adoption, stay in the report and use **Open note** if desired. Affected
-groups are marked adopted or pending recovery. Counts and exports remain a
+folders are marked adopted or pending recovery. Counts and exports remain a
 historical snapshot, with a stale warning until **Refresh**. Standalone HTML has
 no adoption controls. Single-folder writes avoid creating unwanted notes, but
 safety checks can still require full-root scans.

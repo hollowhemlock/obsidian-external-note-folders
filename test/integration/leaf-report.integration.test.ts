@@ -55,9 +55,8 @@ describe('shared leaf report integration', () => {
     runSandboxCli(['command', `id=${command}`]);
 
     expect((await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR)).stdout).toContain('Full physical audit');
-    expect(evaluate(`Array.from(document.querySelectorAll('${REPORT_SELECTOR} button[data-adoption-blocked]')).some(button=>!button.disabled)`)).toContain(
-      'true'
-    );
+    evaluate(`document.querySelector('${REPORT_SELECTOR} .leaf-tree-item')?.click()`);
+    await waitForSandboxModalText('Adopt this folder', REPORT_SELECTOR);
 
     runSandboxCli(['command', `id=${command}`]);
 
@@ -106,7 +105,86 @@ describe('shared leaf report integration', () => {
     expect(evaluate(`app.workspace.getLeavesOfType('${VIEW_TYPE}').length`)).toContain('0');
   }, 60_000);
 
-  it('renders, filters and paginates 20,000 leaves using the shared model', async () => {
+  it('preserves a selected anchor beyond 100 siblings and handles hidden, removed and cancelled selections', async () => {
+    const pluginId = await readSandboxPluginId();
+    runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
+    await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR);
+    const fixture = auditFixture();
+    fixture.notes = [];
+    fixture.folders = [path.join(fixture.externalRoot, 'a-target')];
+    for (let index = 0; index < 205; index++) {
+      for (const suffix of ['', '/one', '/two']) {
+        fixture.folders.push(path.join(fixture.externalRoot, `b-${String(index)}${suffix}`));
+      }
+    }
+    const modelPath = resolveRepoPath('tmp/leaf-tree-state-model.json');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(modelPath, JSON.stringify(buildLeafReport(fixture)));
+    const result = evaluate(`(async()=>{
+      const v=app.workspace.getLeavesOfType('${VIEW_TYPE}')[0].view;
+      const model=JSON.parse(require('fs').readFileSync(${JSON.stringify(modelPath)},'utf8'));
+      await v.report.update(model);
+      const el=v.contentEl;
+      const wait=async()=>{await new Promise(r=>setTimeout(r,30));for(let i=0;i<100 && el.querySelector('.exnf-leaf-report').getAttribute('aria-busy')==='true';i++)await new Promise(r=>setTimeout(r,20));};
+      const tree=el.querySelector('.leaf-tree');
+      const ordered=()=>{const tops=Array.from(tree.querySelectorAll('.leaf-tree-item')).map(row=>parseFloat(row.style.top));return tops.every((top,i)=>i===0||top>tops[i-1]);};
+      const branch=Array.from(tree.querySelectorAll('.leaf-tree-item')).find(row=>row.title==='b-0');
+      branch.click();await wait();
+      const expansionOrder=ordered();
+      branch.click();await wait();
+      const initial=tree.querySelector('.leaf-tree-item');initial.click();await wait();
+      tree.scrollTop=80*36;tree.dispatchEvent(new Event('scroll'));
+      const scrollFocus=document.activeElement===tree;
+      document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}));
+      const resumedKeyboard=document.activeElement.getAttribute('role')==='treeitem';
+      tree.focus();tree.dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true}));
+      tree.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));await wait();
+      const paged=document.activeElement.textContent.includes('b-99');
+      tree.dispatchEvent(new KeyboardEvent('keydown',{key:'Home',bubbles:true}));
+      const first=el.querySelector('.leaf-tree-item'); first.focus(); first.click(); await wait();
+      const sort=el.querySelector('[aria-label="Sort siblings"]'); sort.value='count';sort.dispatchEvent(new Event('change'));await wait();
+      const anchored=document.activeElement.textContent.includes('a-target') && tree.scrollTop>100*36;
+      const sortOrder=ordered();
+      const search=el.querySelector('input[type=search]'); search.value='b-0';search.dispatchEvent(new Event('input'));await wait();
+      const hidden=el.querySelector('.leaf-details').textContent.includes('hidden by the current filters');
+      search.value='';search.dispatchEvent(new Event('input'));await wait();
+      const retained=el.querySelector('.leaf-details h2')?.textContent==='a-target';
+      const before=el.querySelector('.leaf-stats').textContent;
+      const abort=new AbortController();abort.abort();
+      try{await v.report.update({...model,rows:[]},abort.signal)}catch{}
+      const cancelled=el.querySelector('.leaf-stats').textContent===before;
+      await v.report.update({...model,rows:model.rows.filter(r=>!r.relativePath.includes('a-target')),tree:model.tree.filter(n=>n.relativePath!=='a-target')});
+      const removed=el.querySelector('.leaf-details').textContent.includes('Select a folder');
+      tree.focus();tree.dispatchEvent(new KeyboardEvent('keydown',{key:'Home',bubbles:true}));
+      const keyboard=document.activeElement.getAttribute('role')==='treeitem';
+      const report=el.querySelector('.exnf-leaf-report');
+      report.style.width='600px';
+      const layout=el.querySelector('.leaf-layout');
+      const narrow=getComputedStyle(layout).gridTemplateColumns.split(' ').length===1;
+      report.style.removeProperty('width');
+      return JSON.stringify({anchored,hidden,retained,cancelled,removed,keyboard,paged,narrow,expansionOrder,sortOrder,scrollFocus,resumedKeyboard});
+    })()`);
+    for (
+      const key of [
+        'anchored',
+        'hidden',
+        'retained',
+        'cancelled',
+        'removed',
+        'keyboard',
+        'paged',
+        'narrow',
+        'expansionOrder',
+        'sortOrder',
+        'scrollFocus',
+        'resumedKeyboard'
+      ]
+    ) {
+      expect(result).toContain(`"${key}":true`);
+    }
+  }, 60_000);
+
+  it('renders a windowed tree and filters broad searches across 20,000 leaves', async () => {
     const pluginId = await readSandboxPluginId();
 
     runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
@@ -133,16 +211,49 @@ describe('shared leaf report integration', () => {
     const view = `app.workspace.getLeavesOfType('${VIEW_TYPE}')[0].view`;
 
     const rendered = evaluate(
-      `(async()=>{const v=${view};const m=JSON.parse(require('fs').readFileSync(${
-        JSON.stringify(modelPath)
-      },'utf8'));let maxTask=0;const observer=new PerformanceObserver(list=>{for(const entry of list.getEntries())maxTask=Math.max(maxTask,entry.duration)});observer.observe({entryTypes:['longtask']});const started=performance.now();await v.report.update(m);await new Promise(r=>setTimeout(r,30));const el=v.contentEl;const depth=el.querySelector('input[type=number]');depth.value='1';depth.dispatchEvent(new Event('change'));await new Promise(r=>setTimeout(r,50));el.querySelector('.leaf-group-toggle').click();await new Promise(r=>setTimeout(r,30));const rows=el.querySelectorAll('.leaf-row').length;const page=el.querySelector('.leaf-rows .leaf-pagination');page.querySelectorAll('button')[1].click();await new Promise(r=>setTimeout(r,30));const secondPage=el.querySelector('.leaf-rows .leaf-pagination').textContent;const groups=el.querySelectorAll('.leaf-group').length;const search=el.querySelector('input[type=search]');search.value='folder-19999';search.dispatchEvent(new Event('input'));await new Promise(r=>setTimeout(r,100));const filtered=el.querySelector('.leaf-stats').textContent;observer.disconnect();return JSON.stringify({totalMs:performance.now()-started,maxTask,rows,groups,secondPage,filtered});})()`
+      `(async()=>{
+        const v=${view};
+        const m=JSON.parse(require('fs').readFileSync(${JSON.stringify(modelPath)},'utf8'));
+        await new Promise(r=>setTimeout(r,30));
+        let maxTask=0;
+        const observer=new PerformanceObserver(list=>{for(const entry of list.getEntries())maxTask=Math.max(maxTask,entry.duration)});
+        observer.observe({entryTypes:['longtask']});
+        const started=performance.now();
+        const wait=async()=>{await new Promise(r=>setTimeout(r,30));for(let i=0;i<100 && el.querySelector('.exnf-leaf-report').getAttribute('aria-busy')==='true';i++)await new Promise(r=>setTimeout(r,20));};
+        await v.report.update(m);
+        const el=v.contentEl;
+        el.querySelector('.leaf-tree-item').click();
+        await wait();
+        const selected=el.querySelector('.leaf-details').textContent.includes('group-0');
+        const search=el.querySelector('input[type=search]');
+        search.value='group'; search.dispatchEvent(new Event('input'));
+        await wait();
+        const broad=el.querySelector('.leaf-stats').textContent;
+        const domRows=el.querySelectorAll('.leaf-tree-item').length;
+        const tree=el.querySelector('.leaf-tree');
+        tree.scrollTop=tree.scrollHeight; tree.dispatchEvent(new Event('scroll'));
+        const finalRows=el.querySelectorAll('.leaf-tree-item').length;
+        const mode=el.querySelector('[aria-label="Tree view"]');
+        mode.value='all'; mode.dispatchEvent(new Event('change'));
+        const sort=el.querySelector('[aria-label="Sort siblings"]');
+        sort.value='count'; sort.dispatchEvent(new Event('change'));
+        search.value='folder-1'; search.dispatchEvent(new Event('input'));
+        search.value='folder-19999'; search.dispatchEvent(new Event('input'));
+        await wait();
+        const filtered=el.querySelector('.leaf-stats').textContent;
+        const hiddenSelection=el.querySelector('.leaf-details').textContent.includes('hidden by the current filters');
+        observer.disconnect();
+        return JSON.stringify({totalMs:performance.now()-started,maxTask,domRows,finalRows,broad,filtered,selected,hiddenSelection});
+      })()`
     );
-
-    expect(rendered).toContain('"rows":100');
-    expect(rendered).toContain('"groups":50');
-    expect(rendered).toContain('Page 2 of 2');
-
+    expect(rendered).toContain('20,000 displayed');
     expect(rendered).toContain('1 displayed');
+    expect(rendered).toContain('"selected":true');
+    expect(rendered).toContain('"hiddenSelection":true');
+    const domRows = /"domRows":(?<count>\d+)/u.exec(rendered)?.groups?.['count'];
+    const finalRows = /"finalRows":(?<count>\d+)/u.exec(rendered)?.groups?.['count'];
+    expect(Number(domRows)).toBeLessThanOrEqual(60);
+    expect(Number(finalRows)).toBeLessThanOrEqual(60);
 
     await writeSandboxReport('leaf-report/performance.json', rendered);
 

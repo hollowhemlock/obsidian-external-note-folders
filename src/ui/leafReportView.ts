@@ -1,20 +1,21 @@
 import type {
-  LeafGroup,
-  LeafQuery,
-  LeafQueryResult,
   LeafReportModel,
   LeafRow
 } from '../core/leafQuery.ts';
+import type {
+  LeafTreeNode,
+  TreeQuery,
+  TreeResult
+} from '../core/leafTree.ts';
 
 import { runAuditSteps } from '../auditScheduler.ts';
 import {
-  DEFAULT_LEAF_QUERY,
-  GROUP_PAGE_SIZE,
-  LEAF_PAGE_SIZE,
-  maximumGroupDepth,
-  queryLeafSteps
-} from '../core/leafQuery.ts';
+  DEFAULT_TREE_QUERY,
+  descendantIssueSteps,
+  queryTreeSteps
+} from '../core/leafTree.ts';
 import { LEAF_REPORT_CSS } from './leafStyles.ts';
+import { mountLeafTree } from './leafTreeView.ts';
 
 export const AUDIT_CSV_NAMES = [
   'markdown-files.csv',
@@ -43,7 +44,6 @@ export interface LeafReportView {
   status: (message: string, busy?: boolean) => void;
   update: (model: LeafReportModel, signal?: AbortSignal) => Promise<void>;
 }
-
 export function mountLeafReport(container: HTMLElement, host: LeafReportHost): LeafReportView {
   const doc = container.ownerDocument;
   const root = doc.createElement('section');
@@ -53,16 +53,15 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   root.append(style);
   container.append(root);
   let model: LeafReportModel | undefined;
-  let result: LeafQueryResult | undefined;
-  const query: LeafQuery = { ...DEFAULT_LEAF_QUERY };
+  let result: TreeResult | undefined;
+  const query: TreeQuery = { ...DEFAULT_TREE_QUERY };
+  let filterRevision = 0;
+  let updateRevision = 0;
+  let detailsAbort: AbortController | undefined;
   let queryAbort: AbortController | undefined;
-  let groupPage = 0;
-  let leafPage = 0;
-  let expanded = '';
   let disposed = false;
   let busy = false;
   const adoptions = new Map<string, null | string>();
-
   function element<K extends keyof HTMLElementTagNameMap>(tag: K, text: string, parent: HTMLElement, cls = ''): HTMLElementTagNameMap[K] {
     const node = doc.createElement(tag);
     node.textContent = text;
@@ -80,7 +79,6 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     });
     return button;
   }
-
   element('h1', 'Unmarked leaf folders', root);
   element('p', 'Leaf folders with no marker in the folder or any ancestor through the external root.', root);
   element('p', 'Full physical audit — ignore patterns not applied', root, 'leaf-context');
@@ -102,19 +100,16 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     const option = element('option', label ?? '', category);
     option.value = value ?? '';
   }
-  element('span', 'Group depth', toolbar);
-  const depth = element('input', '', toolbar);
-  depth.type = 'number';
-  depth.min = '1';
-  depth.step = '1';
-  depth.setAttribute('aria-label', 'Grouping depth');
-  depth.value = '2';
-  const slider = element('input', '', toolbar);
-  slider.type = 'range';
-  slider.min = '1';
-  slider.step = '1';
-  slider.value = '2';
-  slider.setAttribute('aria-label', 'Grouping depth slider');
+  const mode = element('select', '', toolbar);
+  mode.setAttribute('aria-label', 'Tree view');
+  for (const [value, label] of [['results', 'Result branches'], ['all', 'All scanned folders']]) {
+    element('option', label ?? '', mode).value = value ?? '';
+  }
+  const sort = element('select', '', toolbar);
+  sort.setAttribute('aria-label', 'Sort siblings');
+  for (const [value, label] of [['name', 'Name'], ['count', 'Most unmarked leaves']]) {
+    element('option', label ?? '', sort).value = value ?? '';
+  }
   if (host.resume) {
     action('Resume folder adoption…', toolbar, host.resume);
   }
@@ -157,15 +152,19 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     updateLink();
     reportSelect.addEventListener('change', updateLink);
   }
-  const pagination = element('div', '', root, 'leaf-pagination');
-  const groups = element('div', '', root, 'leaf-groups');
+  const rootLabel = element('h2', '', root);
   element(
     'p',
-    'Generated-path filters only change this view. Unmarked does not mean adoption is required.',
+    'Legend: ◆ exact note match · ▣ marker evidence · ✓ adopted this session · ⚠ unchecked / pending · ! conflict. Badges are evidence, not verified bindings.',
     root,
-    'leaf-context'
+    'leaf-legend'
   );
-
+  const layout = element('div', '', root, 'leaf-layout');
+  const groups = element('div', '', layout);
+  const details = element('aside', '', layout, 'leaf-details');
+  details.setAttribute('aria-label', 'Selected folder details');
+  const tree = mountLeafTree(groups, renderDetails, badges);
+  element('p', 'Generated-path filters only change this view. Unmarked does not mean adoption is required.', root, 'leaf-context');
   function setStatus(message: string, running = busy): void {
     if (disposed) {
       return;
@@ -187,16 +186,6 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       exportReport.disabled = busy || !model;
     }
   }
-  function pages(parent: HTMLElement, page: number, size: number, total: number, change: (value: number) => void): void {
-    const count = Math.max(1, Math.ceil(total / size));
-    action('Previous', parent, () => {
-      change(page - 1);
-    }).disabled = page === 0;
-    element('span', `Page ${String(page + 1)} of ${String(count)}`, parent);
-    action('Next', parent, () => {
-      change(page + 1);
-    }).disabled = page + 1 >= count;
-  }
   function identityLabel(identityStatus: string): string {
     const labels: Record<string, string> = {
       'duplicate-uuid': 'Duplicate note UUID',
@@ -208,8 +197,8 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     return labels[identityStatus] ?? identityStatus;
   }
   function renderRow(row: LeafRow, parent: HTMLElement): void {
-    const details = element('details', '', parent, 'leaf-row');
-    element('summary', row.relativePath, details);
+    const rowDetails = element('details', '', parent, 'leaf-row');
+    element('summary', row.relativePath, rowDetails);
     element(
       'div',
       row.categories.length
@@ -217,98 +206,151 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
           ({ dependencies: 'Dependencies', generated: 'Likely build / cache / environment', git: 'Git internals' })[categoryName]
         ).join(' · ')
         : 'Ordinary path',
-      details,
+      rowDetails,
       'leaf-tags'
     );
-    element('p', row.folderPath, details, 'leaf-context');
-    const actions = element('div', '', details, 'leaf-toolbar');
+    element('p', row.folderPath, rowDetails, 'leaf-context');
+    const actions = element('div', '', rowDetails, 'leaf-toolbar');
     action('Copy path', actions, () => host.copy(row.folderPath));
     if (host.openFolder) {
       action('Open folder', actions, () => host.openFolder?.(row.folderPath));
     }
     if (row.notes.length > 1) {
-      element('p', 'Multiple notes derive this folder. This is not proof of a binding.', details);
+      element('p', 'Multiple notes derive this folder. This is not proof of a binding.', rowDetails);
     }
     for (const note of row.notes) {
-      const match = element('div', `${note.notePath} — ${identityLabel(note.status)}`, details, 'leaf-note');
+      const match = element('div', `${note.notePath} — ${identityLabel(note.status)}`, rowDetails, 'leaf-note');
       if (host.openNote) {
         action('Open note', match, () => host.openNote?.(note.notePath));
       }
       action('Copy note path', match, () => host.copy(note.absolutePath));
     }
     if (row.notes.length === 0) {
-      element('p', 'No exact note path match.', details, 'leaf-context');
+      element('p', 'No exact note path match.', rowDetails, 'leaf-context');
     }
   }
-  function renderGroups(): void {
-    if (!result || disposed) {
+  function affected(node: LeafTreeNode): [
+    string,
+    null | string
+  ] | undefined {
+    return [...adoptions].find(([folder]) => {
+      const a = folder.replaceAll('\\', '/').toLowerCase();
+      const b = node.folderPath.replaceAll('\\', '/').toLowerCase();
+      return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+    });
+  }
+  function markerBadge(node: LeafTreeNode): string {
+    if (node.markers.length) {
+      return '▣ Marker present';
+    }
+    return node.covered ? '▣ Ancestor marker' : '';
+  }
+  function adoptionBadge(node: LeafTreeNode): string {
+    const overlay = affected(node);
+    if (!overlay) {
+      return '';
+    }
+    return overlay[1] ? '✓ Adopted this session' : '⚠ Pending recovery';
+  }
+  function badges(node: LeafTreeNode): string {
+    return [
+      node.notes.length ? '◆ Note match' : '',
+      markerBadge(node),
+      node.kind === 'link' ? '↗ Skipped link' : '',
+      node.unchecked ? '⚠ Unchecked' : '',
+      node.conflict ? '! Conflict' : '',
+      node.descendantIssues ? '⚠ Descendant issues' : '',
+      adoptionBadge(node)
+    ].filter(Boolean).map((label) => ` · ${label}`).join('');
+  }
+  function renderDetails(node: LeafTreeNode | undefined, hidden: boolean): void {
+    detailsAbort?.abort();
+    details.replaceChildren();
+    if (!node) {
+      element('p', 'Select a folder to inspect paths, note matches, and actions.', details);
       return;
     }
-    const focusedKey = doc.activeElement?.getAttribute('data-group-key') ?? undefined;
-    groups.replaceChildren();
-    pagination.replaceChildren();
-    pages(pagination, groupPage, GROUP_PAGE_SIZE, result.groups.length, (value) => {
-      groupPage = value;
-      expanded = '';
-      renderGroups();
-    });
-    const visible = result.groups.slice(groupPage * GROUP_PAGE_SIZE, (groupPage + 1) * GROUP_PAGE_SIZE);
-    if (visible.length === 0) {
-      element('p', 'No matching folders. Try Show all paths or clear your filters.', groups);
+    element('h2', node.relativePath, details);
+    if (hidden) {
+      element('p', 'Selected folder is hidden by the current filters.', details, 'leaf-warning');
     }
-    for (const group of visible) {
-      renderGroup(group);
+    element(
+      'p',
+      `${
+        (result?.counts.get(node.id) ?? 0).toLocaleString()
+      }/${node.total.toLocaleString()} known unmarked leaves. Actions cover the entire folder subtree, including hidden paths.`,
+      details
+    );
+    element('p', badges(node), details, 'leaf-tags');
+    renderRow(node, details);
+    const rowDetails = details.querySelector('details');
+    if (rowDetails) {
+      rowDetails.open = true;
     }
-    if (focusedKey !== undefined) {
-      Array.from(groups.querySelectorAll<HTMLButtonElement>('[data-group-key]')).find((button) => button.dataset['groupKey'] === focusedKey)?.focus();
+    for (const evidence of [...node.markers, ...node.issues]) {
+      element('p', evidence, details, 'leaf-context');
     }
-  }
-  function renderGroup(group: LeafGroup): void {
-    const section = element('div', '', groups, 'leaf-group');
-    const header = element('div', '', section, 'leaf-group-header');
-    const toggle = action(`${group.key} · ${group.rows.length.toLocaleString()} ${group.rows.length === 1 ? 'leaf' : 'leaves'}`, header, () => {
-      expanded = expanded === group.key ? '' : group.key;
-      leafPage = 0;
-      renderGroups();
-    });
-    toggle.className = 'leaf-group-toggle';
-    toggle.dataset['groupKey'] = group.key;
-    toggle.setAttribute('aria-expanded', String(expanded === group.key));
-    if (host.adopt) {
-      const affected = [...adoptions].find(([folder]) => {
-        const a = folder.replaceAll('\\', '/').toLowerCase();
-        const b = group.folderPath.replaceAll('\\', '/').toLowerCase();
-        return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+    if (node.descendantIssues) {
+      const evidence = element('div', '', details);
+      const inspect = action('Inspect descendant issues', evidence, async () => {
+        if (!result) {
+          return;
+        }
+        detailsAbort?.abort();
+        const abort = new AbortController();
+        detailsAbort = abort;
+        inspect.disabled = true;
+        try {
+          const nodes = await runAuditSteps(descendantIssueSteps(result, node.id), { signal: abort.signal });
+          if (abort.signal.aborted) {
+            return;
+          }
+          const pageSize = 100;
+          let count = 0;
+          const more = action('Show next 100 issues', evidence, show);
+          function show(): void {
+            for (const issueNode of nodes.slice(count, count + pageSize)) {
+              element('p', [issueNode.folderPath, ...issueNode.issues, ...issueNode.markers].join('\n'), evidence, 'leaf-context');
+              for (const note of issueNode.notes) {
+                element('p', `${note.absolutePath} — ${identityLabel(note.status)}`, evidence, 'leaf-context');
+              }
+            }
+            count += pageSize;
+            more.hidden = count >= nodes.length;
+          }
+          show();
+        } catch (error: unknown) {
+          if (!abort.signal.aborted) {
+            throw error;
+          }
+        }
       });
-      let label = 'Adopt this folder…';
-      if (affected) {
-        label = affected[1] ? 'Adopted — refresh to update counts' : 'Pending recovery';
-      }
-      const button = action(
-        label,
-        header,
-        () => host.adopt?.(group.folderPath)
-      );
-      button.disabled = busy || !!affected;
-      button.dataset['adoptionBlocked'] = String(!!affected);
-      if (affected?.[1] && host.openNote) {
-        action('Open note', header, () => host.openNote?.(affected[1] ?? ''));
+    }
+    const overlay = affected(node);
+    if (host.adopt) {
+      const blocked = node.blocked || !!overlay;
+      const button = action('Adopt this folder…', details, () => host.adopt?.(node.folderPath));
+      button.disabled = busy || blocked;
+      button.dataset['adoptionBlocked'] = String(blocked);
+      if (blocked) {
+        element(
+          'p',
+          overlay
+            ? 'An overlapping folder was adopted or needs recovery. Refresh or resume the pending operation.'
+            : 'Adoption is blocked by overlapping marker evidence, a skipped link, or unchecked topology.',
+          details
+        );
+      } else {
+        element('p', 'Preview and fresh safety checks are required before confirmation.', details, 'leaf-context');
       }
     }
-    if (expanded !== group.key) {
-      return;
-    }
-    const rows = element('div', '', section, 'leaf-rows');
-    const navigation = element('div', '', rows, 'leaf-pagination');
-    pages(navigation, leafPage, LEAF_PAGE_SIZE, group.rows.length, (value) => {
-      leafPage = value;
-      renderGroups();
-    });
-    for (const row of group.rows.slice(leafPage * LEAF_PAGE_SIZE, (leafPage + 1) * LEAF_PAGE_SIZE)) {
-      renderRow(row, rows);
+    if (overlay?.[1] && host.openNote) {
+      action('Open adopted note', details, () => host.openNote?.(overlay[1] ?? ''));
     }
   }
   async function refilter(): Promise<void> {
+    const revision = ++filterRevision;
+    root.setAttribute('aria-busy', 'true');
     queryAbort?.abort();
     const abort = new AbortController();
     queryAbort = abort;
@@ -318,27 +360,28 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     exportFiltered.disabled = true;
     const input = model;
     try {
-      const filtered = await runAuditSteps(queryLeafSteps(input, { ...query }), { signal: abort.signal });
+      const filtered = await runAuditSteps(queryTreeSteps(input, { ...query }), { signal: abort.signal });
       if (disposed || abort.signal.aborted) {
         return;
       }
-      applyResult(filtered);
+      await applyResult(filtered);
+      if (revision === filterRevision) {
+        root.setAttribute('aria-busy', 'false');
+      }
     } catch (error: unknown) {
       if (!abort.signal.aborted) {
         throw error;
       }
     }
   }
-  function applyResult(filtered: LeafQueryResult): void {
+  async function applyResult(filtered: TreeResult, reset = false): Promise<void> {
     result = filtered;
-    groupPage = 0;
-    leafPage = 0;
-    expanded = '';
-    stats.textContent =
-      `${filtered.total.toLocaleString()} unmarked leaves · ${filtered.rows.length.toLocaleString()} displayed · ${filtered.hiddenCount.toLocaleString()} generated/internal paths hidden`;
-    showAll.textContent = query.showGenerated ? 'Hide generated paths' : 'Show all paths';
+    stats.textContent = `${
+      model?.rows.length.toLocaleString() ?? '0'
+    } known unmarked leaves · ${filtered.rows.length.toLocaleString()} displayed · ${filtered.hiddenCount.toLocaleString()} generated/internal paths hidden`;
+    showAll.textContent = query.showGenerated ? 'Hide generated/internal paths' : 'Show all generated/internal paths';
     showAll.setAttribute('aria-pressed', String(query.showGenerated));
-    renderGroups();
+    await tree.update(filtered, query.search, reset);
     setStatus(status.textContent, busy);
   }
   function changed(): void {
@@ -351,18 +394,16 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     changed();
   });
   category.addEventListener('change', () => {
-    query.category = category.value as LeafQuery['category'];
+    query.category = category.value as TreeQuery['category'];
     changed();
   });
-  depth.addEventListener('change', () => {
-    query.depth = Math.max(1, Math.min(model ? maximumGroupDepth(model) : 1, Math.floor(Number(depth.value)) || 1));
-    depth.value = String(query.depth);
-    slider.value = depth.value;
+  mode.addEventListener('change', () => {
+    query.mode = mode.value as TreeQuery['mode'];
     changed();
   });
-  slider.addEventListener('input', () => {
-    depth.value = slider.value;
-    depth.dispatchEvent(new Event('change'));
+  sort.addEventListener('change', () => {
+    query.sort = sort.value as TreeQuery['sort'];
+    changed();
   });
   setStatus('Ready.', false);
   return {
@@ -373,11 +414,15 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       }
       warning.hidden = false;
       warning.textContent = 'This snapshot predates mutations. Refresh to update results and counts. Pending operations can be resumed.';
-      renderGroups();
+      tree.redraw().catch(() => {
+        setStatus('Unable to update tree.');
+      });
     },
     dispose(): void {
       disposed = true;
       queryAbort?.abort();
+      detailsAbort?.abort();
+      tree.dispose();
       root.remove();
     },
     status: setStatus,
@@ -385,25 +430,24 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       if (disposed) {
         return;
       }
-      let filtered: LeafQueryResult;
-      const maximum = maximumGroupDepth(next);
-      query.depth = Math.min(query.depth, maximum);
-      depth.max = String(maximum);
-      slider.max = depth.max;
-      depth.value = String(query.depth);
-      slider.value = depth.value;
+      const revision = ++updateRevision;
+      let filtered: TreeResult;
       let captured: string;
       do {
         captured = JSON.stringify(query);
-        filtered = await runAuditSteps(queryLeafSteps(next, { ...query }), signal ? { signal } : {});
+        filtered = await runAuditSteps(queryTreeSteps(next, { ...query }), signal ? { signal } : {});
       } while (captured !== JSON.stringify(query));
       signal?.throwIfAborted();
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- dispose can run while scheduled analysis is awaiting.
-      if (disposed) {
+      if (disposed || revision !== updateRevision) {
         return;
       }
+      filterRevision++;
+      root.setAttribute('aria-busy', 'false');
       queryAbort?.abort();
+      const reset = !!model && (model.externalRoot !== next.externalRoot || model.vaultRoot !== next.vaultRoot);
       model = next;
+      rootLabel.textContent = next.externalRoot;
       adoptions.clear();
       context.textContent = `Vault: ${next.vaultRoot}\nExternal root: ${next.externalRoot}\nScanned: ${next.startedAt} – ${next.finishedAt}\nCoverage: ${
         next.uncheckedCount > 0 ? 'incomplete' : 'complete'
@@ -416,7 +460,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
           : ''
       ].filter(Boolean).join(' ');
       warning.hidden = warning.textContent.length === 0;
-      applyResult(filtered);
+      await applyResult(filtered, reset);
     }
   };
 }

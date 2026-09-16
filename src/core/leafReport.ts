@@ -14,6 +14,7 @@ import {
 } from './auditSteps.ts';
 import { unmarkedLeafSteps } from './leafAnalysis.ts';
 import { classifyLeafSegments } from './leafQuery.ts';
+import { buildLeafTreeSteps } from './leafTreeBuild.ts';
 import {
   deriveExternalFolderPath,
   normalizePathForIdentity
@@ -63,6 +64,7 @@ export function* buildLeafReportSteps(snapshot: AuditSnapshot): Generator<void, 
     mutationWarning: false,
     rows: sorted,
     startedAt: snapshot.startedAt,
+    tree: yield* buildLeafTreeSteps(snapshot, sorted, notesByTarget),
     uncheckedCount: snapshot.issues.filter((issue) => issue.unchecked).length,
     vaultRoot: snapshot.vaultRoot
   };

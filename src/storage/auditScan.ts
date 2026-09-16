@@ -66,8 +66,14 @@ export async function scanAdoptionAudit(vaultRoot: string, externalRoot: string,
   return scan;
 }
 
-function recordUnchecked(location: string, reason: string, scope: 'external' | 'vault', scan: AuditScan): void {
-  scan.issues.push({ location, reason, unchecked: true });
+function recordUnchecked(
+  location: string,
+  reason: string,
+  scope: 'external' | 'vault',
+  scan: AuditScan,
+  kind: 'directory' | 'link' | 'marker' = 'directory'
+): void {
+  scan.issues.push({ kind, location, reason, scope, unchecked: true });
   if (scope === 'external') {
     const issues = location === scan.externalRoot ? scan.external.accessErrors : scan.external.skippedDirectories;
     issues.push({ location, message: reason });
@@ -90,7 +96,7 @@ async function scanMarker(markerPath: string, scan: AuditScan): Promise<void> {
       legacyContent = await readFile(markerPath, 'utf8');
     } catch {
       marker.status = 'unchecked-marker';
-      recordUnchecked(markerPath, 'Legacy marker could not be read.', 'external', scan);
+      recordUnchecked(markerPath, 'Legacy marker could not be read.', 'external', scan, 'marker');
       return;
     }
   }
@@ -109,7 +115,7 @@ async function scanMarker(markerPath: string, scan: AuditScan): Promise<void> {
   } catch {
     const reason = 'Malformed marker filename or legacy marker contents.';
     scan.external.malformedMarkers.push({ location: markerPath, message: reason });
-    scan.issues.push({ location: markerPath, reason, unchecked: name === '.exnf' });
+    scan.issues.push({ kind: 'marker', location: markerPath, reason, scope: 'external', unchecked: name === '.exnf' });
   }
 }
 
@@ -158,12 +164,18 @@ async function scanNote(notePath: string, scan: AuditScan): Promise<void> {
     } else {
       note.status = 'invalid-property';
       scan.vault.invalidFrontmatter.push({ location: note.relativePath, message: 'Invalid exnf property.' });
-      scan.issues.push({ location: notePath, reason: 'exnf must be a canonical lowercase UUID string.', unchecked: false });
+      scan.issues.push({ kind: 'note', location: notePath, reason: 'exnf must be a canonical lowercase UUID string.', scope: 'vault', unchecked: false });
     }
   } catch {
     note.status = 'unchecked-frontmatter';
     scan.vault.invalidFrontmatter.push({ location: note.relativePath, message: 'Unreadable or invalid frontmatter.' });
-    scan.issues.push({ location: notePath, reason: 'Note could not be read or its YAML frontmatter could not be parsed safely.', unchecked: true });
+    scan.issues.push({
+      kind: 'note',
+      location: notePath,
+      reason: 'Note could not be read or its YAML frontmatter could not be parsed safely.',
+      scope: 'vault',
+      unchecked: true
+    });
   }
 }
 
@@ -173,7 +185,7 @@ async function walk(directory: string, scope: 'external' | 'vault', scan: AuditS
     options.onProgress?.({ directories: scan.folders.length, markers: scan.markers.length, notes: scan.notes.length });
     const info = await lstat(directory);
     if (info.isSymbolicLink()) {
-      recordUnchecked(directory, 'Symbolic link or junction was not followed.', scope, scan);
+      recordUnchecked(directory, 'Symbolic link or junction was not followed.', scope, scan, 'link');
       return;
     }
     const entries = await readdir(directory, { withFileTypes: true });
@@ -182,7 +194,7 @@ async function walk(directory: string, scope: 'external' | 'vault', scan: AuditS
       options.signal?.throwIfAborted();
       const entryPath = path.join(directory, entry.name);
       if (entry.isSymbolicLink()) {
-        recordUnchecked(entryPath, 'Symbolic link or junction was not followed.', scope, scan);
+        recordUnchecked(entryPath, 'Symbolic link or junction was not followed.', scope, scan, 'link');
       } else if (entry.isDirectory()) {
         if (scope === 'external') {
           scan.folders.push(entryPath);
