@@ -425,8 +425,20 @@ In Obsidian, **Adopt this folder…** in the selected folder details binds that 
 entire subtree to one note, including content hidden by filters. It opens a
 dialog; nothing changes until **Confirm adoption**. Suggestions include exact
 derived paths, matching filenames, and aliases. Search the vault for other
-notes. **Open note** inspects a candidate without selecting or adopting it;
-the return notification restores the dialog's choices.
+notes in the autocomplete field and choose a suggestion, or enter an exact vault-relative
+note path (the `.md` extension is optional). Empty input selects **Create new note**;
+a valid existing note enables **Bind without moving** and **Move note to match folder**.
+Unresolved input disables adoption until corrected or cleared. The three action buttons
+stay visible, with only the selected mode highlighted. **Clear** returns to creation.
+
+The wider dialog checks the preview automatically after input settles. Review the
+note, folder, changes, and warnings, then use **Confirm adoption** in the permanent
+footer. Confirmation stays disabled while checking, for invalid input, or until
+required descendant-note acknowledgment is checked. Technical identity details can
+be expanded. **Retry checks** repeats failed validation without adopting anything;
+an interrupted write instead offers the existing recovery flow. **Open note** inspects
+the resolved note without adopting it; the return notification restores the choices
+and triggers fresh checks.
 
 New notes default to the matching path (`Projects/Example.md`) and contain only
 `exnf` frontmatter. Existing notes default to **Bind without moving**. The preview

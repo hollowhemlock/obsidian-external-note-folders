@@ -16,10 +16,7 @@ import type {
 import type { GroupAdoptionJournal } from '../storage/groupAdoptionJournal.ts';
 
 import { getExnfFrontmatterValue } from '../core/frontmatter.ts';
-import {
-  buildGroupAdoptionPlan,
-  noteMatchReason
-} from '../core/groupAdoption.ts';
+import { buildGroupAdoptionPlan } from '../core/groupAdoption.ts';
 import { normalizePathForIdentity } from '../core/pathPolicy.ts';
 import { generateUnusedCanonicalUuid } from '../core/uuid.ts';
 import { assertAuditRoots } from '../storage/auditPaths.ts';
@@ -35,6 +32,7 @@ import {
   saveGroupJournal
 } from '../storage/groupAdoptionJournal.ts';
 import { buildJournalRootPath } from '../storage/journalPath.ts';
+import { GroupAdoptionModal } from './GroupAdoptionModal.ts';
 
 export interface GroupAdoptionHost {
   changed: (folder: string, note: null | string) => void;
@@ -42,170 +40,12 @@ export interface GroupAdoptionHost {
   sequence: () => number;
   settings: () => { externalRootIgnorePatterns: string[]; externalRootPath: string };
 }
-const CANDIDATE_LIMIT = 50;
+
 const FRONTMATTER_PATTERN = /^\uFEFF?---\r?\n(?<yaml>(?:[^\n]*\n)*?)---[ \t]*(?:\r?\n|$)/u;
 
-class GroupAdoptionModal extends Modal {
-  private readonly controller = new AbortController();
-  private inspecting = false;
-  private move = false;
-  private previewed: { content: null | string; plan: GroupAdoptionPlan } | undefined;
-  private search = '';
-  private selected: null | string = null;
-  public constructor(app: App, private readonly adoption: GroupAdoptionController, private readonly folder: string) {
-    super(app);
-  }
-
-  public cancel(): void {
-    this.inspecting = false;
-    this.close();
-  }
-
-  public override onClose(): void {
-    if (!this.inspecting) {
-      this.controller.abort();
-      this.adoption.dismiss(this);
-    }
-    this.contentEl.empty();
-  }
-
-  public override onOpen(): void {
-    this.contentEl.empty();
-    this.contentEl.addClass('exnf-group-adoption');
-    this.contentEl.createEl('h2', { text: 'Adopt this folder' });
-    this.contentEl.createEl('p', {
-      text: `${this.folder}\nOne binding covers this entire subtree, including paths hidden by filters. No external folders move.`
-    });
-    const status = this.contentEl.createEl('p', { attr: { role: 'status' } });
-    const search = this.contentEl.createEl('input', {
-      attr: { 'aria-label': 'Find note', 'placeholder': 'Search note paths, names, and aliases', 'type': 'search' }
-    });
-    search.value = this.search;
-    const candidates = this.contentEl.createDiv();
-    const chosen = this.contentEl.createEl('p');
-    const updateChosen = (): void => {
-      chosen.textContent = this.selected ? `Selected: ${this.selected}` : 'Create a new note matching this folder';
-      this.previewed = undefined;
-    };
-    this.contentEl.createEl('button', { text: 'Create new note' }).onclick = (): void => {
-      this.selected = null;
-      updateChosen();
-    };
-    const render = (): void => {
-      candidates.empty();
-      const matches = this.adoption.choices().map((note) => ({ note, reason: noteMatchReason(note, this.folder, this.adoption.externalRoot(), this.search) }))
-        .filter((match) => match.reason !== null).sort((a, b) =>
-          Number(b.reason === 'Exact path') - Number(a.reason === 'Exact path') || a.note.path.localeCompare(b.note.path)
-        );
-      for (const { note, reason } of matches.slice(0, CANDIDATE_LIMIT)) {
-        const row = candidates.createDiv();
-        row.createEl('span', { text: `${note.path} — ${reason ?? ''} ` });
-        row.createEl('button', { text: 'Select' }).onclick = (): void => {
-          this.selected = note.path;
-          updateChosen();
-        };
-        row.createEl('button', { text: 'Open note' }).onclick = (): void => {
-          this.inspecting = true;
-          this.close();
-          this.adoption.openNote(note.path).then(() => {
-            const fragment = document.createDocumentFragment();
-            const button = document.createElement('button');
-            button.textContent = 'Return to folder adoption';
-            fragment.append(button);
-            const notice = new Notice(fragment, 0);
-            this.adoption.trackNotice(notice);
-            button.onclick = (): void => {
-              notice.hide();
-              this.inspecting = false;
-              this.open();
-            };
-          }).catch((error: unknown) => {
-            new Notice(String(error));
-            this.inspecting = false;
-            this.open();
-          });
-        };
-      }
-      if (matches.length > CANDIDATE_LIMIT) {
-        candidates.createEl('p', { text: 'Showing 50 matches. Refine your search.' });
-      }
-    };
-    search.oninput = (): void => {
-      this.search = search.value;
-      render();
-    };
-    const layout = this.contentEl.createEl('select', { attr: { 'aria-label': 'Layout choice' } });
-    layout.createEl('option', { text: 'Bind without moving', value: 'bind' });
-    layout.createEl('option', { text: 'Move note to match this folder', value: 'move' });
-    layout.value = this.move ? 'move' : 'bind';
-    layout.onchange = (): void => {
-      this.move = layout.value === 'move';
-      this.previewed = undefined;
-    };
-    const preview = this.contentEl.createDiv();
-    const prepare = this.contentEl.createEl('button', { text: 'Preview adoption' });
-    prepare.onclick = (): void => {
-      prepare.disabled = true;
-      const selected = this.selected;
-      const move = this.move;
-      status.textContent = 'Checking notes and the complete external tree…';
-      this.adoption.preview(this.folder, selected, move, this.controller.signal).then((result) => {
-        if (this.controller.signal.aborted) {
-          return;
-        }
-        if (selected !== this.selected || move !== this.move) {
-          status.textContent = 'Selection changed while scanning. Preview again.';
-          return;
-        }
-        this.previewed = result;
-        preview.empty();
-        const plan = result.plan;
-        const reused = result.content !== null && getExnfFrontmatterValue(frontmatter(result.content)).kind === 'valid';
-        preview.createEl('p', {
-          text: `Note: ${plan.sourcePath ?? '(new note)'} → ${plan.notePath}\n${reused ? 'Reuse' : 'New'} UUID: ${plan.uuid}\nMarker: ${
-            path.join(plan.folderPath, `${plan.uuid}.exnf`)
-          }\n${plan.warnings.join('\n')}`
-        });
-        if (plan.aliases) {
-          preview.createEl('p', { text: `Aliases after rename: ${plan.aliases.join(', ')}` });
-        }
-        const acknowledge = preview.createEl('input', { attr: { 'aria-label': 'Acknowledge descendant notes', 'type': 'checkbox' } });
-        acknowledge.hidden = !plan.descendants.length;
-        if (plan.descendants.length) {
-          preview.createEl('p', { text: `These unassigned notes remain unchanged and cannot have separate nested bindings:\n${plan.descendants.join('\n')}` });
-        }
-        const confirm = preview.createEl('button', { text: 'Confirm adoption' });
-        confirm.onclick = (): void => {
-          if (this.previewed !== result) {
-            status.textContent = 'Selection changed. Preview again.';
-            return;
-          }
-          if (plan.descendants.length && !acknowledge.checked) {
-            status.textContent = 'Acknowledge the descendant notes first.';
-            return;
-          }
-          confirm.disabled = true;
-          prepare.disabled = true;
-          status.textContent = 'Adopting… Obsidian may ask whether to update links. Wait for completion before another adoption.';
-          this.adoption.execute(plan, result.content).then(() => {
-            this.close();
-          }).catch((error: unknown) => {
-            status.textContent = error instanceof Error ? error.message : String(error);
-            this.previewed = undefined;
-          });
-        };
-        status.textContent = 'Review the changes, then confirm.';
-      }).catch((error: unknown) => {
-        status.textContent = error instanceof Error ? error.message : String(error);
-      }).finally(() => {
-        prepare.disabled = false;
-      });
-    };
-    this.contentEl.createEl('button', { text: 'Close' }).onclick = (): void => {
-      this.close();
-    };
-    updateChosen();
-    render();
+class PendingAdoptionError extends Error {
+  public constructor(public readonly journal: string, cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
   }
 }
 class UnacknowledgedDescendantsError extends Error {
@@ -272,8 +112,31 @@ export class GroupAdoptionController {
         throw new Error('Plugin unloaded before adoption.');
       }
       const file = await createGroupJournal(this.journalRoot(), plan, content);
-      await this.executeJournal(file, false);
+      try {
+        await this.executeJournal(file, false);
+      } catch (error: unknown) {
+        throw new PendingAdoptionError(file, error);
+      }
     });
+  }
+
+  public async executeForDialog(plan: GroupAdoptionPlan, content: null | string): Promise<
+    { journal: string; kind: 'pending'; message: string } | { kind: 'complete' } | { kind: 'retry'; message: string }
+  > {
+    try {
+      await this.execute(plan, content);
+      return { kind: 'complete' };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (error instanceof PendingAdoptionError) {
+        const journal = await readGroupJournal(error.journal).catch(() => undefined);
+        if (journal?.stage === 'complete') {
+          return { kind: 'complete' };
+        }
+        return { journal: error.journal, kind: 'pending', message };
+      }
+      return { kind: 'retry', message };
+    }
   }
 
   public externalRoot(): string {
@@ -329,8 +192,8 @@ export class GroupAdoptionController {
     await this.host.mutate(async () => this.executeJournal(file, true, acknowledgedDescendants));
   }
 
-  public async showRecovery(): Promise<void> {
-    const files = await this.pending();
+  public async showRecovery(journalFile?: string): Promise<void> {
+    const files = (await this.pending()).filter((file) => !journalFile || file === journalFile);
     if (!files.length) {
       new Notice('No pending folder adoptions.');
       return;

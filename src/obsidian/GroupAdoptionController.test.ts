@@ -57,6 +57,23 @@ describe('folder adoption controller recovery', () => {
     return createFixture(root);
   }
 
+  it('distinguishes a rejected preflight from an interrupted journaled operation', async () => {
+    const f = await fixture();
+    const preview = await f.controller.preview(f.folder, null, false, new AbortController().signal);
+    const rejected = await f.controller.executeForDialog({ ...preview.plan, mutationSequence: 1 }, preview.content);
+    expect(rejected.kind).toBe('retry');
+    expect(await f.controller.pending()).toEqual([]);
+    expect(await readdir(f.folder)).toEqual([]);
+    f.create.mockRejectedValueOnce(new Error('Interrupted creation'));
+    const pending = await f.controller.executeForDialog(preview.plan, preview.content);
+    expect(pending.kind).toBe('pending');
+    if (pending.kind === 'pending') {
+      expect(await f.controller.pending()).toContain(pending.journal);
+      await f.controller.resume(pending.journal);
+      expect((await readGroupJournal(pending.journal)).stage).toBe('complete');
+    }
+  });
+
   it.each(['\uFEFF---\naliases: KeepAlias\n---\nBody', '---\naliases: KeepAlias\n--- \t\nBody'])(
     'preserves aliases in scanner-supported frontmatter: %j',
     async (content) => {

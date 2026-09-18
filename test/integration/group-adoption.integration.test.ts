@@ -17,6 +17,37 @@ function evaluate(code: string): string {
   return result.stdout;
 }
 describe('folder group adoption in Obsidian', () => {
+  it('automatically previews input and modes with a permanent confirmation footer', async () => {
+    await closeSandboxModals();
+    const id = await readSandboxPluginId();
+    const result = evaluate(`(async()=>{
+      const plugin=app.plugins.plugins[${JSON.stringify(id)}];const c=plugin.groupAdoption;
+      const fs=require('fs');const path=require('path');const suffix=Date.now().toString();
+      const note='UnrelatedChoice'+suffix+'.md';await app.vault.create(note,'Keep unchanged.');
+      const folder=path.join(plugin.settings.externalRootPath,'NoSuggestions'+suffix);fs.mkdirSync(folder);
+      c.open(folder);const modal=Array.from(document.querySelectorAll('.exnf-group-adoption')).at(-1);
+      const button=text=>Array.from(modal.querySelectorAll('button')).find(b=>b.textContent===text);
+      const confirm=button('Confirm adoption');const input=modal.querySelector('input[type=search]');
+      const wait=async()=>{for(let i=0;i<200 && confirm.disabled;i++)await new Promise(r=>setTimeout(r,50));};
+      const initial=confirm.disabled && !button('Preview adoption') && button('Create new note').getAttribute('aria-checked')==='true';
+      await wait();const automatic=!confirm.disabled && modal.querySelector('.exnf-adoption-footer').contains(confirm) && getComputedStyle(button('Retry checks')).display==='none' && getComputedStyle(button('Resume folder adoption…')).display==='none';
+      input.value='missing-'+suffix;input.dispatchEvent(new Event('input'));
+      const invalid=confirm.disabled && button('Open note').disabled && Array.from(modal.querySelectorAll('[role=radio]')).every(b=>b.disabled);
+      input.value=note.slice(0,-3);input.dispatchEvent(new Event('input'));await wait();
+      const resolved=!confirm.disabled && !button('Open note').disabled && button('Create new note').disabled;
+      button('Move note to match folder').click();const invalidated=confirm.disabled;await wait();
+      const moved=modal.textContent.includes('Bind and move the note') && button('Move note to match folder').getAttribute('aria-checked')==='true';
+      input.focus();input.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}));input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+      const noMutation=fs.readdirSync(folder).length===0;
+      button('Clear').click();await wait();
+      const cleared=input.value==='' && button('Create new note').getAttribute('aria-checked')==='true';
+      const unchanged=(await app.vault.read(app.vault.getAbstractFileByPath(note)))==='Keep unchanged.';
+      confirm.click();for(let i=0;i<200 && modal.isConnected;i++)await new Promise(r=>setTimeout(r,50));const created=!!app.vault.getAbstractFileByPath('NoSuggestions'+suffix+'.md') && fs.readdirSync(folder).some(n=>n.endsWith('.exnf'));return JSON.stringify({initial,automatic,invalid,resolved,invalidated,moved,noMutation,cleared,unchanged,created});
+    })()`);
+    for (const key of ['initial', 'automatic', 'invalid', 'resolved', 'invalidated', 'moved', 'noMutation', 'cleared', 'unchanged', 'created']) {
+      expect(result).toContain(`"${key}":true`);
+    }
+  }, 60_000);
   it('opens candidate notes without adopting and restores the selected note on return', async () => {
     await closeSandboxModals();
     const id = await readSandboxPluginId();
@@ -28,11 +59,11 @@ describe('folder group adoption in Obsidian', () => {
       const folder=path.join(plugin.settings.externalRootPath,name);fs.mkdirSync(folder);
       await new Promise(r=>setTimeout(r,300));c.open(folder);
       let modal=Array.from(document.querySelectorAll('.exnf-group-adoption')).at(-1);
-      Array.from(modal.querySelectorAll('button')).find(b=>b.textContent==='Select').click();
+      const input=modal.querySelector('input[type=search]');input.value=note;input.dispatchEvent(new Event('input'));
       Array.from(modal.querySelectorAll('button')).find(b=>b.textContent==='Open note').click();
       await new Promise(r=>setTimeout(r,300));const opened=app.workspace.getActiveFile()?.path===note;
       Array.from(document.querySelectorAll('.notice button')).filter(b=>b.textContent==='Return to folder adoption').at(-1).click();
-      modal=Array.from(document.querySelectorAll('.exnf-group-adoption')).at(-1);const preserved=modal.textContent.includes('Selected: '+note);
+      modal=Array.from(document.querySelectorAll('.exnf-group-adoption')).at(-1);const preserved=modal.querySelector('input[type=search]').value===note;
       Array.from(c.dialogs).find(d=>d.contentEl===modal).close();
       return JSON.stringify({opened,preserved,unmarked:fs.readdirSync(folder).length===0,unchanged:!(await app.vault.read(app.vault.getAbstractFileByPath(note))).includes('exnf:')});
     })()`);
