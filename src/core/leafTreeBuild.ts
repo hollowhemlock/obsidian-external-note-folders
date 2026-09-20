@@ -12,7 +12,12 @@ import { sortAuditSteps } from './auditSteps.ts';
 import { classifyLeafSegments } from './leafQuery.ts';
 import { normalizePathForIdentity } from './pathPolicy.ts';
 
-export function* buildLeafTreeSteps(snapshot: AuditSnapshot, rows: LeafRow[], notes: Map<string, LeafNoteMatch[]>): Generator<void, LeafTreeNode[]> {
+export function* buildLeafTreeSteps(
+  snapshot: AuditSnapshot,
+  rows: LeafRow[],
+  notes: Map<string, LeafNoteMatch[]>,
+  includeRoot = false
+): Generator<void, LeafTreeNode[]> {
   const nodes = new Map<string, LeafTreeNode>();
   const rootId = normalizePathForIdentity(snapshot.externalRoot);
   function ensure(folderPath: string): LeafTreeNode {
@@ -73,6 +78,8 @@ export function* buildLeafTreeSteps(snapshot: AuditSnapshot, rows: LeafRow[], no
         node.parent = null;
       }
       result.push(node);
+    } else if (includeRoot) {
+      result.push(node);
     }
     yield;
   }
@@ -120,7 +127,8 @@ function* attachEvidence(snapshot: AuditSnapshot, nodes: Map<string, LeafTreeNod
     node ??= nodes.get(normalizePathForIdentity(path.dirname(issue.location)));
     if (node) {
       node.issues.push(`${issue.location} — ${issue.reason}`);
-      node.unchecked ||= issue.unchecked;
+      // Marker identity failure does not invalidate directory enumeration.
+      node.unchecked ||= issue.unchecked && issue.kind !== 'marker' && issue.kind !== 'note';
     }
     yield;
   }

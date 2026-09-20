@@ -3,16 +3,15 @@ import {
   expect,
   it
 } from 'vitest';
-import { runObsidianCli } from '../../scripts/obsidian-cli.ts';
-import { getCurrentSandboxPaths } from '../../scripts/sandbox-paths.ts';
 import {
   closeSandboxModals,
   formatCliResult,
-  readSandboxPluginId
+  readSandboxPluginId,
+  runSandboxEval
 } from './obsidianCliHarness.ts';
 
 function evaluate(code: string): string {
-  const result = runObsidianCli(['eval', `code=${code}`], getCurrentSandboxPaths().vaultPath, 30_000);
+  const result = runSandboxEval(code);
   expect(result.status, formatCliResult(result)).toBe(0);
   return result.stdout;
 }

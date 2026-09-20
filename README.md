@@ -394,12 +394,44 @@ matches folder paths and exact/UUID-associated notes. Same-name candidates appea
 separately in details and are never treated as proof of a binding.
 
 Every row shows `exact` (plugin-derived note path), `yaml` (valid associated note
-identity), and `marker` (contains .exnf marker) tags. Grey means absent; warnings
-mean invalid or unchecked. The separate status distinguishes matching bindings,
+identity), and `marker` (contains .exnf marker) tags. The indicators use `✓` for
+found, `–` for absent, `?` for unchecked, and `⚠` for invalid evidence.
+Tooltips explain each state, and **Evidence and note matches** repeats those
+explanations in the selected-folder panel. The separate status distinguishes matching bindings,
 path drift, adoption candidates, orphan markers, conflicts, and uncertainty.
 Three active tags do not prove that UUIDs match. Ancestor markers are shown
 separately; a child does not itself contain its ancestor's marker. Missing YAML
 is labeled **YAML exnf not found**, or **No associated note** when no note exists.
+
+Local markers make folder names prominent. The subtle `↑` indicator means a
+marker exists higher in the path; it does not activate the child's local marker
+tag. Details name the nearest marked ancestor, its distance, marker certainty,
+and associated note. **Select marked ancestor** temporarily reveals and focuses
+that ancestor without changing filters or counts. **Back to selected folder**
+restores the prior selection, expansion, and scroll position. Sorting and a
+cancelled/failed refresh preserve this inspection; selecting another folder,
+changing filters, or a completed refresh ends it. Root markers are inspected
+through **Inspect external root**, without adding a folder row or adoption target.
+
+Search and Refresh stay visible. **View** contains sorting and display filters;
+**Export** contains downloads. Escape closes either disclosure and returns focus.
+Active filters are summarized beside **Clear filters**. Display choices last only
+for the current tab; reopening starts with all folders and natural name sorting.
+**Scan details** lists exclusions, skipped links, and read failures in pages.
+
+Exact-path evidence uses discovered vault paths independently of external scan
+gaps. An unreadable note still has a usable path, but its YAML identity is
+unchecked. An unreadable marker does not make inspected child directories
+unreadable or remove their known leaf counts. Identity uniqueness remains
+provisional when scan gaps could conceal duplicate UUIDs.
+
+The details panel leads with the relationship and available actions. Adoption
+stays visible but disabled for known restrictions, naming local, ancestor, or
+descendant markers and excluded, linked, or unreadable paths. Pending operations
+offer recovery; stale results offer Refresh. **Choose a note to check adoption**
+means no blocker is established by the snapshot; the adoption preview and fresh
+execution checks remain authoritative. Same-name suggestions and technical
+evidence stay collapsed and separate from confirmed associations.
 
 **Include expected paths from identified notes** adds virtual expected paths.
 These are informational: they cannot be adopted or opened as existing folders.
@@ -417,7 +449,9 @@ uniqueness and absence provisional. Standalone audits continue to scan fully.
 
 **Export filtered status** and **Export all status** write `filtered-folder-status.csv`
 and `folder-status.csv`, including evidence, confidence, note paths, and explanations.
-Filtered exports include collapsed branches. All-status exports include virtual
+Filtered exports include matching folders in collapsed branches, but exclude
+contextual tree ancestors and temporary navigation reveals. Displayed-folder
+counts likewise count actual filter matches. All-status exports include virtual
 expected paths. Existing audit CSVs and unmarked-leaf exports retain their meanings.
 
 For a unique drifted binding, selected-folder details offer **Move external folder

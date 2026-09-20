@@ -4,6 +4,7 @@ import type {
 } from '../core/leafTree.ts';
 
 import { runAuditSteps } from '../auditScheduler.ts';
+import { evidenceExplanation } from '../core/folderInspection.ts';
 import { TREE_PAGE_SIZE } from '../core/leafTree.ts';
 
 const ROW_HEIGHT = 36;
@@ -11,6 +12,14 @@ const WINDOW_ROWS = 60;
 const OVERSCAN_ROWS = 5;
 const BASE_PADDING = 12;
 const LEVEL_INDENT = 18;
+export interface TreeNavigation {
+  expanded: Set<string>;
+  focused: string | undefined;
+  limits: Map<null | string, number>;
+  normalExpansion: Set<string> | undefined;
+  scrollTop: number;
+  selection: string | undefined;
+}
 interface TreeEntry {
   id: string;
   level: number;
@@ -22,11 +31,14 @@ interface TreeEntry {
 /** A flat, windowed DOM keeps broad searches bounded while preserving the physical hierarchy. */
 export function mountLeafTree(
   container: HTMLElement,
-  selected: (node: LeafTreeNode | undefined, hidden: boolean) => void,
+  selected: (node: LeafTreeNode | undefined, hidden: boolean, userInitiated: boolean) => void,
   badges: (node: LeafTreeNode) => string
 ): {
+  capture: () => TreeNavigation;
   dispose: () => void;
   redraw: () => Promise<void>;
+  restore: (navigation: TreeNavigation) => Promise<void>;
+  select: (id: string) => Promise<void>;
   update: (result: TreeResult, search: string, reset?: boolean) => Promise<void>;
 } {
   const doc = container.ownerDocument;
@@ -49,9 +61,11 @@ export function mountLeafTree(
   let positions = new Map<string, number>();
   let abort: AbortController | undefined;
   let disposed = false;
+  let userSelection = false;
   const elements = new Map<string, HTMLElement>();
   function notify(): void {
-    selected(selection ? result?.nodes.get(selection) : undefined, !!selection && !result?.visible.has(selection));
+    selected(selection ? result?.nodes.get(selection) : undefined, !!selection && !result?.visible.has(selection), userSelection);
+    userSelection = false;
   }
   function reveal(id: string): void {
     let node = result?.nodes.get(id);
@@ -85,6 +99,9 @@ export function mountLeafTree(
     if (badges(node).includes('Binding changed this session')) {
       return 'adopted';
     }
+    if (node.markers.length) {
+      return 'marker';
+    }
     return node.notes.length ? 'note' : 'neutral';
   }
   function run(operation: Promise<void>): void {
@@ -97,7 +114,7 @@ export function mountLeafTree(
     const leaves = count === node.total ? count.toLocaleString() : `${count.toLocaleString()}/${node.total.toLocaleString()}`;
     const branch = node.children.length > 0;
     const hidden = branch && !result?.children.get(node.id)?.length ? ' · children hidden' : '';
-    return `${glyph(node)} ${node.segments.at(-1) ?? node.relativePath} · ${leaves} leaves${hidden}${badges(node)}`;
+    return `${glyph(node)} ${node.segments.at(-1) ?? node.relativePath} · ${leaves} ${node.total === 1 ? 'leaf' : 'leaves'}${hidden}${badges(node)}`;
   }
   function renderWindow(): void {
     if (disposed) {
@@ -137,6 +154,14 @@ export function mountLeafTree(
       rowLabel.className = 'leaf-tree-label';
       rowLabel.textContent = node ? label(node) : 'Show next 100…';
       item.append(rowLabel);
+      if (node?.covered) {
+        const inherited = doc.createElement('span');
+        inherited.className = 'leaf-inherited';
+        inherited.textContent = '↑';
+        inherited.title = 'Marker in an ancestor folder. Select this folder to inspect the relationship.';
+        inherited.setAttribute('aria-label', inherited.title);
+        item.append(inherited);
+      }
       renderEvidence(item, node);
       item.title = node ? `${node.relativePath} — ${node.evidence?.status ?? ''}` : 'Show more siblings';
       item.dataset['tone'] = tone(node);
@@ -160,9 +185,10 @@ export function mountLeafTree(
         const badge = doc.createElement('span');
         const state = node.evidence[tag];
         badge.className = `leaf-evidence leaf-evidence-${state}`;
-        badge.textContent = ` ${tag}${state === 'invalid' || state === 'unchecked' ? ' ⚠' : ''}`;
-        badge.title = `${tag}: ${state}`;
-        badge.setAttribute('aria-label', `${tag}: ${state}`);
+        const symbols = { absent: '–', invalid: '⚠', present: '✓', unchecked: '?' };
+        badge.textContent = `${tag} ${symbols[state]}`;
+        badge.title = evidenceExplanation(node, tag);
+        badge.setAttribute('aria-label', `${tag}: ${badge.title}`);
         item.append(badge);
       }
     }
@@ -291,6 +317,7 @@ export function mountLeafTree(
       focused = result?.children.get(entry.parent)?.[limit];
       limits.set(entry.parent, limit + TREE_PAGE_SIZE);
     } else {
+      userSelection = true;
       selection = entry.id;
       focused = entry.id;
       if (toggle && result?.nodes.get(entry.id)?.children.length) {
@@ -354,6 +381,16 @@ export function mountLeafTree(
   tree.addEventListener('click', clicked);
   tree.addEventListener('keydown', keyed);
   return {
+    capture(): TreeNavigation {
+      return {
+        expanded: new Set(expanded),
+        focused,
+        limits: new Map(limits),
+        normalExpansion: normalExpansion ? new Set(normalExpansion) : undefined,
+        scrollTop: tree.scrollTop,
+        selection
+      };
+    },
     dispose(): void {
       disposed = true;
       abort?.abort();
@@ -363,6 +400,35 @@ export function mountLeafTree(
       tree.remove();
     },
     redraw,
+    async restore(navigation): Promise<void> {
+      expanded = new Set(navigation.expanded);
+      normalExpansion = navigation.normalExpansion ? new Set(navigation.normalExpansion) : undefined;
+      focused = navigation.focused;
+      selection = navigation.selection;
+      limits.clear();
+      for (const [key, value] of navigation.limits) {
+        limits.set(key, value);
+      }
+      await redraw(false);
+      tree.scrollTop = navigation.scrollTop;
+      renderWindow();
+      const position = focused ? positions.get(focused) : undefined;
+      if (position !== undefined && position * ROW_HEIGHT >= tree.scrollTop && (position + 1) * ROW_HEIGHT <= tree.scrollTop + tree.clientHeight) {
+        restoreFocus();
+      } else {
+        tree.focus({ preventScroll: true });
+      }
+    },
+    async select(id): Promise<void> {
+      if (!result?.nodes.has(id)) {
+        return;
+      }
+      selection = id;
+      focused = id;
+      reveal(id);
+      await redraw(false);
+      restoreFocus();
+    },
     async update(next, search, reset = false): Promise<void> {
       const previous = result;
       const restoreExpansion = !search.trim() && normalExpansion !== undefined;

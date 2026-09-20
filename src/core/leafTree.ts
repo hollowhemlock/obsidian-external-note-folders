@@ -17,6 +17,7 @@ export interface LeafTreeNode extends LeafRow {
   descendantIssues: number;
   evidence?: import('./folderStatusTypes.ts').FolderEvidence;
   id: string;
+  inspection?: import('./folderInspection.ts').FolderInspection;
   issues: string[];
   kind: 'directory' | 'excluded' | 'link' | 'virtual';
   markers: string[];
@@ -37,6 +38,7 @@ export interface TreeResult {
   children: Map<null | string, string[]>;
   counts: Map<string, number>;
   hiddenCount: number;
+  matched: Set<string>;
   nodes: Map<string, LeafTreeNode>;
   rows: LeafRow[];
   visible: Set<string>;
@@ -128,6 +130,7 @@ export function* queryTreeSteps(model: LeafReportModel, query: TreeQuery): Gener
   const ordered = yield* sortAuditSteps(tree, (a, b) => a.segments.length - b.segments.length);
   const search = query.search.trim().replaceAll('\\', '/').toLowerCase();
   const matches = new Set<string>();
+  const matchedNodes = new Set<string>();
   const visible = new Set<string>();
   const counts = new Map<string, number>();
   const rows: LeafRow[] = [];
@@ -157,6 +160,7 @@ export function* queryTreeSteps(model: LeafReportModel, query: TreeQuery): Gener
         counts.set(node.id, 1);
       }
       if (leaf || query.mode === 'all') {
+        matchedNodes.add(node.id);
         visible.add(node.id);
       }
     }
@@ -175,7 +179,7 @@ export function* queryTreeSteps(model: LeafReportModel, query: TreeQuery): Gener
     }
     yield;
   }
-  return { children, counts, hiddenCount, nodes, rows, visible };
+  return { children, counts, hiddenCount, matched: matchedNodes, nodes, rows, visible };
 }
 export function retainAvailableTreeStatus(status: string | undefined, available: readonly string[]): string {
   return status && available.includes(status) ? status : '';

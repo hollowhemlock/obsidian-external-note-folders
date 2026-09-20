@@ -9,6 +9,8 @@ import type { EvidenceState } from './folderStatusTypes.ts';
 import type { LeafNoteMatch } from './leafQuery.ts';
 import type { LeafTreeNode } from './leafTree.ts';
 
+import { evidenceExplanation } from './folderInspection.ts';
+import { auditIssueScope } from './folderInspectionBuild.ts';
 import { classifyLeafSegments } from './leafQuery.ts';
 import {
   deriveExternalFolderPath,
@@ -25,6 +27,10 @@ export function* folderStatusSteps(scan: AuditSnapshot, tree: LeafTreeNode[]): G
   const foldersByUuid = new Map<string, string[]>();
   const expected = new Map<string, string>();
   const complete = !scan.issues.some((issue) => issue.unchecked);
+  const pathsComplete = !scan.issues.some((issue) =>
+    issue.unchecked && issue.kind !== 'note'
+    && auditIssueScope(scan, issue) === 'vault'
+  );
   const root = identity(scan.externalRoot);
   const rootUnchecked = scan.external.accessErrors.length > 0;
   const rootMarked = scan.markers.some((marker) => identity(marker.folderPath) === root);
@@ -161,7 +167,7 @@ export function* folderStatusSteps(scan: AuditSnapshot, tree: LeafTreeNode[]): G
       if (node.kind === 'virtual') {
         status = relatedFolders.length ? 'Expected path differs; bound elsewhere' : 'Not present in scanned root';
       }
-      if (node.unchecked || notes.some((note) => note.status === 'unchecked-frontmatter')) {
+      if (node.unchecked || uncheckedMarker || notes.some((note) => note.status === 'unchecked-frontmatter')) {
         status = 'Unchecked';
       }
       if (invalid) {
@@ -201,9 +207,8 @@ export function* folderStatusSteps(scan: AuditSnapshot, tree: LeafTreeNode[]): G
     node.evidence = {
       candidates,
       confidence: complete ? 'checked' : 'provisional',
-      exact: presence(exact.length > 0, complete),
+      exact: presence(exact.length > 0, pathsComplete),
       explanations: [
-        yamlExplanation(notes.length, valid.length),
         ...nestedBindingExplanations(nestedBinding),
         ...node.issues,
         ...(complete ? [] : ['Incomplete coverage: uniqueness and absence are provisional.'])
@@ -217,6 +222,7 @@ export function* folderStatusSteps(scan: AuditSnapshot, tree: LeafTreeNode[]): G
         ? { bindingNote: binding.relativePath, expectedFolder: expected.get(binding.relativePath) ?? '', uuid: binding.uuid }
         : {})
     };
+    node.evidence.explanations.unshift(...(['exact', 'yaml', 'marker'] as const).map((tag) => `${tag}: ${evidenceExplanation(node, tag)}`));
     node.total = physicalLeaf ? 1 : 0;
     node.descendantIssues = 0;
   }
@@ -226,7 +232,7 @@ export function* folderStatusSteps(scan: AuditSnapshot, tree: LeafTreeNode[]): G
   }
   const ordered = [...tree].sort((a, b) => b.segments.length - a.segments.length);
   for (const node of ordered) {
-    const parent = node.parent ? nodes.get(node.parent) : undefined;
+    const parent = node.id === root ? undefined : nodes.get(node.parent ?? root);
     if (parent) {
       parent.total += node.total;
       parent.descendantIssues += node.descendantIssues + Number(node.issues.length > 0 || node.conflict);
@@ -253,10 +259,4 @@ function presence(found: boolean, checked: boolean): EvidenceState {
     return 'present';
   }
   return checked ? 'absent' : 'unchecked';
-}
-function yamlExplanation(notes: number, valid: number): string {
-  if (!notes) {
-    return 'No associated note';
-  }
-  return valid ? 'Note identity present' : 'YAML exnf not found';
 }

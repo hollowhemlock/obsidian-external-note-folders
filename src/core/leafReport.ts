@@ -12,6 +12,7 @@ import {
   finishAuditSteps,
   sortAuditSteps
 } from './auditSteps.ts';
+import { folderInspectionSteps } from './folderInspectionBuild.ts';
 import { folderStatusSteps } from './folderStatus.ts';
 import { unmarkedLeafSteps } from './leafAnalysis.ts';
 import { classifyLeafSegments } from './leafQuery.ts';
@@ -59,13 +60,19 @@ export function* buildLeafReportSteps(snapshot: AuditSnapshot): Generator<void, 
     yield;
   }
   const sorted = yield* sortAuditSteps(rows, (a, b) => Number(b.notes.length > 0) - Number(a.notes.length > 0) || a.relativePath.localeCompare(b.relativePath));
-  const tree = yield* buildLeafTreeSteps(snapshot, sorted, notesByTarget);
-  yield* folderStatusSteps(snapshot, tree);
+  const allNodes = yield* buildLeafTreeSteps(snapshot, sorted, notesByTarget, true);
+  const rootFolder = allNodes.find((node) => node.folderPath === snapshot.externalRoot);
+  yield* folderStatusSteps(snapshot, allNodes);
+  // Status analysis may add virtual expected paths.
+  const tree = allNodes.filter((node) => node !== rootFolder);
+  const coverage = yield* folderInspectionSteps(snapshot, allNodes, rootFolder);
   return {
+    coverage,
     externalRoot: snapshot.externalRoot,
     finishedAt: snapshot.finishedAt,
     mutationWarning: false,
     rows: sorted,
+    ...(rootFolder ? { rootFolder } : {}),
     startedAt: snapshot.startedAt,
     tree,
     uncheckedCount: snapshot.issues.filter((issue) => issue.unchecked).length,

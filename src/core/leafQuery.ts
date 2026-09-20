@@ -30,9 +30,11 @@ export interface LeafQueryResult {
   total: number;
 }
 export interface LeafReportModel {
+  coverage?: import('./folderInspection.ts').ReportCoverage;
   externalRoot: string;
   finishedAt: string;
   mutationWarning: boolean;
+  rootFolder?: LeafTreeNode;
   rows: LeafRow[];
   stale?: boolean;
   startedAt: string;

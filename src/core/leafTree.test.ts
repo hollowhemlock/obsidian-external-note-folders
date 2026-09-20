@@ -112,7 +112,7 @@ describe('filesystem report tree', () => {
     expect(finishAuditSteps(descendantIssueSteps(filtered, parent?.id ?? '')).map((node) => node.kind)).toEqual(['link']);
 
     expect(model.tree?.find((node) => node.relativePath === path.join('Project', 'a'))?.blocked).toBe(false);
-    expect(model.tree?.find((node) => node.relativePath === 'Other')?.unchecked).toBe(true);
+    expect(model.tree?.find((node) => node.relativePath === 'Other')?.unchecked).toBe(false);
   });
   it('inherits root markers without making the root a selectable node', () => {
     const scan = fixture(['child']);

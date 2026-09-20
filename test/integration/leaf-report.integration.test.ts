@@ -12,8 +12,6 @@ import {
   it
 } from 'vitest';
 
-import { runObsidianCli } from '../../scripts/obsidian-cli.ts';
-import { getCurrentSandboxPaths } from '../../scripts/sandbox-paths.ts';
 import { buildLeafReport } from '../../src/core/leafReport.ts';
 import { auditFixture } from '../support/auditFixture.ts';
 import {
@@ -22,6 +20,7 @@ import {
   readSandboxPluginId,
   resolveRepoPath,
   runSandboxCli,
+  runSandboxEval,
   waitForPluginCommands,
   waitForSandboxModalText,
   writeSandboxReport
@@ -32,7 +31,7 @@ const EXPORT_SELECTOR = '.modal:has(.external-note-folders-audit-destination)';
 const REPORT_SELECTOR = '.workspace-leaf-content[data-type="external-note-folders-leaf-report"]';
 
 function evaluate(code: string): string {
-  const result = runObsidianCli(['eval', `code=${code}`], getCurrentSandboxPaths().vaultPath, 30_000);
+  const result = runSandboxEval(code);
 
   expect(result.status, formatCliResult(result)).toBe(0);
 
@@ -194,6 +193,69 @@ describe('shared leaf report integration', () => {
     }
   }, 60_000);
 
+  it('reveals marked ancestors without changing filters, restores Back, and supports disclosure controls', async () => {
+    const pluginId = await readSandboxPluginId();
+    runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
+    await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR);
+    const fixture = auditFixture();
+    fixture.folders = ['Project', 'Project/child', 'Other'].map((name) => path.join(fixture.externalRoot, name));
+    const folderPath = path.join(fixture.externalRoot, 'Project');
+    const uuid = '11111111-1111-4111-8111-111111111111';
+    fixture.markers.push({ folderPath, format: 'uuid-named', markerPath: path.join(folderPath, `${uuid}.exnf`), status: 'valid', uuid });
+    fixture.notes.push({ hasExnf: true, notePath: path.join(fixture.vaultRoot, 'Project.md'), relativePath: 'Project.md', status: 'valid', uuid, value: uuid });
+    const modelPath = resolveRepoPath('tmp/leaf-tree-navigation-model.json');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(modelPath, JSON.stringify(buildLeafReport(fixture)));
+    const result = evaluate(`(async()=>{
+      const v=app.workspace.getLeavesOfType('${VIEW_TYPE}')[0].view;
+      const model=JSON.parse(require('fs').readFileSync(${JSON.stringify(modelPath)},'utf8'));
+      await v.report.update(model);
+      const el=v.contentEl;
+      const tree=el.querySelector('.leaf-tree');
+      const details=()=>el.querySelector('.leaf-details');
+      const wait=async()=>{await new Promise(r=>setTimeout(r,60));for(let i=0;i<100 && el.querySelector('.exnf-leaf-report').getAttribute('aria-busy')==='true';i++)await new Promise(r=>setTimeout(r,20));};
+      const button=(text,scope=el)=>Array.from(scope.querySelectorAll('button')).find(b=>b.textContent===text);
+      const row=(name)=>Array.from(tree.querySelectorAll('.leaf-tree-item')).find(r=>r.title.startsWith(name+' —'));
+      row('Project').click();await wait();
+      row('Project'+String.fromCharCode(92)+'child').click();await wait();
+      const relationship=details().textContent.includes('bound to Project.md') && details().textContent.includes('1 level above') && button('Adopt this folder…',details()).disabled;
+      const search=el.querySelector('input[type=search]');
+      search.value='Other';search.dispatchEvent(new Event('input'));await wait();
+      const stats=el.querySelector('.leaf-stats').textContent;
+      const scroll=tree.scrollTop;
+      button('Select marked ancestor',details()).click();await wait();
+      const revealed=!!row('Project') && details().querySelector('h2').textContent==='Project' && document.activeElement===row('Project') && el.querySelector('.leaf-stats').textContent===stats;
+      const sort=el.querySelector('[aria-label="Sort siblings"]');sort.value='count';sort.dispatchEvent(new Event('change'));await wait();
+      const sorted=!!button('Back to selected folder',details());
+      const abort=new AbortController();abort.abort();try{await v.report.update(model,abort.signal)}catch{}
+      const cancelled=!!button('Back to selected folder',details());
+      button('Back to selected folder',details()).click();await wait();
+      const back=details().querySelector('h2').textContent.endsWith('child') && details().textContent.includes('hidden by the current filters') && !row('Project') && tree.scrollTop===scroll;
+      button('Inspect external root').click();await wait();
+      const root=details().querySelector('h2').textContent==='External root' && !button('Adopt this folder…',details()) && el.querySelector('.leaf-stats').textContent===stats;
+      button('Back to selected folder',details()).click();await wait();
+      button('Select marked ancestor',details()).click();await wait();
+      row('Other').click();await wait();
+      const selectionEnds=!button('Back to selected folder',details()) && !row('Project');
+      button('Inspect external root').click();await wait();
+      search.value='';search.dispatchEvent(new Event('input'));await wait();
+      const filterEnds=!button('Back to selected folder',details());
+      button('Inspect external root').click();await wait();
+      await v.report.update(model);
+      const refreshEnds=!button('Back to selected folder',details());
+      const menu=Array.from(el.querySelectorAll('.leaf-toolbar>details')).find(d=>d.querySelector('summary').textContent==='View');
+      menu.querySelector('summary').click();menu.querySelector('select').focus();
+      menu.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+      const escape=!menu.open && document.activeElement===menu.querySelector('summary');
+      menu.querySelector('summary').click();search.click();
+      const outside=!menu.open;
+      return JSON.stringify({relationship,revealed,sorted,cancelled,back,root,selectionEnds,filterEnds,refreshEnds,escape,outside});
+    })()`);
+    for (const key of ['relationship', 'revealed', 'sorted', 'cancelled', 'back', 'root', 'selectionEnds', 'filterEnds', 'refreshEnds', 'escape', 'outside']) {
+      expect(result).toContain(`"${key}":true`);
+    }
+  }, 60_000);
+
   it('renders a windowed tree and filters broad searches across 20,000 leaves', async () => {
     const pluginId = await readSandboxPluginId();
 
@@ -257,7 +319,7 @@ describe('shared leaf report integration', () => {
       })()`
     );
     expect(rendered).toContain('20100 displayed folders');
-    expect(rendered).toContain('2 displayed folders');
+    expect(rendered).toContain('1 displayed folders');
     expect(rendered).toContain('"selected":true');
     expect(rendered).toContain('"hiddenSelection":true');
     const domRows = /"domRows":(?<count>\d+)/u.exec(rendered)?.groups?.['count'];
