@@ -5,6 +5,7 @@ export interface FolderEvidence {
   bindingNote?: string;
   candidates: LeafNoteMatch[];
   confidence: 'checked' | 'provisional';
+  descendants?: { boundFolders: number; markedFolders: number };
   exact: EvidenceState;
   expectedFolder?: string;
   explanations: string[];

@@ -108,6 +108,22 @@ export function createInspectionIndex(model: LeafReportModel): InspectionIndex {
   };
 }
 
+export function descendantMarkerExplanation(node: LeafTreeNode): string {
+  const counts = node.evidence?.descendants;
+  if (!counts?.markedFolders) {
+    return '';
+  }
+  const marked = `${String(counts.markedFolders)} marked ${counts.markedFolders === 1 ? 'subfolder' : 'subfolders'}`;
+  const bound = counts.boundFolders
+    ? `, including ${String(counts.boundFolders)} confirmed ${counts.boundFolders === 1 ? 'binding' : 'bindings'}`
+    : '; no descendant binding is confirmed by this scan';
+  const restriction = counts.boundFolders
+    ? 'Adopting this parent would create a nested binding.'
+    : 'Descendant marker evidence blocks parent adoption, even when those bindings are unconfirmed.';
+  return `This folder contains ${marked}${bound}. It cannot be adopted as a whole. ${restriction} `
+    + 'It can remain an ordinary container. Inspect the marked subfolders; descendant markers do not activate this folder’s local marker tag.';
+}
+
 export function evidenceExplanation(node: LeafTreeNode, tag: 'exact' | 'marker' | 'yaml'): string {
   const state = node.evidence?.[tag] ?? 'unchecked';
   if (tag === 'exact') {

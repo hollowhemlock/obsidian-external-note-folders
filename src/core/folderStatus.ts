@@ -9,7 +9,10 @@ import type { EvidenceState } from './folderStatusTypes.ts';
 import type { LeafNoteMatch } from './leafQuery.ts';
 import type { LeafTreeNode } from './leafTree.ts';
 
-import { evidenceExplanation } from './folderInspection.ts';
+import {
+  descendantMarkerExplanation,
+  evidenceExplanation
+} from './folderInspection.ts';
 import { auditIssueScope } from './folderInspectionBuild.ts';
 import { classifyLeafSegments } from './leafQuery.ts';
 import {
@@ -236,6 +239,31 @@ export function* folderStatusSteps(scan: AuditSnapshot, tree: LeafTreeNode[]): G
     if (parent) {
       parent.total += node.total;
       parent.descendantIssues += node.descendantIssues + Number(node.issues.length > 0 || node.conflict);
+    }
+    yield;
+  }
+  yield* classifyContainers(ordered, nodes, root);
+}
+
+/** Bottom-up counts describe descendants without copying their records onto every ancestor. */
+function* classifyContainers(ordered: LeafTreeNode[], nodes: Map<string, LeafTreeNode>, root: string): Generator<void, void> {
+  const counts = new Map<string, { boundFolders: number; markedFolders: number }>();
+  for (const node of ordered) {
+    const descendants = counts.get(node.id) ?? { boundFolders: 0, markedFolders: 0 };
+    const evidence = node.evidence;
+    if (evidence && descendants.markedFolders > 0) {
+      evidence.descendants = { ...descendants };
+      evidence.explanations.push(descendantMarkerExplanation(node));
+      if (['Possible adoption candidate', 'Possible name matches', 'Unassigned folder'].includes(evidence.status)) {
+        evidence.status = descendants.boundFolders > 0 ? 'Contains bound subfolders' : 'Contains descendant markers';
+      }
+    }
+    const parent = node.id === root ? undefined : nodes.get(node.parent ?? root);
+    if (parent) {
+      const aggregate = counts.get(parent.id) ?? { boundFolders: 0, markedFolders: 0 };
+      aggregate.markedFolders += descendants.markedFolders + Number(node.markers.length > 0);
+      aggregate.boundFolders += descendants.boundFolders + Number(!!evidence?.bindingNote && evidence.confidence === 'checked');
+      counts.set(parent.id, aggregate);
     }
     yield;
   }

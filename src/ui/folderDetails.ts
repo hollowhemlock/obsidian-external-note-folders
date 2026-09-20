@@ -4,15 +4,22 @@ import type {
   LeafReportModel
 } from '../core/leafQuery.ts';
 import type { LeafTreeNode } from '../core/leafTree.ts';
+import type { FolderChange } from './folderAttention.ts';
 import type { LeafReportHost } from './leafReportView.ts';
 
 import { runAuditSteps } from '../auditScheduler.ts';
 import {
   adoptionBlockerSteps,
+  descendantMarkerExplanation,
   evidenceExplanation,
   markedAncestors,
   shortFolderStatus
 } from '../core/folderInspection.ts';
+import {
+  ATTENTION_LABELS,
+  detailExplanations,
+  folderAttention
+} from './folderAttention.ts';
 import {
   reportAction,
   reportDisclosure,
@@ -52,6 +59,13 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
   const isRoot = node.id === index.rootId;
   reportElement(parent, 'h2', isRoot ? 'External root' : node.relativePath);
   reportElement(parent, 'p', shortFolderStatus(node), 'leaf-tags');
+  let change: FolderChange;
+  if (options.overlay) {
+    change = options.overlay[1] === null ? 'pending' : 'changed';
+  }
+  const attention = folderAttention(node, change);
+  const attentionLabel = reportElement(parent, 'p', ATTENTION_LABELS[attention], 'leaf-attention');
+  attentionLabel.dataset['tone'] = attention;
   reportElement(parent, 'p', statusDescription(node));
   const navigation = reportElement(parent, 'div', '', 'leaf-toolbar');
   button(navigation, 'Copy path', () => host.copy(node.folderPath));
@@ -60,9 +74,10 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
   }
   renderRelationship();
   renderActions();
-  const evidence = reportDisclosure(parent, 'Evidence and note matches');
-  for (const tag of ['exact', 'yaml', 'marker'] as const) {
-    reportElement(evidence, 'p', `${tag}: ${evidenceExplanation(node, tag)}`);
+  const evidence = reportDisclosure(parent, `Associated notes (${String(node.notes.length)})`);
+  evidence.open = true;
+  if (!node.notes.length) {
+    reportElement(evidence, 'p', 'No note is associated by expected path or UUID.');
   }
   paged(evidence, node.notes, (note) => {
     renderNote(evidence, note, `${note.association ?? 'Associated'} note`);
@@ -70,12 +85,14 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
   const candidates = node.evidence?.candidates ?? [];
   if (candidates.length) {
     const suggestions = reportDisclosure(parent, `Other notes with this name (${String(candidates.length)})`);
+    suggestions.open = true;
     reportElement(suggestions, 'p', 'Name matches only — a matching name does not establish a binding.');
     paged(suggestions, candidates, (note) => {
       renderNote(suggestions, note, 'Same-name candidate');
     });
   }
   const technical = reportDisclosure(parent, 'Technical and scan details');
+  technical.open = true;
   reportElement(technical, 'p', node.folderPath, 'leaf-context');
   reportElement(technical, 'p', `${String(node.total)} known physical leaves in this branch.`, 'leaf-context');
   const markerList = reportElement(technical, 'div');
@@ -83,7 +100,7 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
     reportElement(markerList, 'p', `${marker.markerPath}\n${marker.format} · ${marker.status}\nUUID: ${marker.uuid || 'Unknown'}`, 'leaf-context');
   });
   const explanations = reportElement(technical, 'div');
-  paged(explanations, node.evidence?.explanations ?? node.issues, (text) => {
+  paged(explanations, detailExplanations(node), (text) => {
     reportElement(explanations, 'p', text, 'leaf-context');
   });
   if (node.evidence?.confidence === 'provisional') {
@@ -121,6 +138,7 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
       const others = [...ancestors];
       if (others.length) {
         const section = reportDisclosure(parent, `Other marked ancestors (${String(others.length)}) — overlapping marker evidence`);
+        section.open = true;
         paged(section, others, (ancestor) => {
           renderAncestor(section, ancestor);
         });
@@ -238,6 +256,9 @@ function noteIdentityLabel(status: string): string {
 }
 
 function statusDescription(node: LeafTreeNode): string {
+  if (node.evidence?.status === 'Contains bound subfolders' || node.evidence?.status === 'Contains descendant markers') {
+    return descendantMarkerExplanation(node);
+  }
   if (node.evidence?.status.startsWith('Bound at ') && node.evidence.confidence === 'provisional') {
     return 'The note and marker UUIDs match. Scan gaps prevent proving that this binding is unique; see scan details.';
   }

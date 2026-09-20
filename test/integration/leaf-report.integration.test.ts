@@ -219,6 +219,11 @@ describe('shared leaf report integration', () => {
       row('Project').click();await wait();
       row('Project'+String.fromCharCode(92)+'child').click();await wait();
       const relationship=details().textContent.includes('bound to Project.md') && details().textContent.includes('1 level above') && button('Adopt this folder…',details()).disabled;
+      const expandedDetails=Array.from(details().querySelectorAll('details')).every(d=>d.open);
+      const definitionsRemoved=!Array.from(details().querySelectorAll('p')).some(p=>/^(exact|yaml|marker): /.test(p.textContent));
+      const boundStyle=getComputedStyle(row('Project'));
+      const leftAttention=boundStyle.borderLeftWidth==='4px' && boundStyle.borderRightWidth==='0px' && row('Project').dataset.tone==='healthy';
+      const neutralChild=row('Project'+String.fromCharCode(92)+'child').dataset.tone==='neutral';
       const search=el.querySelector('input[type=search]');
       search.value='Other';search.dispatchEvent(new Event('input'));await wait();
       const stats=el.querySelector('.leaf-stats').textContent;
@@ -249,9 +254,27 @@ describe('shared leaf report integration', () => {
       const escape=!menu.open && document.activeElement===menu.querySelector('summary');
       menu.querySelector('summary').click();search.click();
       const outside=!menu.open;
-      return JSON.stringify({relationship,revealed,sorted,cancelled,back,root,selectionEnds,filterEnds,refreshEnds,escape,outside});
+      return JSON.stringify({relationship,revealed,sorted,cancelled,back,root,selectionEnds,filterEnds,refreshEnds,escape,outside,expandedDetails,definitionsRemoved,leftAttention,neutralChild});
     })()`);
-    for (const key of ['relationship', 'revealed', 'sorted', 'cancelled', 'back', 'root', 'selectionEnds', 'filterEnds', 'refreshEnds', 'escape', 'outside']) {
+    for (
+      const key of [
+        'relationship',
+        'revealed',
+        'sorted',
+        'cancelled',
+        'back',
+        'root',
+        'selectionEnds',
+        'filterEnds',
+        'refreshEnds',
+        'escape',
+        'outside',
+        'expandedDetails',
+        'definitionsRemoved',
+        'leftAttention',
+        'neutralChild'
+      ]
+    ) {
       expect(result).toContain(`"${key}":true`);
     }
   }, 60_000);

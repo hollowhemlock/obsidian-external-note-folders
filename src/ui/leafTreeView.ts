@@ -2,10 +2,18 @@ import type {
   LeafTreeNode,
   TreeResult
 } from '../core/leafTree.ts';
+import type { FolderChange } from './folderAttention.ts';
 
 import { runAuditSteps } from '../auditScheduler.ts';
-import { evidenceExplanation } from '../core/folderInspection.ts';
+import {
+  descendantMarkerExplanation,
+  evidenceExplanation
+} from '../core/folderInspection.ts';
 import { TREE_PAGE_SIZE } from '../core/leafTree.ts';
+import {
+  ATTENTION_LABELS,
+  folderAttention
+} from './folderAttention.ts';
 
 const ROW_HEIGHT = 36;
 const WINDOW_ROWS = 60;
@@ -32,7 +40,8 @@ interface TreeEntry {
 export function mountLeafTree(
   container: HTMLElement,
   selected: (node: LeafTreeNode | undefined, hidden: boolean, userInitiated: boolean) => void,
-  badges: (node: LeafTreeNode) => string
+  badges: (node: LeafTreeNode) => string,
+  change: (node: LeafTreeNode) => FolderChange
 ): {
   capture: () => TreeNavigation;
   dispose: () => void;
@@ -85,24 +94,6 @@ export function mountLeafTree(
       return expanded.has(node.id) ? '▾' : '▸';
     }
     return node.kind === 'link' ? '↗' : '•';
-  }
-  function tone(node: LeafTreeNode | undefined): string {
-    if (!node) {
-      return 'neutral';
-    }
-    if (node.conflict) {
-      return 'conflict';
-    }
-    if (node.unchecked || badges(node).includes('Pending recovery')) {
-      return 'unchecked';
-    }
-    if (badges(node).includes('Binding changed this session')) {
-      return 'adopted';
-    }
-    if (node.markers.length) {
-      return 'marker';
-    }
-    return node.notes.length ? 'note' : 'neutral';
   }
   function run(operation: Promise<void>): void {
     operation.catch(() => {
@@ -163,8 +154,7 @@ export function mountLeafTree(
         item.append(inherited);
       }
       renderEvidence(item, node);
-      item.title = node ? `${node.relativePath} — ${node.evidence?.status ?? ''}` : 'Show more siblings';
-      item.dataset['tone'] = tone(node);
+      describeItem(item, node, rowLabel.textContent);
       if (node?.children.length) {
         item.setAttribute('aria-expanded', String(expanded.has(entry.id)));
       } else {
@@ -178,6 +168,16 @@ export function mountLeafTree(
       }
     }
     preserveWindowFocus(activeItem);
+  }
+  function describeItem(item: HTMLElement, node: LeafTreeNode | undefined, text: string): void {
+    const attention = node ? folderAttention(node, change(node)) : 'neutral';
+    item.title = node
+      ? `${node.relativePath} — ${node.evidence?.status ?? ''}\n${ATTENTION_LABELS[attention]}\n${descendantMarkerExplanation(node)}`.trimEnd()
+      : 'Show more siblings';
+    item.dataset['tone'] = attention;
+    item.dataset['marked'] = String(!!node?.markers.length);
+    const evidenceText = node?.evidence ? `; exact ${node.evidence.exact}; yaml ${node.evidence.yaml}; marker ${node.evidence.marker}` : '';
+    item.setAttribute('aria-label', `${text}; ${ATTENTION_LABELS[attention]}${evidenceText}`);
   }
   function renderEvidence(item: HTMLElement, node: LeafTreeNode | undefined): void {
     if (node?.evidence) {

@@ -22,6 +22,7 @@ import {
   retainAvailableTreeStatus
 } from '../core/leafTree.ts';
 import { revealTreePath } from '../core/leafTreeNavigation.ts';
+import { ATTENTION_LABELS } from './folderAttention.ts';
 import {
   paged,
   renderFolderDetails
@@ -231,10 +232,22 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     'leaf-legend'
   );
   const layout = element('div', '', root, 'leaf-layout');
+  const attentionLegend = element('p', '', root, 'leaf-legend leaf-attention-legend');
+  layout.before(attentionLegend);
+  for (const tone of ['neutral', 'healthy', 'optional', 'review', 'conflict'] as const) {
+    const label = element('span', ATTENTION_LABELS[tone], attentionLegend, 'leaf-attention');
+    label.dataset['tone'] = tone;
+  }
   const groups = element('div', '', layout);
   const details = element('aside', '', layout, 'leaf-details');
   details.setAttribute('aria-label', 'Selected folder details');
-  const tree = mountLeafTree(groups, selected, badges);
+  const tree = mountLeafTree(groups, selected, badges, (node) => {
+    const overlay = affected(node);
+    if (!overlay) {
+      return undefined;
+    }
+    return overlay[1] === null ? 'pending' : 'changed';
+  });
   element('p', 'Generated-path filters only change this view. Unmarked does not mean adoption is required.', root, 'leaf-context');
   function setStatus(message: string, running = busy): void {
     if (disposed) {

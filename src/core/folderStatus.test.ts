@@ -30,6 +30,98 @@ function fixture(notePath = 'Elsewhere.md'): { folder: string; scan: ReturnType<
 }
 describe('folder status evidence', () => {
   it.each([
+    ['valid', true, false, 'Contains bound subfolders'],
+    ['valid', false, false, 'Contains descendant markers'],
+    ['invalid-marker', false, false, 'Contains descendant markers'],
+    ['unchecked-marker', false, true, 'Contains descendant markers'],
+    ['valid', true, true, 'Contains descendant markers']
+  ])('describes containers with %s descendants, associated=%s, incomplete=%s', (markerStatus, associated, incomplete, expected) => {
+    const { scan } = fixture('Container/deep/Folder.md');
+    const folderPath = path.join(scan.externalRoot, 'Container/deep/Folder');
+    scan.folders = [folderPath, path.join(scan.externalRoot, 'Ordinary')];
+    scan.markers[0] = {
+      folderPath,
+      format: 'uuid-named',
+      markerPath: path.join(folderPath, `${UUID}.exnf`),
+      status: markerStatus,
+      uuid: markerStatus === 'valid' ? UUID : ''
+    };
+    scan.external.bindings.set(UUID, folderPath);
+    if (!associated) {
+      scan.notes = [];
+    }
+    if (incomplete) {
+      const gap = path.join(scan.externalRoot, 'Gap');
+      scan.folders.push(gap);
+      scan.issues.push({ kind: 'directory', location: gap, reason: 'Unreadable', scope: 'external', unchecked: true });
+    }
+    const model = buildLeafReport(scan);
+    const parent = model.tree?.find((node) => node.relativePath === 'Container');
+    expect(parent?.evidence).toMatchObject({
+      descendants: { boundFolders: associated && !incomplete ? 1 : 0, markedFolders: 1 },
+      marker: 'absent',
+      status: expected
+    });
+    expect(parent?.blocked).toBe(true);
+    expect(parent?.evidence?.explanations.join(' ')).toContain('It can remain an ordinary container');
+    expect(model.tree?.find((node) => node.relativePath === 'Ordinary')?.evidence?.status).toBe('Unassigned folder');
+    const filtered = queryTree(model, { ...DEFAULT_TREE_QUERY, status: expected });
+    expect(filtered.matched.has(parent!.id)).toBe(true);
+    expect(folderStatusTable([parent!]).rows[0]?.['explanation']).toContain('cannot be adopted as a whole');
+    expect(model.rootFolder?.evidence?.descendants?.markedFolders).toBe(1);
+  });
+  it('keeps identified parents in missing-marker results above bound descendants', () => {
+    const { scan } = fixture('Folder/Child.md');
+    const child = path.join(scan.externalRoot, 'Folder/Child');
+    const parentUuid = '22222222-2222-4222-8222-222222222222';
+    scan.folders.push(child);
+    scan.markers[0]!.folderPath = child;
+    scan.markers[0]!.markerPath = path.join(child, `${UUID}.exnf`);
+    scan.external.bindings.set(UUID, child);
+    scan.notes.push({
+      hasExnf: true,
+      notePath: path.join(scan.vaultRoot, 'Folder.md'),
+      relativePath: 'Folder.md',
+      status: 'valid',
+      uuid: parentUuid,
+      value: parentUuid
+    });
+    scan.vault.bindings.set(parentUuid, 'Folder.md');
+    const model = buildLeafReport(scan);
+    const parent = model.tree!.find((node) => node.relativePath === 'Folder')!;
+    expect(parent.evidence).toMatchObject({
+      descendants: { boundFolders: 1, markedFolders: 1 },
+      exact: 'present',
+      marker: 'absent',
+      status: 'Marker absent here',
+      yaml: 'present'
+    });
+    expect(parent.blocked).toBe(true);
+    const filtered = queryTree(model, { ...DEFAULT_TREE_QUERY, status: 'Marker absent here' });
+    expect(filtered.matched.has(parent.id)).toBe(true);
+    const exported = folderStatusTable([parent]).rows[0];
+    expect(exported?.['status']).toBe('Marker absent here');
+    expect(exported?.['explanation']).toContain('including 1 confirmed binding');
+  });
+  it('preserves local identity problems above bound descendants', () => {
+    const { scan } = fixture('Folder/Child.md');
+    const child = path.join(scan.externalRoot, 'Folder/Child');
+    scan.folders.push(child);
+    scan.markers[0]!.folderPath = child;
+    scan.markers[0]!.markerPath = path.join(child, `${UUID}.exnf`);
+    scan.notes.push({
+      hasExnf: true,
+      notePath: path.join(scan.vaultRoot, 'Folder.md'),
+      relativePath: 'Folder.md',
+      status: 'invalid-property',
+      uuid: '',
+      value: 'bad'
+    });
+    const parent = buildLeafReport(scan).tree?.find((node) => node.relativePath === 'Folder');
+    expect(parent?.evidence?.status).toBe('Ambiguous or invalid evidence');
+    expect(parent?.evidence?.descendants).toEqual({ boundFolders: 1, markedFolders: 1 });
+  });
+  it.each([
     ['valid', 'Bound at expected path'],
     ['missing-property', 'No matching note identity'],
     ['invalid-property', 'Ambiguous or invalid evidence'],

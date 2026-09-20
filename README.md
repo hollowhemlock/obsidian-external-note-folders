@@ -396,8 +396,8 @@ separately in details and are never treated as proof of a binding.
 Every row shows `exact` (plugin-derived note path), `yaml` (valid associated note
 identity), and `marker` (contains .exnf marker) tags. The indicators use `✓` for
 found, `–` for absent, `?` for unchecked, and `⚠` for invalid evidence.
-Tooltips explain each state, and **Evidence and note matches** repeats those
-explanations in the selected-folder panel. The separate status distinguishes matching bindings,
+The legend and tag tooltips explain each state. The details panel shows associated
+notes and actual evidence without repeating the tag definitions. The separate status distinguishes matching bindings,
 path drift, adoption candidates, orphan markers, conflicts, and uncertainty.
 Three active tags do not prove that UUIDs match. Ancestor markers are shown
 separately; a child does not itself contain its ancestor's marker. Missing YAML
@@ -412,6 +412,17 @@ restores the prior selection, expansion, and scroll position. Sorting and a
 cancelled/failed refresh preserve this inspection; selecting another folder,
 changing filters, or a completed refresh ends it. Root markers are inspected
 through **Inspect external root**, without adding a folder row or adoption target.
+
+Parents above confirmed bindings are labeled **Contains bound subfolders**.
+When descendant markers exist without a confirmed binding, the label is
+**Contains descendant markers**. These replace misleading unassigned/adoption
+candidate labels without overriding local conflicts or unchecked evidence.
+An identified parent without a local marker retains **Marker absent here** and
+its amber review indicator, including membership in that status filter.
+Tooltips, selected-folder details, and CSV explanations include descendant
+counts and explain why adopting the entire parent would create a nested binding.
+The parent can remain an ordinary container; its local `marker` tag stays absent.
+The adoption restrictions list names the affected paths and offers navigation.
 
 Search and Refresh stay visible. **View** contains sorting and display filters;
 **Export** contains downloads. Escape closes either disclosure and returns focus.
@@ -430,8 +441,28 @@ stays visible but disabled for known restrictions, naming local, ancestor, or
 descendant markers and excluded, linked, or unreadable paths. Pending operations
 offer recovery; stale results offer Refresh. **Choose a note to check adoption**
 means no blocker is established by the snapshot; the adoption preview and fresh
-execution checks remain authoritative. Same-name suggestions and technical
-evidence stay collapsed and separate from confirmed associations.
+execution checks remain authoritative. Associated notes, same-name suggestions,
+other marked ancestors, and technical/scan details start expanded; each section
+can be collapsed. Same-name suggestions remain separate from confirmed associations.
+Scan details and the View/Export controls outside the selected-folder panel
+continue to start closed.
+
+The left edge of each row communicates attention level, independently of whether
+adoption is enabled. A matching legend, text labels, and symbols accompany the
+colors; light and dark themes use corresponding palettes.
+
+| Color | Meaning | Examples |
+| --- | --- | --- |
+| Gray | Informational | Ordinary containers, content subfolders, intentionally excluded paths and skipped links |
+| Teal | Healthy binding | Confirmed binding at the expected path |
+| Blue | Optional action | Possible adoption candidates or name matches |
+| Amber | Review recommended | Drift, unreadable local evidence, unmatched markers, provisional bindings, changes awaiting refresh |
+| Red | Conflict / recovery | Invalid identities, duplicate UUIDs, conflicting bindings, pending operations |
+
+**Contains bound subfolders** remains informational: being unable to adopt the
+parent is an expected restriction. Descendant problems retain their own row
+indicators and appear in the parent's detailed restrictions. Partial-root virtual
+paths do not become warnings solely because the expected folder is absent.
 
 **Include expected paths from identified notes** adds virtual expected paths.
 These are informational: they cannot be adopted or opened as existing folders.
