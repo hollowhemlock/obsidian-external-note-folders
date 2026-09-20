@@ -28,7 +28,7 @@ export async function buildAuditHtml(model: LeafReportModel): Promise<string> {
     throw new Error('Browser bundle is empty.');
   }
   const data = JSON.stringify(model).replaceAll('<', '\\u003c').replaceAll('\u2028', '\\u2028').replaceAll('\u2029', '\\u2029');
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Unmarked leaf folders</title><style>body{margin:0;background:#f6f8fb}</style></head><body><main id="report"></main><script type="application/json" id="report-data">${data}</script><script>${
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>External folder status</title><style>body{margin:0;background:#f6f8fb}</style></head><body><main id="report"></main><script type="application/json" id="report-data">${data}</script><script>${
     script.replaceAll('</script', '<\\/script')
   }\nExnfLeafReport.startStandaloneReport(JSON.parse(document.getElementById('report-data').textContent),document.getElementById('report')).catch(()=>{document.getElementById('report').textContent='Unable to display report.'});</script></body></html>`;
 }

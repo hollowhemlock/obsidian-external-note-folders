@@ -12,6 +12,7 @@ import type { LeafReportView } from '../ui/leafReportView.ts';
 import { runAuditSteps } from '../auditScheduler.ts';
 import { buildAuditExportSummary } from '../core/auditExportSummary.ts';
 import { buildAuditTableSteps } from '../core/auditReport.ts';
+import { folderStatusTable } from '../core/folderStatusCsv.ts';
 import { buildLeafReportSteps } from '../core/leafReport.ts';
 import {
   assertAuditRoots,
@@ -32,7 +33,9 @@ export interface LeafReportTabOptions {
   externalRoot: () => string;
   mutationState: () => AuditMutationState;
   pending?: () => Promise<number>;
+  repair?: (folder: string, direction: 'external' | 'note') => Promise<void>;
   resume?: () => Promise<void>;
+  scanPatterns?: () => string[];
 }
 
 export class LeafReportTab extends ItemView {
@@ -44,7 +47,7 @@ export class LeafReportTab extends ItemView {
   }
 
   public override getDisplayText(): string {
-    return 'Unmarked leaf folders';
+    return 'External folder status';
   }
 
   public override getIcon(): string {
@@ -72,10 +75,26 @@ export class LeafReportTab extends ItemView {
     this.report = mountLeafReport(this.contentEl, {
       ...(this.options.adopt ? { adopt: this.options.adopt } : {}),
       ...(this.options.resume ? { resume: this.options.resume } : {}),
+      ...(this.options.repair ? { repair: this.options.repair } : {}),
       cancel: () => this.session?.cancel(),
       copy: async (text) => navigator.clipboard.writeText(text),
       exportLeaves: async (rows, filtered) => this.exportRows(rows, filtered),
       exportReport: async (name) => this.exportReport(name),
+      exportStatus: async (nodes, filtered): Promise<void> => {
+        await this.session?.runExport(async (_snapshot, model, signal) => {
+          const destination = await this.chooseDestination(signal);
+          if (!destination) {
+            return null;
+          }
+          const name = filtered ? 'filtered-folder-status.csv' : 'folder-status.csv';
+          const table = folderStatusTable(nodes);
+          return writeAuditReports(
+            { complete: model.uncheckedCount === 0, summary: buildAuditExportSummary(model, name, table.rows.length), tables: { [name]: table } },
+            destination,
+            signal
+          );
+        });
+      },
       openFolder: async (folderPath) => {
         await openExistingAuditFolder(folderPath);
       },
@@ -96,7 +115,7 @@ export class LeafReportTab extends ItemView {
         const vaultRoot = adapter.getBasePath?.();
         const externalRoot = this.options.externalRoot();
         assertAuditRoots(vaultRoot, externalRoot);
-        return scanAdoptionAudit(vaultRoot, externalRoot, control);
+        return scanAdoptionAudit(vaultRoot, externalRoot, { ...control, ignorePatterns: [...(this.options.scanPatterns?.() ?? [])] });
       },
       status: (message, busy): void => this.report?.status(message, busy),
       update: async (model, signal): Promise<void> => this.report?.update(model, signal)

@@ -12,6 +12,8 @@ import {
   it
 } from 'vitest';
 
+import { runObsidianCli } from '../../scripts/obsidian-cli.ts';
+import { getCurrentSandboxPaths } from '../../scripts/sandbox-paths.ts';
 import { buildLeafReport } from '../../src/core/leafReport.ts';
 import { auditFixture } from '../support/auditFixture.ts';
 import {
@@ -30,7 +32,7 @@ const EXPORT_SELECTOR = '.modal:has(.external-note-folders-audit-destination)';
 const REPORT_SELECTOR = '.workspace-leaf-content[data-type="external-note-folders-leaf-report"]';
 
 function evaluate(code: string): string {
-  const result = runSandboxCli(['eval', `code=${code}`]);
+  const result = runObsidianCli(['eval', `code=${code}`], getCurrentSandboxPaths().vaultPath, 30_000);
 
   expect(result.status, formatCliResult(result)).toBe(0);
 
@@ -54,7 +56,7 @@ describe('shared leaf report integration', () => {
 
     runSandboxCli(['command', `id=${command}`]);
 
-    expect((await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR)).stdout).toContain('Full physical audit');
+    expect((await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR)).stdout).toContain('Physical audit');
     evaluate(`document.querySelector('${REPORT_SELECTOR} .leaf-tree-item')?.click()`);
     await waitForSandboxModalText('Adopt this folder', REPORT_SELECTOR);
 
@@ -128,7 +130,14 @@ describe('shared leaf report integration', () => {
       const wait=async()=>{await new Promise(r=>setTimeout(r,30));for(let i=0;i<100 && el.querySelector('.exnf-leaf-report').getAttribute('aria-busy')==='true';i++)await new Promise(r=>setTimeout(r,20));};
       const tree=el.querySelector('.leaf-tree');
       const ordered=()=>{const tops=Array.from(tree.querySelectorAll('.leaf-tree-item')).map(row=>parseFloat(row.style.top));return tops.every((top,i)=>i===0||top>tops[i-1]);};
-      const branch=Array.from(tree.querySelectorAll('.leaf-tree-item')).find(row=>row.title==='b-0');
+      const statusFilter=el.querySelector('[aria-label="Binding status"]');
+      statusFilter.value='Unassigned folder';statusFilter.dispatchEvent(new Event('change'));await wait();
+      const changedModel=JSON.parse(JSON.stringify(model));
+      for(const node of changedModel.tree)node.evidence.status='Possible name matches';
+      await v.report.update(changedModel);
+      const statusReset=statusFilter.value==='' && tree.querySelector('.leaf-tree-item')!==null;
+      await v.report.update(model);
+      const branch=Array.from(tree.querySelectorAll('.leaf-tree-item')).find(row=>row.title.startsWith('b-0 —'));
       branch.click();await wait();
       const expansionOrder=ordered();
       branch.click();await wait();
@@ -162,7 +171,7 @@ describe('shared leaf report integration', () => {
       const layout=el.querySelector('.leaf-layout');
       const narrow=getComputedStyle(layout).gridTemplateColumns.split(' ').length===1;
       report.style.removeProperty('width');
-      return JSON.stringify({anchored,hidden,retained,cancelled,removed,keyboard,paged,narrow,expansionOrder,sortOrder,scrollFocus,resumedKeyboard});
+      return JSON.stringify({anchored,hidden,retained,cancelled,removed,keyboard,paged,narrow,expansionOrder,sortOrder,scrollFocus,resumedKeyboard,statusReset});
     })()`);
     for (
       const key of [
@@ -177,7 +186,8 @@ describe('shared leaf report integration', () => {
         'expansionOrder',
         'sortOrder',
         'scrollFocus',
-        'resumedKeyboard'
+        'resumedKeyboard',
+        'statusReset'
       ]
     ) {
       expect(result).toContain(`"${key}":true`);
@@ -246,8 +256,8 @@ describe('shared leaf report integration', () => {
         return JSON.stringify({totalMs:performance.now()-started,maxTask,domRows,finalRows,broad,filtered,selected,hiddenSelection});
       })()`
     );
-    expect(rendered).toContain('20,000 displayed');
-    expect(rendered).toContain('1 displayed');
+    expect(rendered).toContain('20100 displayed folders');
+    expect(rendered).toContain('2 displayed folders');
     expect(rendered).toContain('"selected":true');
     expect(rendered).toContain('"hiddenSelection":true');
     const domRows = /"domRows":(?<count>\d+)/u.exec(rendered)?.groups?.['count'];

@@ -5,6 +5,7 @@ import type {
 
 import { runAuditSteps } from '../auditScheduler.ts';
 import { serializeAuditCsvSteps } from '../core/auditCsv.ts';
+import { folderStatusTable } from '../core/folderStatusCsv.ts';
 import { mountLeafReport } from './leafReportView.ts';
 
 const DOWNLOAD_URL_LIFETIME_MS = 1000;
@@ -47,6 +48,17 @@ export async function startStandaloneReport(model: LeafReportModel, container: H
       } finally {
         view.status('CSV ready.', false);
       }
+    },
+    async exportStatus(nodes, filtered): Promise<void> {
+      const csv = await runAuditSteps(serializeAuditCsvSteps(folderStatusTable(nodes)));
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filtered ? 'filtered-folder-status.csv' : 'folder-status.csv';
+      link.click();
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, DOWNLOAD_URL_LIFETIME_MS);
     }
   });
   await view.update(model);

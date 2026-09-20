@@ -17,6 +17,35 @@ function evaluate(code: string): string {
   return result.stdout;
 }
 describe('folder group adoption in Obsidian', () => {
+  it('previews and confirms both directions for an existing drifted binding', async () => {
+    await closeSandboxModals();
+    const id = await readSandboxPluginId();
+    const result = evaluate(`(async()=>{
+      const plugin=app.plugins.plugins[${JSON.stringify(id)}];const c=plugin.groupAdoption;
+      const fs=require('fs');const path=require('path');const crypto=require('crypto');
+      const outcomes=[];
+      for(const direction of ['note','external']) {
+        const suffix=Date.now().toString()+direction;const uuid=crypto.randomUUID();
+        const oldName='RepairOld'+suffix;const folderName='RepairFolder'+suffix;
+        const note=oldName+'.md';const folder=path.join(plugin.settings.externalRootPath,folderName);
+        await app.vault.create(note,'---\\nexnf: '+uuid+'\\n---\\nPreserve body');fs.mkdirSync(folder);fs.writeFileSync(path.join(folder,uuid+'.exnf'),'');
+        await c.repair(folder,direction);
+        const modal=Array.from(document.querySelectorAll('.modal')).at(-1);
+        const untouched=!!app.vault.getAbstractFileByPath(note)&&fs.existsSync(folder);
+        Array.from(modal.querySelectorAll('button')).find(b=>b.textContent==='Confirm move').click();
+        const target=direction==='note'?folderName+'.md':path.join(plugin.settings.externalRootPath,oldName);
+        for(let i=0;i<200;i++){if(direction==='note'?!!app.vault.getAbstractFileByPath(target):fs.existsSync(target))break;await new Promise(r=>setTimeout(r,50));}
+        const moved=direction==='note'?!!app.vault.getAbstractFileByPath(target):fs.existsSync(target);
+        outcomes.push({direction,untouched,moved});
+        for(let i=0;i<200&&plugin.isMutationInProgress;i++)await new Promise(r=>setTimeout(r,50));
+        document.querySelectorAll('.modal-close-button').forEach(b=>b.click());
+      }
+      return JSON.stringify(outcomes);
+    })()`);
+    expect(result.match(/"untouched":true/gu), result).toHaveLength(2);
+    expect(result.match(/"moved":true/gu), result).toHaveLength(2);
+  }, 60_000);
+
   it('automatically previews input and modes with a permanent confirmation footer', async () => {
     await closeSandboxModals();
     const id = await readSandboxPluginId();

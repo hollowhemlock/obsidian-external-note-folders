@@ -31,6 +31,8 @@ import {
 
 import type { GroupAdoptionPlan } from '../core/groupAdoption.ts';
 
+import { buildNoteRepair } from '../core/folderRepair.ts';
+import { scanAdoptionAudit } from '../storage/auditScan.ts';
 import {
   createGroupJournal,
   readGroupJournal,
@@ -56,6 +58,22 @@ describe('folder adoption controller recovery', () => {
     await mkdir(path.join(root, 'external', 'Group'), { recursive: true });
     return createFixture(root);
   }
+
+  it('moves an already-bound note without changing its marker or UUID', async () => {
+    const f = await fixture();
+    const uuid = '11111111-1111-4111-8111-111111111111';
+    const content = `---\nexnf: ${uuid}\naliases: Keep\n---\nBody`;
+    await f.addNote('Old.md', content);
+    await writeFile(path.join(f.folder, `${uuid}.exnf`), 'Preserve marker bytes');
+    const scan = await scanAdoptionAudit(f.absolute(''), path.dirname(f.folder));
+    const plan = buildNoteRepair(scan, f.folder, { aliases: 'Keep', path: 'Old.md' }, 0, []);
+    expect(await readFile(f.absolute('Old.md'), 'utf8')).toBe(content);
+    await f.controller.execute(plan, content);
+    expect(await readFile(f.absolute('Group.md'), 'utf8')).toContain(uuid);
+    expect(await readFile(f.absolute('Group.md'), 'utf8')).toContain('Keep');
+    expect(await readFile(path.join(f.folder, `${uuid}.exnf`), 'utf8')).toBe('Preserve marker bytes');
+    expect(await f.controller.pending()).toEqual([]);
+  });
 
   it('distinguishes a rejected preflight from an interrupted journaled operation', async () => {
     const f = await fixture();

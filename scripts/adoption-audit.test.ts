@@ -71,6 +71,19 @@ async function snapshot(root: string): Promise<Record<string, string>> {
 }
 
 describe('standalone adoption audit', () => {
+  it('optionally excludes command-specific branches while still scanning all vault notes', async () => {
+    const { external, vault } = await fixture();
+    await put(vault, 'node_modules/Note.md', note());
+    await put(external, `Project/node_modules/pkg/${UUID}.exnf`);
+    const full = await scanAdoptionAudit(vault, external);
+    const skipped = await scanAdoptionAudit(vault, external, { ignorePatterns: ['node_modules/'] });
+    expect(full.markers).toHaveLength(1);
+    expect(skipped.markers).toHaveLength(0);
+    expect(skipped.notes).toHaveLength(1);
+    expect(skipped.external.ignoredDirectories).toHaveLength(1);
+    expect(skipped.issues.some((issue) => issue.unchecked)).toBe(true);
+  });
+
   it('reports bindings, folder notes, drift and legacy formats without modifying source files', async () => {
     const { external, root, vault } = await fixture();
     await put(vault, 'Alpha/Alpha.md', note());
@@ -90,7 +103,8 @@ describe('standalone adoption audit', () => {
       expect.objectContaining({ category: 'path-drift' })
     ]));
     const output = await writeAuditReports(reports, path.join(root, 'reports'));
-    expect(await readdir(output)).toHaveLength(8);
+    expect(await readdir(output)).toHaveLength(9);
+    expect(await readdir(output)).toContain('folder-status.csv');
     expect(await snapshot(vault)).toEqual(beforeVault);
     expect(await snapshot(external)).toEqual(beforeExternal);
     expect(await writeAuditReports(reports, path.join(root, 'reports'))).not.toBe(output);

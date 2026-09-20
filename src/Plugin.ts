@@ -181,7 +181,9 @@ export class Plugin extends ObsidianPlugin {
           sequence: this.mutationSequence
         }),
         pending: async (): Promise<number> => (await this.groupAdoption?.pending())?.length ?? 0,
-        resume: async (): Promise<void> => this.groupAdoption?.showRecovery()
+        repair: async (folder, direction): Promise<void> => this.groupAdoption?.repair(folder, direction),
+        resume: async (): Promise<void> => this.groupAdoption?.showRecovery(),
+        scanPatterns: (): string[] => this.settings.statusSkipIgnored ? [...(this.settings.statusIgnorePatterns ?? [])] : []
       }));
     this.register(() => {
       for (const leaf of this.app.workspace.getLeavesOfType(LEAF_REPORT_VIEW_TYPE)) {
@@ -198,7 +200,7 @@ export class Plugin extends ObsidianPlugin {
         });
       },
       id: 'explore-unmarked-external-leaf-folders',
-      name: 'Explore unmarked external leaf folders'
+      name: 'External folder status'
     });
 
     this.addSettingTab(new PluginSettingsTab(this.app, this));

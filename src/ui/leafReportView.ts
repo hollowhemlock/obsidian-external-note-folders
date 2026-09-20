@@ -10,14 +10,17 @@ import type {
 
 import { runAuditSteps } from '../auditScheduler.ts';
 import {
+  availableTreeStatuses,
   DEFAULT_TREE_QUERY,
   descendantIssueSteps,
-  queryTreeSteps
+  queryTreeSteps,
+  retainAvailableTreeStatus
 } from '../core/leafTree.ts';
 import { LEAF_REPORT_CSS } from './leafStyles.ts';
 import { mountLeafTree } from './leafTreeView.ts';
 
 export const AUDIT_CSV_NAMES = [
+  'folder-status.csv',
   'markdown-files.csv',
   'markdown-with-exnf.csv',
   'external-folders.csv',
@@ -33,9 +36,11 @@ export interface LeafReportHost {
   csvBaseUrl?: string;
   exportLeaves: (rows: readonly LeafRow[], filtered: boolean) => Promise<void>;
   exportReport?: (name: string) => Promise<void>;
+  exportStatus?: (nodes: LeafTreeNode[], filtered: boolean) => Promise<void>;
   openFolder?: (folderPath: string) => Promise<void>;
   openNote?: (notePath: string) => Promise<void>;
   refresh?: () => Promise<void>;
+  repair?: (folder: string, direction: 'external' | 'note') => Promise<void>;
   resume?: () => Promise<void>;
 }
 export interface LeafReportView {
@@ -79,9 +84,9 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     });
     return button;
   }
-  element('h1', 'Unmarked leaf folders', root);
-  element('p', 'Leaf folders with no marker in the folder or any ancestor through the external root.', root);
-  element('p', 'Full physical audit — ignore patterns not applied', root, 'leaf-context');
+  element('h1', 'External folder status', root);
+  element('p', 'Folder bindings, note associations, and scan coverage.', root);
+  element('p', 'Physical audit — command-specific exclusions are disclosed below', root, 'leaf-context');
   const context = element('div', '', root, 'leaf-context');
   const warning = element('div', '', root, 'leaf-warning');
   const toolbar = element('div', '', root, 'leaf-toolbar');
@@ -102,12 +107,25 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   }
   const mode = element('select', '', toolbar);
   mode.setAttribute('aria-label', 'Tree view');
-  for (const [value, label] of [['results', 'Result branches'], ['all', 'All scanned folders']]) {
+  for (const [value, label] of [['all', 'All scanned folders'], ['results', 'Unmarked leaves']]) {
     element('option', label ?? '', mode).value = value ?? '';
   }
+  const statusFilter = element('select', '', toolbar);
+  statusFilter.setAttribute('aria-label', 'Binding status');
+  element('option', 'All statuses', statusFilter).value = '';
+  statusFilter.addEventListener('change', () => {
+    query.status = statusFilter.value;
+    changed();
+  });
+  const expectedToggle = action('Include expected paths from identified notes', toolbar, async () => {
+    query.includeExpected = !query.includeExpected;
+    expectedToggle.setAttribute('aria-pressed', String(query.includeExpected));
+    await refilter();
+  });
+  expectedToggle.setAttribute('aria-pressed', 'false');
   const sort = element('select', '', toolbar);
   sort.setAttribute('aria-label', 'Sort siblings');
-  for (const [value, label] of [['name', 'Name'], ['count', 'Most unmarked leaves']]) {
+  for (const [value, label] of [['name', 'Name'], ['count', 'Most leaves']]) {
     element('option', label ?? '', sort).value = value ?? '';
   }
   if (host.resume) {
@@ -126,6 +144,18 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   const status = element('div', '', root, 'leaf-status');
   status.setAttribute('role', 'status');
   const exports = element('div', '', root, 'leaf-toolbar');
+  if (host.exportStatus) {
+    action('Export filtered status', exports, async () => {
+      if (result) {
+        await host.exportStatus?.([...result.nodes.values()].filter((node) => result?.visible.has(node.id) === true), true);
+      }
+    });
+    action('Export all status', exports, async () => {
+      if (model) {
+        await host.exportStatus?.(model.tree ?? [], false);
+      }
+    });
+  }
   const exportFiltered = action('Export filtered leaves', exports, async () => {
     if (result) {
       await host.exportLeaves(result.rows, true);
@@ -155,7 +185,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   const rootLabel = element('h2', '', root);
   element(
     'p',
-    'Legend: ◆ exact note match · ▣ marker evidence · ✓ adopted this session · ⚠ unchecked / pending · ! conflict. Badges are evidence, not verified bindings.',
+    'Legend: exact = exact derived note path · yaml = valid note exnf · marker = Contains .exnf marker. Grey = absent; warning = invalid or unchecked. YAML exnf not found applies to associated notes without identity. Tags are evidence, not verified bindings.',
     root,
     'leaf-legend'
   );
@@ -212,14 +242,14 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     element('p', row.folderPath, rowDetails, 'leaf-context');
     const actions = element('div', '', rowDetails, 'leaf-toolbar');
     action('Copy path', actions, () => host.copy(row.folderPath));
-    if (host.openFolder) {
+    if (host.openFolder && (!('kind' in row) || row.kind === 'directory')) {
       action('Open folder', actions, () => host.openFolder?.(row.folderPath));
     }
     if (row.notes.length > 1) {
-      element('p', 'Multiple notes derive this folder. This is not proof of a binding.', rowDetails);
+      element('p', 'Multiple notes are associated with this folder. Inspect their paths and identities; this is not proof of a binding.', rowDetails);
     }
     for (const note of row.notes) {
-      const match = element('div', `${note.notePath} — ${identityLabel(note.status)}`, rowDetails, 'leaf-note');
+      const match = element('div', `${note.notePath} — ${note.association ?? 'exact'} match — ${identityLabel(note.status)}`, rowDetails, 'leaf-note');
       if (host.openNote) {
         action('Open note', match, () => host.openNote?.(note.notePath));
       }
@@ -239,23 +269,18 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
     });
   }
-  function markerBadge(node: LeafTreeNode): string {
-    if (node.markers.length) {
-      return '▣ Marker present';
-    }
-    return node.covered ? '▣ Ancestor marker' : '';
-  }
   function adoptionBadge(node: LeafTreeNode): string {
     const overlay = affected(node);
     if (!overlay) {
       return '';
     }
-    return overlay[1] ? '✓ Adopted this session' : '⚠ Pending recovery';
+    return overlay[1] ? '✓ Binding changed this session' : '⚠ Pending recovery';
   }
   function badges(node: LeafTreeNode): string {
     return [
-      node.notes.length ? '◆ Note match' : '',
-      markerBadge(node),
+      node.evidence?.status ?? '',
+      node.evidence?.confidence === 'provisional' ? '⚠ Provisional' : '',
+      node.covered ? 'Ancestor marker' : '',
       node.kind === 'link' ? '↗ Skipped link' : '',
       node.unchecked ? '⚠ Unchecked' : '',
       node.conflict ? '! Conflict' : '',
@@ -278,7 +303,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       'p',
       `${
         (result?.counts.get(node.id) ?? 0).toLocaleString()
-      }/${node.total.toLocaleString()} known unmarked leaves. Actions cover the entire folder subtree, including hidden paths.`,
+      }/${node.total.toLocaleString()} known physical leaves. Actions cover the entire folder subtree, including hidden paths.`,
       details
     );
     element('p', badges(node), details, 'leaf-tags');
@@ -326,8 +351,9 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
         }
       });
     }
+    renderEvidence(node);
     const overlay = affected(node);
-    if (host.adopt) {
+    if (host.adopt && node.kind === 'directory') {
       const blocked = node.blocked || !!overlay;
       const button = action('Adopt this folder…', details, () => host.adopt?.(node.folderPath));
       button.disabled = busy || blocked;
@@ -336,7 +362,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
         element(
           'p',
           overlay
-            ? 'An overlapping folder was adopted or needs recovery. Refresh or resume the pending operation.'
+            ? 'An overlapping binding changed or needs recovery. Refresh or resume the pending operation.'
             : 'Adoption is blocked by overlapping marker evidence, a skipped link, or unchecked topology.',
           details
         );
@@ -345,7 +371,31 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       }
     }
     if (overlay?.[1] && host.openNote) {
-      action('Open adopted note', details, () => host.openNote?.(overlay[1] ?? ''));
+      action('Open associated note', details, () => host.openNote?.(overlay[1] ?? ''));
+    }
+  }
+  function renderEvidence(node: LeafTreeNode): void {
+    if (node.evidence) {
+      for (const text of node.evidence.explanations) {
+        element('p', text, details, 'leaf-context');
+      }
+      for (const folder of node.evidence.relatedFolders) {
+        element('p', `Related folder: ${folder}`, details, 'leaf-context');
+      }
+      for (const note of node.evidence.candidates) {
+        const candidate = element('div', `Same-name candidate: ${note.notePath} — ${identityLabel(note.status)}`, details);
+        if (host.openNote) {
+          action('Open note', candidate, () => host.openNote?.(note.notePath));
+        }
+      }
+      if (host.repair && node.evidence.status === 'Bound at different path' && node.evidence.confidence === 'checked') {
+        for (const [label, direction] of [['Move external folder to match note…', 'external'], ['Move note to match external folder…', 'note']] as const) {
+          const button = action(label, details, () => host.repair?.(node.folderPath, direction));
+          const blocked = !!model?.stale || !!affected(node);
+          button.disabled = busy || blocked;
+          button.dataset['adoptionBlocked'] = String(blocked);
+        }
+      }
     }
   }
   async function refilter(): Promise<void> {
@@ -376,9 +426,15 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   }
   async function applyResult(filtered: TreeResult, reset = false): Promise<void> {
     result = filtered;
-    stats.textContent = `${
-      model?.rows.length.toLocaleString() ?? '0'
-    } known unmarked leaves · ${filtered.rows.length.toLocaleString()} displayed · ${filtered.hiddenCount.toLocaleString()} generated/internal paths hidden`;
+    const nodes = model?.tree ?? [];
+    const physical = nodes.filter((node) => node.kind === 'directory').length;
+    const leaves = nodes.filter((node) => node.evidence?.physicalLeaf === true).length;
+    const displayed = [...filtered.visible].filter((id) => filtered.nodes.get(id)?.kind === 'directory').length;
+    const excluded = nodes.filter((node) => node.kind === 'excluded').length;
+    const virtual = nodes.filter((node) => node.kind === 'virtual' && filtered.visible.has(node.id)).length;
+    stats.textContent = `${String(physical)} physical folders · ${String(leaves)} known physical leaves · ${String(displayed)} displayed folders · ${
+      String(excluded)
+    } excluded branches · ${String(virtual)} displayed virtual paths`;
     showAll.textContent = query.showGenerated ? 'Hide generated/internal paths' : 'Show all generated/internal paths';
     showAll.setAttribute('aria-pressed', String(query.showGenerated));
     await tree.update(filtered, query.search, reset);
@@ -431,9 +487,11 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
         return;
       }
       const revision = ++updateRevision;
+      const availableStatuses = availableTreeStatuses(next.tree ?? []);
       let filtered: TreeResult;
       let captured: string;
       do {
+        query.status = retainAvailableTreeStatus(query.status, availableStatuses);
         captured = JSON.stringify(query);
         filtered = await runAuditSteps(queryTreeSteps(next, { ...query }), signal ? { signal } : {});
       } while (captured !== JSON.stringify(query));
@@ -447,6 +505,12 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       queryAbort?.abort();
       const reset = !!model && (model.externalRoot !== next.externalRoot || model.vaultRoot !== next.vaultRoot);
       model = next;
+      statusFilter.replaceChildren();
+      element('option', 'All statuses', statusFilter).value = '';
+      for (const value of availableStatuses) {
+        element('option', value, statusFilter).value = value;
+      }
+      statusFilter.value = query.status ?? '';
       rootLabel.textContent = next.externalRoot;
       adoptions.clear();
       context.textContent = `Vault: ${next.vaultRoot}\nExternal root: ${next.externalRoot}\nScanned: ${next.startedAt} – ${next.finishedAt}\nCoverage: ${
@@ -456,7 +520,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
         next.stale ? 'This snapshot predates mutations. Refresh to update results and counts.' : '',
         next.mutationWarning ? 'Results may not reflect in-progress mutations.' : '',
         next.uncheckedCount > 0
-          ? `${next.uncheckedCount.toLocaleString()} unchecked items. Only locally checked leaf paths are listed; unscanned areas may contain more.`
+          ? `${next.uncheckedCount.toLocaleString()} unchecked items. Unchecked locations remain visible; unscanned areas may contain additional folders.`
           : ''
       ].filter(Boolean).join(' ');
       warning.hidden = warning.textContent.length === 0;

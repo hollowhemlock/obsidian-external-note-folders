@@ -35,7 +35,12 @@ ADR-0031 adds one explicit exception: an unassigned note may restore the unique 
 from its exact expected folder after a complete non-ignored-root scan and user confirmation. This is
 not automatic reconciliation and does not create, move, rename, or delete notes.
 
-Outside the explicit ADR-0032 workflow, the plugin does not:
+The External folder status window also permits an explicit, confirmed move of one
+already-bound note to match its external folder. It preserves the UUID, uses fresh
+full identity checks and journaled Obsidian rename/recovery, and never moves a vault
+folder or performs automatic synchronization.
+
+Outside these explicit workflows, the plugin does not:
 - Create notes from external folders
 - Move notes based on external changes
 - Delete notes when external folders disappear

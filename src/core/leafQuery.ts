@@ -13,6 +13,7 @@ export interface LeafGroup {
 }
 export interface LeafNoteMatch {
   absolutePath: string;
+  association?: 'exact' | 'exact+uuid' | 'name' | 'uuid';
   notePath: string;
   status: string;
 }

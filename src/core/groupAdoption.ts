@@ -23,6 +23,7 @@ export interface GroupAdoptionPlan {
   ignorePatterns: string[];
   mutationSequence: number;
   notePath: string;
+  repair?: boolean;
   sourcePath: null | string;
   uuid: string;
   vaultRoot: string;

@@ -32,7 +32,7 @@ const MODAL_TEXT_RETRY_DELAY_MILLISECONDS = 500;
 export async function closeSandboxModals(): Promise<void> {
   const closeResult = runSandboxCli([
     'eval',
-    'code=Array.from(document.querySelectorAll(".modal")).forEach((modal) => { const closeButton = Array.from(modal.querySelectorAll("button")).find((button) => button.textContent?.trim() === "Close") ?? modal.querySelector(".modal-close-button"); closeButton?.click(); })'
+    'code=Array.from(document.querySelectorAll(".modal")).forEach((modal) => { const closeButton = Array.from(modal.querySelectorAll("button")).find((button) => button.textContent?.trim() === "Close") ?? modal.querySelector(".modal-close-button, .modal-header-button:has(.lucide-x)"); closeButton?.click(); })'
   ]);
   expect(closeResult.status, formatCliResult(closeResult)).toBe(0);
   await delay(MODAL_TEXT_RETRY_DELAY_MILLISECONDS);

@@ -16,6 +16,7 @@ import type {
   AuditScan
 } from '../core/auditTypes.ts';
 
+import { buildExternalRootIgnoreMatcher } from '../core/externalRootIgnore.ts';
 import { getExnfFrontmatterValue } from '../core/frontmatter.ts';
 import {
   parseLegacyExnfMarkerFile,
@@ -28,6 +29,7 @@ export type { AuditScan } from '../core/auditTypes.ts';
 const YAML_ALIAS_LIMIT = 100;
 
 export interface AuditScanOptions {
+  ignorePatterns?: readonly string[];
   onProgress?: (counts: { directories: number; markers: number; notes: number }) => void;
   signal?: AbortSignal;
 }
@@ -58,8 +60,14 @@ export async function scanAdoptionAudit(vaultRoot: string, externalRoot: string,
     vault: { bindings: new Map(), duplicatePaths: new Map(), invalidFrontmatter: [] },
     vaultRoot: path.resolve(vaultRoot)
   };
-  await walk(scan.vaultRoot, 'vault', scan, options);
-  await walk(scan.externalRoot, 'external', scan, options);
+  const matcher = buildExternalRootIgnoreMatcher(scan.externalRoot, options.ignorePatterns ?? []);
+  if (matcher.errors.length) {
+    // Reject configuration before scanning either root.
+    throw new Error('Invalid status ignore patterns.');
+  }
+  scan.external.ignorePatterns = matcher.patterns;
+  await walk(scan.vaultRoot, 'vault', scan, options, matcher);
+  await walk(scan.externalRoot, 'external', scan, options, matcher);
   options.signal?.throwIfAborted();
   scan.external.directories = scan.folders;
   scan.finishedAt = new Date().toISOString();
@@ -179,10 +187,24 @@ async function scanNote(notePath: string, scan: AuditScan): Promise<void> {
   }
 }
 
-async function walk(directory: string, scope: 'external' | 'vault', scan: AuditScan, options: AuditScanOptions): Promise<void> {
+async function walk(
+  directory: string,
+  scope: 'external' | 'vault',
+  scan: AuditScan,
+  options: AuditScanOptions,
+  matcher: ReturnType<typeof buildExternalRootIgnoreMatcher>
+): Promise<void> {
   try {
     options.signal?.throwIfAborted();
     options.onProgress?.({ directories: scan.folders.length, markers: scan.markers.length, notes: scan.notes.length });
+    if (
+      scope === 'external' && directory !== scan.externalRoot
+      && matcher.ignoresAbsoluteDirectoryPath(directory)
+    ) {
+      scan.external.ignoredDirectories.push({ folderPath: directory, relativePath: path.relative(scan.externalRoot, directory) });
+      recordUnchecked(directory, 'Excluded from scan by command-specific patterns.', scope, scan);
+      return;
+    }
     const info = await lstat(directory);
     if (info.isSymbolicLink()) {
       recordUnchecked(directory, 'Symbolic link or junction was not followed.', scope, scan, 'link');
@@ -199,7 +221,7 @@ async function walk(directory: string, scope: 'external' | 'vault', scan: AuditS
         if (scope === 'external') {
           scan.folders.push(entryPath);
         }
-        await walk(entryPath, scope, scan, options);
+        await walk(entryPath, scope, scan, options, matcher);
       } else if (entry.isFile()) {
         if (scope === 'vault' && entry.name.toLowerCase().endsWith('.md')) {
           await scanNote(entryPath, scan);

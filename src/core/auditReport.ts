@@ -13,7 +13,9 @@ import type {
 
 import { buildExactPathAdoptionRowsSteps } from './adoptionPlan.ts';
 import { finishAuditSteps } from './auditSteps.ts';
+import { folderStatusTable } from './folderStatusCsv.ts';
 import { unmarkedLeafSteps } from './leafAnalysis.ts';
+import { buildLeafReportSteps } from './leafReport.ts';
 import {
   deriveExternalFolderPath,
   normalizePathForIdentity
@@ -230,7 +232,14 @@ function reportUnassignedNote(note: AuditNote, expected: string, context: NoteRe
   }
 }
 
-const INVENTORY_NAMES = ['exnf-files.csv', 'external-folders.csv', 'markdown-files.csv', 'markdown-with-exnf.csv', 'unmarked-leaf-folders.csv'];
+const INVENTORY_NAMES = [
+  'folder-status.csv',
+  'exnf-files.csv',
+  'external-folders.csv',
+  'markdown-files.csv',
+  'markdown-with-exnf.csv',
+  'unmarked-leaf-folders.csv'
+];
 
 /** Build only the requested table; inventory exports do not run adoption analysis. */
 export function* buildAuditTableSteps(scan: AuditScan, name: string): Generator<void, AuditTable> {
@@ -250,6 +259,9 @@ export function* buildAuditTableSteps(scan: AuditScan, name: string): Generator<
 
 function* buildInventoryTableSteps(scan: AuditScan, name: string): Generator<void, AuditTable> {
   const rows: CsvRow[] = [];
+  if (name === 'folder-status.csv') {
+    return folderStatusTable((yield* buildLeafReportSteps(scan)).tree ?? []);
+  }
   if (name === 'exnf-files.csv') {
     for (const marker of scan.markers) {
       rows.push({ ...marker });

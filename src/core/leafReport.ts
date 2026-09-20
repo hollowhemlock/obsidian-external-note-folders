@@ -12,6 +12,7 @@ import {
   finishAuditSteps,
   sortAuditSteps
 } from './auditSteps.ts';
+import { folderStatusSteps } from './folderStatus.ts';
 import { unmarkedLeafSteps } from './leafAnalysis.ts';
 import { classifyLeafSegments } from './leafQuery.ts';
 import { buildLeafTreeSteps } from './leafTreeBuild.ts';
@@ -58,13 +59,15 @@ export function* buildLeafReportSteps(snapshot: AuditSnapshot): Generator<void, 
     yield;
   }
   const sorted = yield* sortAuditSteps(rows, (a, b) => Number(b.notes.length > 0) - Number(a.notes.length > 0) || a.relativePath.localeCompare(b.relativePath));
+  const tree = yield* buildLeafTreeSteps(snapshot, sorted, notesByTarget);
+  yield* folderStatusSteps(snapshot, tree);
   return {
     externalRoot: snapshot.externalRoot,
     finishedAt: snapshot.finishedAt,
     mutationWarning: false,
     rows: sorted,
     startedAt: snapshot.startedAt,
-    tree: yield* buildLeafTreeSteps(snapshot, sorted, notesByTarget),
+    tree,
     uncheckedCount: snapshot.issues.filter((issue) => issue.unchecked).length,
     vaultRoot: snapshot.vaultRoot
   };

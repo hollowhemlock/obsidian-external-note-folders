@@ -13,10 +13,12 @@ import {
   buildLeafReportSteps
 } from './leafReport.ts';
 import {
+  availableTreeStatuses,
   DEFAULT_TREE_QUERY,
   descendantIssueSteps,
   queryTree,
-  queryTreeSteps
+  queryTreeSteps,
+  retainAvailableTreeStatus
 } from './leafTree.ts';
 
 function fixture(paths: string[]): ReturnType<typeof auditFixture> {
@@ -48,7 +50,7 @@ describe('filesystem report tree', () => {
     }));
     const model = buildLeafReport(scan);
     expect(await runAuditSteps(buildLeafReportSteps(scan))).toEqual(model);
-    const query = { ...DEFAULT_TREE_QUERY, search: 'PROJECT.MD' };
+    const query = { ...DEFAULT_TREE_QUERY, search: 'PROJECT.MD', showGenerated: false };
     const result = queryTree(model, query);
     expect(result.rows).toHaveLength(2);
     expect(result.hiddenCount).toBe(1);
@@ -59,12 +61,19 @@ describe('filesystem report tree', () => {
   });
   it('keeps physical branches when filters hide every child', () => {
     const model = buildLeafReport(fixture(['Project', 'Project/node_modules', 'Project/node_modules/pkg']));
-    const result = queryTree(model, { ...DEFAULT_TREE_QUERY, mode: 'all' });
+    const result = queryTree(model, { ...DEFAULT_TREE_QUERY, mode: 'all', showGenerated: false });
     const project = model.tree?.find((node) => node.relativePath === 'Project');
     expect(project?.children).toHaveLength(1);
     expect(result.visible.has(project?.id ?? '')).toBe(true);
     expect(result.children.get(project?.id ?? '')).toBeUndefined();
     expect(result.rows).toHaveLength(0);
+  });
+  it('resets a status filter that is unavailable after refresh', () => {
+    const model = buildLeafReport(fixture(['ordinary']));
+    const available = availableTreeStatuses(model.tree ?? []);
+    const status = retainAvailableTreeStatus('Bound at different path', available);
+    expect(status).toBe('');
+    expect(queryTree(model, { ...DEFAULT_TREE_QUERY, status }).visible.size).toBe(1);
   });
   it('shows marked branches only in all mode and blocks overlapping adoption, not siblings', () => {
     const scan = fixture(['marked', 'marked/child', 'ordinary']);
@@ -79,7 +88,7 @@ describe('filesystem report tree', () => {
     scan.external.malformedMarkers.push({ location: scan.markers[0]?.markerPath ?? '', message: 'bad marker' });
     const model = buildLeafReport(scan);
     expect(queryTree(model, DEFAULT_TREE_QUERY).rows.map((row) => row.relativePath)).toEqual(['ordinary']);
-    const all = queryTree(model, { ...DEFAULT_TREE_QUERY, mode: 'all' });
+    const all = queryTree(model, { ...DEFAULT_TREE_QUERY, mode: 'all', showGenerated: false });
     expect(all.visible.size).toBe(3);
     expect(model.tree?.find((node) => node.relativePath === 'marked')?.conflict).toBe(true);
     expect(model.tree?.find((node) => node.relativePath === path.join('marked', 'child'))?.covered).toBe(true);

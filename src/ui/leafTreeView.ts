@@ -82,7 +82,7 @@ export function mountLeafTree(
     if (node.unchecked || badges(node).includes('Pending recovery')) {
       return 'unchecked';
     }
-    if (badges(node).includes('Adopted this session')) {
+    if (badges(node).includes('Binding changed this session')) {
       return 'adopted';
     }
     return node.notes.length ? 'note' : 'neutral';
@@ -132,8 +132,13 @@ export function mountLeafTree(
       item.setAttribute('aria-setsize', String(entry.size));
       item.setAttribute('aria-selected', String(entry.id === selection));
       const node = result?.nodes.get(entry.id);
-      item.textContent = node ? label(node) : 'Show next 100…';
-      item.title = node?.relativePath ?? 'Show more siblings';
+      item.replaceChildren();
+      const rowLabel = doc.createElement('span');
+      rowLabel.className = 'leaf-tree-label';
+      rowLabel.textContent = node ? label(node) : 'Show next 100…';
+      item.append(rowLabel);
+      renderEvidence(item, node);
+      item.title = node ? `${node.relativePath} — ${node.evidence?.status ?? ''}` : 'Show more siblings';
       item.dataset['tone'] = tone(node);
       if (node?.children.length) {
         item.setAttribute('aria-expanded', String(expanded.has(entry.id)));
@@ -148,6 +153,19 @@ export function mountLeafTree(
       }
     }
     preserveWindowFocus(activeItem);
+  }
+  function renderEvidence(item: HTMLElement, node: LeafTreeNode | undefined): void {
+    if (node?.evidence) {
+      for (const tag of ['exact', 'yaml', 'marker'] as const) {
+        const badge = doc.createElement('span');
+        const state = node.evidence[tag];
+        badge.className = `leaf-evidence leaf-evidence-${state}`;
+        badge.textContent = ` ${tag}${state === 'invalid' || state === 'unchecked' ? ' ⚠' : ''}`;
+        badge.title = `${tag}: ${state}`;
+        badge.setAttribute('aria-label', `${tag}: ${state}`);
+        item.append(badge);
+      }
+    }
   }
   function placeItem(item: HTMLElement, previous: HTMLElement | null): void {
     const next = previous ? previous.nextSibling : space.firstChild;

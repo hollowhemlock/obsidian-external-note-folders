@@ -103,7 +103,7 @@ function* attachEvidence(snapshot: AuditSnapshot, nodes: Map<string, LeafTreeNod
     const node = nodes.get(normalizePathForIdentity(marker.folderPath));
     if (node) {
       node.markers.push(`${marker.markerPath} — ${marker.status}`);
-      node.conflict ||= marker.status === 'invalid-marker' || !!(marker.uuid && snapshot.external.duplicatePaths.has(marker.uuid)) || node.markers.length > 1;
+      node.conflict ||= marker.status === 'invalid-marker' || !!(marker.uuid && snapshot.external.duplicatePaths.has(marker.uuid));
     }
     yield;
   }

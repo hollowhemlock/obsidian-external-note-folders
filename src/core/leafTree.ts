@@ -15,9 +15,10 @@ export interface LeafTreeNode extends LeafRow {
   conflict: boolean;
   covered: boolean;
   descendantIssues: number;
+  evidence?: import('./folderStatusTypes.ts').FolderEvidence;
   id: string;
   issues: string[];
-  kind: 'directory' | 'link';
+  kind: 'directory' | 'excluded' | 'link' | 'virtual';
   markers: string[];
   parent: null | string;
   total: number;
@@ -25,10 +26,12 @@ export interface LeafTreeNode extends LeafRow {
 }
 export interface TreeQuery {
   category: 'all' | 'ordinary' | LeafRow['categories'][number];
+  includeExpected?: boolean;
   mode: 'all' | 'results';
   search: string;
   showGenerated: boolean;
   sort: 'count' | 'name';
+  status?: string;
 }
 export interface TreeResult {
   children: Map<null | string, string[]>;
@@ -38,9 +41,12 @@ export interface TreeResult {
   rows: LeafRow[];
   visible: Set<string>;
 }
-export const DEFAULT_TREE_QUERY: TreeQuery = { category: 'all', mode: 'results', search: '', showGenerated: false, sort: 'name' };
+export const DEFAULT_TREE_QUERY: TreeQuery = { category: 'all', mode: 'all', search: '', showGenerated: true, sort: 'name' };
 export const TREE_PAGE_SIZE = 100;
 const names = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
+export function availableTreeStatuses(tree: readonly LeafTreeNode[]): string[] {
+  return [...new Set(tree.map((node) => node.evidence?.status ?? 'Unchecked'))].sort();
+}
 /** Inspect physical descendants even when display filters hide their branches. */
 export function* descendantIssueSteps(result: TreeResult, id: string): Generator<void, LeafTreeNode[]> {
   const nodes: LeafTreeNode[] = [];
@@ -137,7 +143,7 @@ export function* queryTreeSteps(model: LeafReportModel, query: TreeQuery): Gener
       matches.add(node.id);
     }
     const generated = node.categories.length > 0;
-    const allowed = matchesCategory(node, query);
+    const allowed = allowedNode(node, query);
     const leaf = leafPaths.get(node.folderPath);
     if (leaf && generated && !query.showGenerated) {
       hiddenCount++;
@@ -145,6 +151,9 @@ export function* queryTreeSteps(model: LeafReportModel, query: TreeQuery): Gener
     if (matched && allowed) {
       if (leaf) {
         rows.push(leaf);
+        counts.set(node.id, 1);
+      }
+      if (node.evidence?.physicalLeaf && query.mode === 'all') {
         counts.set(node.id, 1);
       }
       if (leaf || query.mode === 'all') {
@@ -168,6 +177,9 @@ export function* queryTreeSteps(model: LeafReportModel, query: TreeQuery): Gener
   }
   return { children, counts, hiddenCount, nodes, rows, visible };
 }
+export function retainAvailableTreeStatus(status: string | undefined, available: readonly string[]): string {
+  return status && available.includes(status) ? status : '';
+}
 function* aggregateMatches(ordered: LeafTreeNode[], visible: Set<string>, counts: Map<string, number>): Generator<void, void> {
   for (let index = ordered.length - 1; index >= 0; index--) {
     const node = ordered[index];
@@ -180,12 +192,17 @@ function* aggregateMatches(ordered: LeafTreeNode[], visible: Set<string>, counts
     yield;
   }
 }
+function allowedNode(node: LeafTreeNode, query: TreeQuery): boolean {
+  return matchesCategory(node, query) && (node.kind !== 'virtual' || query.includeExpected === true)
+    && (!query.status || node.evidence?.status === query.status);
+}
 function compareIdentity(a: string, b: string): number {
   if (a === b) {
     return 0;
   }
   return a < b ? -1 : 1;
 }
+
 function matchesCategory(node: LeafTreeNode, query: TreeQuery): boolean {
   const generated = node.categories.length > 0;
   return (query.showGenerated || !generated) && (query.category === 'all'

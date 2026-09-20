@@ -15,6 +15,11 @@ import type {
 } from '../core/groupAdoption.ts';
 import type { GroupAdoptionJournal } from '../storage/groupAdoptionJournal.ts';
 
+import {
+  buildExternalRepair,
+  buildNoteRepair,
+  repairBinding
+} from '../core/folderRepair.ts';
 import { getExnfFrontmatterValue } from '../core/frontmatter.ts';
 import { buildGroupAdoptionPlan } from '../core/groupAdoption.ts';
 import { normalizePathForIdentity } from '../core/pathPolicy.ts';
@@ -32,6 +37,7 @@ import {
   saveGroupJournal
 } from '../storage/groupAdoptionJournal.ts';
 import { buildJournalRootPath } from '../storage/journalPath.ts';
+import { executeReconcilePlan } from '../storage/reconcileExecutor.ts';
 import { GroupAdoptionModal } from './GroupAdoptionModal.ts';
 
 export interface GroupAdoptionHost {
@@ -95,15 +101,23 @@ export class GroupAdoptionController {
       if (plan.sourcePath && await this.readNote(plan.sourcePath) !== content) {
         throw new Error('Note changed. Preview again.');
       }
-      const fresh = buildGroupAdoptionPlan({
-        folderPath: plan.folderPath,
-        ignorePatterns: this.host.settings().externalRootIgnorePatterns,
-        move: plan.sourcePath !== plan.notePath,
-        mutationSequence: this.host.sequence(),
-        note: plan.sourcePath ? { aliases: frontmatter(content ?? '')['aliases'], path: plan.sourcePath } : null,
-        snapshot,
-        uuid: plan.uuid
-      });
+      const fresh = plan.repair && plan.sourcePath
+        ? buildNoteRepair(
+          snapshot,
+          plan.folderPath,
+          { aliases: frontmatter(content ?? '')['aliases'], path: plan.sourcePath },
+          this.host.sequence(),
+          this.host.settings().externalRootIgnorePatterns
+        )
+        : buildGroupAdoptionPlan({
+          folderPath: plan.folderPath,
+          ignorePatterns: this.host.settings().externalRootIgnorePatterns,
+          move: plan.sourcePath !== plan.notePath,
+          mutationSequence: this.host.sequence(),
+          note: plan.sourcePath ? { aliases: frontmatter(content ?? '')['aliases'], path: plan.sourcePath } : null,
+          snapshot,
+          uuid: plan.uuid
+        });
       if (JSON.stringify(fresh) !== JSON.stringify(plan)) {
         throw new Error('Folder, settings, or note evidence changed. Preview again.');
       }
@@ -186,6 +200,125 @@ export class GroupAdoptionController {
     });
     await this.assertDestination(plan);
     return { content, plan };
+  }
+
+  public async repair(folder: string, direction: 'external' | 'note'): Promise<void> {
+    const sequence = this.host.sequence();
+    const snapshot = await this.scan();
+    const binding = repairBinding(snapshot, folder);
+    const content = await this.readNote(binding.note);
+    const notePlan = direction === 'note'
+      ? buildNoteRepair(
+        snapshot,
+        folder,
+        { aliases: frontmatter(content)['aliases'], path: binding.note },
+        sequence,
+        this.host.settings().externalRootIgnorePatterns
+      )
+      : undefined;
+    const externalPlan = direction === 'external'
+      ? buildExternalRepair(snapshot, folder, sequence, this.host.settings().externalRootIgnorePatterns)
+      : undefined;
+    if (notePlan) {
+      await this.assertDestination(notePlan);
+    }
+    if (this.disposed) {
+      return;
+    }
+    const modal = new Modal(this.app);
+    this.dialogs.add(modal);
+    modal.onClose = (): void => {
+      this.dismiss(modal);
+    };
+    modal.titleEl.setText(direction === 'note' ? 'Move note to match external folder' : 'Move external folder to match note');
+    modal.contentEl.createEl('p', { text: `Vault: ${snapshot.vaultRoot}\nExternal root: ${snapshot.externalRoot}` });
+    modal.contentEl.createEl('p', { text: `Note: ${binding.note}\nExternal folder: ${folder}` });
+    modal.contentEl.createEl('p', {
+      text: notePlan
+        ? `Move only ${binding.note} to ${notePlan.notePath}. Links follow Obsidian settings; the previous name is retained as an alias when renamed.`
+        : externalPlan?.markdownReport ?? ''
+    });
+    modal.contentEl.createEl('p', {
+      text: notePlan ? 'The external folder and UUID remain unchanged.' : 'The entire external folder subtree moves. The note and UUID remain unchanged.'
+    });
+    const status = modal.contentEl.createEl('p');
+    const confirm = modal.contentEl.createEl('button', { text: 'Confirm move' });
+    if (notePlan?.descendants.length) {
+      const label = modal.contentEl.createEl('label', { text: `Acknowledge descendant notes: ${notePlan.descendants.join(', ')}` });
+      const checkbox = label.createEl('input', { type: 'checkbox' });
+      confirm.disabled = true;
+      checkbox.onchange = (): void => {
+        confirm.disabled = !checkbox.checked;
+      };
+    }
+    // eslint-disable-next-line func-style -- Capture the controller for a dialog-local retry.
+    const retry = (): void => {
+      const button = modal.contentEl.createEl('button', { text: 'Retry checks' });
+      button.onclick = (): void => {
+        button.disabled = true;
+        this.repair(folder, direction).then(() => {
+          modal.close();
+        }).catch((error: unknown) => {
+          status.setText(String(error));
+          button.disabled = false;
+        });
+      };
+    };
+    confirm.onclick = (): void => {
+      confirm.disabled = true;
+      const execute = async (): Promise<void> => {
+        if (notePlan) {
+          const result = await this.executeForDialog(notePlan, content);
+          if (result.kind === 'complete') {
+            modal.close();
+            return;
+          }
+          status.setText(result.message);
+          if (result.kind === 'retry') {
+            retry();
+          }
+          if (result.kind === 'pending') {
+            const recovery = modal.contentEl.createEl('button', { text: 'Inspect / resume operation' });
+            recovery.onclick = (): void => {
+              this.showRecovery(result.journal).catch((error: unknown) => {
+                status.setText(String(error));
+              });
+            };
+          }
+          return;
+        }
+        if (!externalPlan) {
+          return;
+        }
+        await this.host.mutate(async () => {
+          if (this.disposed || sequence !== this.host.sequence()) {
+            throw new Error('Plan is stale. Open a fresh preview.');
+          }
+          const fresh = buildExternalRepair(await this.scan(), folder, sequence, this.host.settings().externalRootIgnorePatterns);
+          if (JSON.stringify(fresh.rows) !== JSON.stringify(externalPlan.rows) || await this.readNote(binding.note) !== content) {
+            throw new Error('Evidence changed. Open a fresh preview.');
+          }
+          if (this.isDisposed()) {
+            throw new Error('Plugin unloaded before repair.');
+          }
+          const result = await executeReconcilePlan({
+            journalRootPath: buildJournalRootPath({ configDir: this.app.vault.configDir, pluginId: this.pluginId, vaultRootPath: this.roots().vault }),
+            plan: fresh
+          });
+          this.host.changed(folder, binding.note);
+          status.setText(
+            `${result.succeeded ? 'Move complete.' : 'Move stopped. Inspect source and destination before further action.'} Journal: ${result.journalPath}`
+          );
+        });
+      };
+      execute().catch((error: unknown) => {
+        status.setText(error instanceof Error ? error.message : String(error));
+      });
+    };
+    modal.contentEl.createEl('button', { text: 'Close' }).onclick = (): void => {
+      modal.close();
+    };
+    modal.open();
   }
 
   public async resume(file: string, acknowledgedDescendants: readonly string[] = []): Promise<void> {
