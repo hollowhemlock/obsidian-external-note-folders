@@ -2,7 +2,6 @@ import type {
   LeafTreeNode,
   TreeResult
 } from '../core/leafTree.ts';
-import type { FolderChange } from './folderAttention.ts';
 
 import { runAuditSteps } from '../auditScheduler.ts';
 import {
@@ -10,10 +9,7 @@ import {
   evidenceExplanation
 } from '../core/folderInspection.ts';
 import { TREE_PAGE_SIZE } from '../core/leafTree.ts';
-import {
-  ATTENTION_LABELS,
-  folderAttention
-} from './folderAttention.ts';
+import { ATTENTION_LABELS } from './folderAttention.ts';
 
 const ROW_HEIGHT = 36;
 const WINDOW_ROWS = 60;
@@ -40,8 +36,7 @@ interface TreeEntry {
 export function mountLeafTree(
   container: HTMLElement,
   selected: (node: LeafTreeNode | undefined, hidden: boolean, userInitiated: boolean) => void,
-  badges: (node: LeafTreeNode) => string,
-  change: (node: LeafTreeNode) => FolderChange
+  badges: (node: LeafTreeNode) => string
 ): {
   capture: () => TreeNavigation;
   dispose: () => void;
@@ -170,7 +165,7 @@ export function mountLeafTree(
     preserveWindowFocus(activeItem);
   }
   function describeItem(item: HTMLElement, node: LeafTreeNode | undefined, text: string): void {
-    const attention = node ? folderAttention(node, change(node)) : 'neutral';
+    const attention = result?.availability.get(node?.id ?? '')?.attention ?? 'neutral';
     item.title = node
       ? `${node.relativePath} — ${node.evidence?.status ?? ''}\n${ATTENTION_LABELS[attention]}\n${descendantMarkerExplanation(node)}`.trimEnd()
       : 'Show more siblings';

@@ -67,6 +67,7 @@ export function* buildLeafReportSteps(snapshot: AuditSnapshot): Generator<void, 
   const tree = allNodes.filter((node) => node !== rootFolder);
   const coverage = yield* folderInspectionSteps(snapshot, allNodes, rootFolder);
   return {
+    caseSensitivePaths: normalizePathForIdentity('A') !== normalizePathForIdentity('a'),
     coverage,
     externalRoot: snapshot.externalRoot,
     finishedAt: snapshot.finishedAt,

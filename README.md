@@ -430,6 +430,13 @@ Active filters are summarized beside **Clear filters**. Display choices last onl
 for the current tab; reopening starts with all folders and natural name sorting.
 **Scan details** lists exclusions, skipped links, and read failures in pages.
 
+**Needs review** narrows the current filters to amber/red rows. **Previous issue**
+and **Next issue** visit those matches in tree order using the current sibling
+sort, including collapsed branches and rows beyond the rendered page. Navigation
+does not wrap or change filters; unavailable directions are disabled. Context-only
+ancestors and temporary reveals are not issues. The position indicator counts
+issues in the current filters, whether Needs review is on or off.
+
 Exact-path evidence uses discovered vault paths independently of external scan
 gaps. An unreadable note still has a usable path, but its YAML identity is
 unchecked. An unreadable marker does not make inspected child directories
@@ -447,15 +454,30 @@ can be collapsed. Same-name suggestions remain separate from confirmed associati
 Scan details and the View/Export controls outside the selected-folder panel
 continue to start closed.
 
-The left edge of each row communicates attention level, independently of whether
-adoption is enabled. A matching legend, text labels, and symbols accompany the
-colors; light and dark themes use corresponding palettes.
+A compact sticky header keeps the selected folder, status, and navigation visible.
+Binding relationships and actions precede note suggestions and technical records.
+Actual/expected paths have labeled copy controls. Sorting, filtering, and refresh
+preserve the same folder's section expansion, scroll position, and keyboard focus;
+selecting another folder starts at the top with sections expanded.
+
+Drag the separator between the tree and details to resize them. With the separator
+focused, Left/Right adjust the width and Home/End select the limits. Each pane stays
+at least 320px wide; **Reset pane width** restores the initial 60/40 split. At report
+widths of 800px or less the panes stack and the divider is hidden. The split is
+remembered only for the current tab/page session and returns when widened.
+
+An 8px bar at the left edge of each row communicates attention level. A matching
+legend, text labels, and symbols accompany brighter light/dark palettes. Blue
+identifies physical branches and leaves with no known adoption blocker, even
+without note matches. It means **Choose a note to check adoption**, not approval;
+the preview still checks the selected note and operation. Scanning temporarily
+disables actions without recoloring the previous completed result.
 
 | Color | Meaning | Examples |
 | --- | --- | --- |
-| Gray | Informational | Ordinary containers, content subfolders, intentionally excluded paths and skipped links |
+| Gray | Informational | Blocked containers, content subfolders, intentionally excluded paths and skipped links |
 | Teal | Healthy binding | Confirmed binding at the expected path |
-| Blue | Optional action | Possible adoption candidates or name matches |
+| Blue | Optional action | Branches or leaves with no known adoption blocker, including unassigned folders |
 | Amber | Review recommended | Drift, unreadable local evidence, unmatched markers, provisional bindings, changes awaiting refresh |
 | Red | Conflict / recovery | Invalid identities, duplicate UUIDs, conflicting bindings, pending operations |
 
@@ -463,6 +485,10 @@ colors; light and dark themes use corresponding palettes.
 parent is an expected restriction. Descendant problems retain their own row
 indicators and appear in the parent's detailed restrictions. Partial-root virtual
 paths do not become warnings solely because the expected folder is absent.
+Missing-marker and conflict states take precedence over adoption availability.
+If session operations overlap, pending recovery takes precedence over completed
+changes. Refresh retains pending recovery indications until the operation is
+reported completed through the existing recovery flow.
 
 **Include expected paths from identified notes** adds virtual expected paths.
 These are informational: they cannot be adopted or opened as existing folders.
@@ -484,6 +510,9 @@ Filtered exports include matching folders in collapsed branches, but exclude
 contextual tree ancestors and temporary navigation reveals. Displayed-folder
 counts likewise count actual filter matches. All-status exports include virtual
 expected paths. Existing audit CSVs and unmarked-leaf exports retain their meanings.
+Status fields describe the captured scan. If session mutations affect filtering,
+status exports append that context to the existing explanation field; they do not
+replace captured evidence with an assumed post-mutation state.
 
 For a unique drifted binding, selected-folder details offer **Move external folder
 to match note** or **Move note to match external folder**. Both require a preview

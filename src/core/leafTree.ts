@@ -1,3 +1,4 @@
+import type { FolderAvailability } from './folderAvailability.ts';
 import type {
   LeafReportModel,
   LeafRow
@@ -7,6 +8,7 @@ import {
   finishAuditSteps,
   sortAuditSteps
 } from './auditSteps.ts';
+import { folderAvailabilitySteps } from './folderAvailability.ts';
 import { classifyLeafSegments } from './leafQuery.ts';
 
 export interface LeafTreeNode extends LeafRow {
@@ -29,17 +31,20 @@ export interface TreeQuery {
   category: 'all' | 'ordinary' | LeafRow['categories'][number];
   includeExpected?: boolean;
   mode: 'all' | 'results';
+  needsReview?: boolean;
   search: string;
   showGenerated: boolean;
   sort: 'count' | 'name';
   status?: string;
 }
 export interface TreeResult {
+  availability: Map<string, FolderAvailability>;
   children: Map<null | string, string[]>;
   counts: Map<string, number>;
   hiddenCount: number;
   matched: Set<string>;
   nodes: Map<string, LeafTreeNode>;
+  orderedChildren: Map<null | string, string[]>;
   rows: LeafRow[];
   visible: Set<string>;
 }
@@ -117,11 +122,12 @@ export function* leafOnlyTreeSteps(model: LeafReportModel): Generator<void, Leaf
   return [...nodes.values()];
 }
 
-export function queryTree(model: LeafReportModel, query: TreeQuery): TreeResult {
-  return finishAuditSteps(queryTreeSteps(model, query));
+export function queryTree(model: LeafReportModel, query: TreeQuery, operations?: ReadonlyMap<string, null | string>): TreeResult {
+  return finishAuditSteps(queryTreeSteps(model, query, operations));
 }
-export function* queryTreeSteps(model: LeafReportModel, query: TreeQuery): Generator<void, TreeResult> {
+export function* queryTreeSteps(model: LeafReportModel, query: TreeQuery, operations?: ReadonlyMap<string, null | string>): Generator<void, TreeResult> {
   const tree = model.tree ?? (yield* leafOnlyTreeSteps(model));
+  const availability = yield* folderAvailabilitySteps(model, tree, operations);
   const nodes = new Map<string, LeafTreeNode>();
   for (const node of tree) {
     nodes.set(node.id, node);
@@ -146,7 +152,7 @@ export function* queryTreeSteps(model: LeafReportModel, query: TreeQuery): Gener
       matches.add(node.id);
     }
     const generated = node.categories.length > 0;
-    const allowed = allowedNode(node, query);
+    const allowed = allowedNode(node, query, availability.get(node.id));
     const leaf = leafPaths.get(node.folderPath);
     if (leaf && generated && !query.showGenerated) {
       hiddenCount++;
@@ -171,15 +177,15 @@ export function* queryTreeSteps(model: LeafReportModel, query: TreeQuery): Gener
     (query.sort === 'count' ? b.total - a.total : 0)
     || names.compare(a.segments.at(-1) ?? '', b.segments.at(-1) ?? '') || compareIdentity(a.id, b.id));
   const children = new Map<null | string, string[]>();
+  const orderedChildren = new Map<null | string, string[]>();
   for (const node of sorted) {
+    appendChild(orderedChildren, node);
     if (visible.has(node.id)) {
-      const siblings = children.get(node.parent) ?? [];
-      siblings.push(node.id);
-      children.set(node.parent, siblings);
+      appendChild(children, node);
     }
     yield;
   }
-  return { children, counts, hiddenCount, matched: matchedNodes, nodes, rows, visible };
+  return { availability, children, counts, hiddenCount, matched: matchedNodes, nodes, orderedChildren, rows, visible };
 }
 export function retainAvailableTreeStatus(status: string | undefined, available: readonly string[]): string {
   return status && available.includes(status) ? status : '';
@@ -196,9 +202,15 @@ function* aggregateMatches(ordered: LeafTreeNode[], visible: Set<string>, counts
     yield;
   }
 }
-function allowedNode(node: LeafTreeNode, query: TreeQuery): boolean {
+function allowedNode(node: LeafTreeNode, query: TreeQuery, availability: FolderAvailability | undefined): boolean {
   return matchesCategory(node, query) && (node.kind !== 'virtual' || query.includeExpected === true)
-    && (!query.status || node.evidence?.status === query.status);
+    && (!query.status || node.evidence?.status === query.status)
+    && (!query.needsReview || availability?.attention === 'review' || availability?.attention === 'conflict');
+}
+function appendChild(children: Map<null | string, string[]>, node: LeafTreeNode): void {
+  const siblings = children.get(node.parent) ?? [];
+  siblings.push(node.id);
+  children.set(node.parent, siblings);
 }
 function compareIdentity(a: string, b: string): number {
   if (a === b) {

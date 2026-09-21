@@ -30,6 +30,7 @@ export interface LeafQueryResult {
   total: number;
 }
 export interface LeafReportModel {
+  caseSensitivePaths?: boolean;
   coverage?: import('./folderInspection.ts').ReportCoverage;
   externalRoot: string;
   finishedAt: string;

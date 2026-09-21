@@ -222,7 +222,7 @@ describe('shared leaf report integration', () => {
       const expandedDetails=Array.from(details().querySelectorAll('details')).every(d=>d.open);
       const definitionsRemoved=!Array.from(details().querySelectorAll('p')).some(p=>/^(exact|yaml|marker): /.test(p.textContent));
       const boundStyle=getComputedStyle(row('Project'));
-      const leftAttention=boundStyle.borderLeftWidth==='4px' && boundStyle.borderRightWidth==='0px' && row('Project').dataset.tone==='healthy';
+      const leftAttention=boundStyle.borderLeftWidth==='8px' && boundStyle.borderRightWidth==='0px' && row('Project').dataset.tone==='healthy';
       const neutralChild=row('Project'+String.fromCharCode(92)+'child').dataset.tone==='neutral';
       const search=el.querySelector('input[type=search]');
       search.value='Other';search.dispatchEvent(new Event('input'));await wait();
@@ -273,6 +273,114 @@ describe('shared leaf report integration', () => {
         'definitionsRemoved',
         'leftAttention',
         'neutralChild'
+      ]
+    ) {
+      expect(result).toContain(`"${key}":true`);
+    }
+  }, 60_000);
+
+  it('shares review navigation, adoption availability, and stable resizable details', async () => {
+    const pluginId = await readSandboxPluginId();
+    runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
+    await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR);
+    const fixture = auditFixture(150);
+    fixture.folders.push(
+      ...['Branch', 'Branch/Child', 'ReviewParent', 'ReviewParent/A', 'ReviewParent/B'].map((name) => path.join(fixture.externalRoot, name))
+    );
+    const uuid = '11111111-1111-4111-8111-111111111111';
+    const folderPath = path.join(fixture.externalRoot, 'ReviewParent/B');
+    fixture.markers.push({ folderPath, format: 'uuid-named', markerPath: path.join(folderPath, `${uuid}.exnf`), status: 'valid', uuid });
+    const invalidFolder = path.join(fixture.externalRoot, 'folder-120');
+    fixture.markers.push({
+      folderPath: invalidFolder,
+      format: 'uuid-named',
+      markerPath: path.join(invalidFolder, 'bad.exnf'),
+      status: 'invalid-marker',
+      uuid: ''
+    });
+    const model = buildLeafReport(fixture);
+    const branch = model.tree!.find((node) => node.relativePath === 'Branch')!;
+    branch.evidence!.explanations.push(...Array.from({ length: 30 }, (_, i) => `Diagnostic ${String(i)} for details scroll verification.`));
+    const modelPath = resolveRepoPath('tmp/leaf-attention-model.json');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(modelPath, JSON.stringify(model));
+    const result = evaluate(`(async()=>{
+      const v=app.workspace.getLeavesOfType('${VIEW_TYPE}')[0].view;
+      const model=JSON.parse(require('fs').readFileSync(${JSON.stringify(modelPath)},'utf8'));
+      await v.report.update(model);
+      const el=v.contentEl, root=el.querySelector('.exnf-leaf-report'), tree=el.querySelector('.leaf-tree');
+      const details=()=>el.querySelector('.leaf-details');
+      const button=(text,parent=el)=>Array.from(parent.querySelectorAll('button')).find(b=>b.textContent===text);
+      const row=(name)=>Array.from(tree.querySelectorAll('.leaf-tree-item')).find(r=>r.title.startsWith(name+' —'));
+      const wait=async()=>{await new Promise(r=>setTimeout(r,60));for(let i=0;i<200 && root.getAttribute('aria-busy')==='true';i++)await new Promise(r=>setTimeout(r,20));};
+      row('Branch').click();await wait();
+      const blue=row('Branch').dataset.tone==='optional' && !button('Adopt this folder…',details()).disabled;
+      // The captured availability still allows adoption until the scheduled query publishes.
+      model.stale=true;row('Branch'+String.fromCharCode(92)+'Child').click();await wait();
+      const staleGated=button('Adopt this folder…',details()).disabled;
+      model.stale=false;row('Branch').click();await wait();
+      details().querySelector('[data-section=notes]').open=false;
+      details().scrollTop=160;
+      const scroll=details().scrollTop;
+      const copy=button('Copy path',details());copy.focus();
+      const sort=el.querySelector('select[aria-label="Sort siblings"]');sort.value='count';sort.dispatchEvent(new Event('change'));await wait();
+      const stable=copy===button('Copy path',details()) && document.activeElement===copy && !details().querySelector('[data-section=notes]').open && details().scrollTop===scroll;
+      await v.report.update(structuredClone(model));await wait();
+      const refreshed=document.activeElement===button('Copy path',details()) && !details().querySelector('[data-section=notes]').open && details().scrollTop===scroll;
+      const divider=el.querySelector('[role=separator]'), layout=el.querySelector('.leaf-layout');
+      divider.dispatchEvent(new KeyboardEvent('keydown',{key:'Home',bubbles:true}));await wait();
+      const minimum=divider.getAttribute('aria-valuenow')==='320';
+      divider.dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true}));await wait();
+      const maximum=divider.getAttribute('aria-valuenow')===divider.getAttribute('aria-valuemax');
+      button('Reset pane width').click();await wait();
+      const afterReset=layout.style.getPropertyValue('--leaf-tree-width');
+      const expectedWidth=Math.max(320,Math.min(layout.clientWidth-24-320,(layout.clientWidth-24)*0.6));
+      const reset=Math.abs(parseFloat(afterReset)-expectedWidth)<1;
+      root.style.width='600px';await wait();const narrow=getComputedStyle(divider).display==='none';
+      root.style.width='';await wait();const restored=getComputedStyle(divider).display!=='none';
+      sort.value='name';sort.dispatchEvent(new Event('change'));await wait();
+      button('Needs review').click();await wait();
+      const filtered=el.querySelector('.leaf-stats').textContent.includes('2 displayed folders');
+      button('Next issue').click();await wait();
+      const first=details().querySelector('h2').textContent==='folder-120' && button('Previous issue').disabled;
+      button('Next issue').click();await wait();
+      const second=details().querySelector('h2').textContent==='B' && button('Next issue').disabled && row('ReviewParent').getAttribute('aria-expanded')==='true';
+      const search=el.querySelector('input[type=search]');search.value='no-matches';search.dispatchEvent(new Event('input'));await wait();
+      const empty=button('Previous issue').disabled && button('Next issue').disabled;
+      button('Clear filters').click();await wait();
+      const cleared=button('Needs review').getAttribute('aria-pressed')==='false';
+      const parent=model.tree.find(n=>n.relativePath==='ReviewParent');
+      const a=model.tree.find(n=>n.segments.at(-1)==='A');
+      const b=model.tree.find(n=>n.segments.at(-1)==='B');
+      v.report.adopted(a.folderPath,'A.md');v.report.adopted(b.folderPath,null);await wait();
+      search.value='ReviewParent';search.dispatchEvent(new Event('input'));await wait();
+      const pending=row('ReviewParent').dataset.tone==='conflict' && row('ReviewParent'+String.fromCharCode(92)+'B').dataset.tone==='conflict';
+      const fresh=structuredClone(model);fresh.stale=false;await v.report.update(fresh);await wait();
+      const retainedPending=row('ReviewParent').dataset.tone==='conflict';
+      const aborted=new AbortController();aborted.abort();try{await v.report.update(model,aborted.signal);}catch{}
+      const cancelled=row('ReviewParent').dataset.tone==='conflict';
+      const answer={blue,staleGated,stable,refreshed,minimum,maximum,reset,narrow,restored,filtered,first,second,empty,cleared,pending,retainedPending,cancelled};
+      return JSON.stringify(answer);
+    })()`);
+    for (
+      const key of [
+        'blue',
+        'staleGated',
+        'stable',
+        'refreshed',
+        'minimum',
+        'maximum',
+        'reset',
+        'narrow',
+        'restored',
+        'filtered',
+        'first',
+        'second',
+        'empty',
+        'cleared',
+        'pending',
+        'retainedPending',
+        'cancelled'
       ]
     ) {
       expect(result).toContain(`"${key}":true`);

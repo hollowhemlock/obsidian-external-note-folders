@@ -30,6 +30,9 @@ import {
 } from './leafReport.ts';
 
 describe('shared leaf report', () => {
+  it('captures platform path comparison semantics for browser queries', () => {
+    expect(buildLeafReport(auditFixture()).caseSensitivePaths).toBe(!['darwin', 'win32'].includes(process.platform));
+  });
   it('produces identical tables for on-demand and full exports', async () => {
     const scan = auditFixture(3);
     const reports = buildAuditReports(scan);
