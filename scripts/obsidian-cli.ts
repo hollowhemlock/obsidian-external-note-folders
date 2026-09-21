@@ -161,6 +161,9 @@ export function runObsidianCli(
       encoding: 'utf8',
       timeout: timeoutMilliseconds
     });
+    if (isMissingExecutableError(result.error)) {
+      continue;
+    }
     const output: ObsidianCliResult = {
       command: `${candidate} ${args.join(' ')}`.trim(),
       errorMessage: result.error?.message ?? '',
@@ -169,9 +172,7 @@ export function runObsidianCli(
       stdout: result.stdout.trim()
     };
 
-    if (!isMissingExecutableError(result.error)) {
-      return output;
-    }
+    return output;
   }
 
   return {

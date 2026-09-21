@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { runAuditSteps } from '../src/auditScheduler.ts';
 import { buildAuditReportSteps } from '../src/core/auditReport.ts';
@@ -12,7 +12,7 @@ import { buildAuditHtml } from './audit-html.ts';
 async function main(): Promise<void> {
   const options = new Map([
     ['--external-root', 'C:\\Users\\ryanh\\ship\\hangar'],
-    ['--output', fileURLToPath(new URL('../tmp', import.meta.url))],
+    ['--output', path.join(tmpdir(), 'external-note-folders-audit')],
     ['--vault', 'C:\\Users\\ryanh\\ship\\cabin']
   ]);
   const args = process.argv.slice(2);

@@ -134,19 +134,21 @@ export function* folderStatusSteps(scan: AuditSnapshot, tree: LeafTreeNode[]): G
     const valid = notes.filter((note) => !!note.uuid);
     const relatedFolders = [...new Set(valid.flatMap((note) => foldersByUuid.get(note.uuid) ?? []))];
     const uncheckedMarker = local.some((marker) => marker.status === 'unchecked-marker');
+    const localUuids = new Set(local.filter((marker) => marker.status === 'valid' && marker.uuid !== '').map((marker) => marker.uuid));
     const invalid = invalidEvidence();
     function invalidEvidence(): boolean {
       return local.some(isInvalidMarker)
         || notes.some((note) => ['duplicate-uuid', 'invalid-property'].includes(match(note).status))
         || local.some((marker) => scan.external.duplicatePaths.has(marker.uuid))
-        || (local.length > 1 && !uncheckedMarker) || exact.length > 1 || notes.length > 1;
+        || localUuids.size > 1 || exact.length > 1 || notes.length > 1;
     }
     const nestedBinding = hasNestedBinding(node.covered, local);
     const conflict = nestedBinding || local.some((marker) => !!marker.uuid && exact.some((note) => !!note.uuid && note.uuid !== marker.uuid));
     const binding = uniqueBinding();
     function uniqueBinding(): AuditNote | undefined {
-      return local.length === 1 && local[0]?.uuid && (byUuid.get(local[0].uuid)?.length === 1)
-        ? byUuid.get(local[0].uuid)?.[0]
+      const uuid = localUuids.size === 1 ? [...localUuids][0] : undefined;
+      return uuid && (byUuid.get(uuid)?.length === 1)
+        ? byUuid.get(uuid)?.[0]
         : undefined;
     }
     const candidates = (byName.get(path.basename(node.folderPath).toLowerCase()) ?? []).filter((note) => !associated.has(note.relativePath)).map(match);
@@ -213,6 +215,9 @@ export function* folderStatusSteps(scan: AuditSnapshot, tree: LeafTreeNode[]): G
       exact: presence(exact.length > 0, pathsComplete),
       explanations: [
         ...nestedBindingExplanations(nestedBinding),
+        ...(local.some((marker) => marker.format === 'legacy')
+          ? ['Legacy .exnf marker evidence remains; run marker migration to remove the deprecated marker.']
+          : []),
         ...node.issues,
         ...(complete ? [] : ['Incomplete coverage: uniqueness and absence are provisional.'])
       ],

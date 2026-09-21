@@ -74,6 +74,10 @@ describe('external folder setup planning', () => {
     expect(buildPlan(inspection({ directoryPaths: [path.join(EXTERNAL_ROOT, 'Alpha/Child')] }), ['Alpha/Child.md']).action).toBe('block');
   });
 
+  it('ignores unrelated notes without a supported derived path', () => {
+    expect(buildPlan(inspection(), ['README.MD']).action).toBe('confirm-unmarked-adoption');
+  });
+
   it('blocks ignored targets, distinct target identities, and UUIDs already owned in the vault', () => {
     expect(buildPlan(inspection({ targetIgnored: true })).action).toBe('block');
     expect(buildPlan(inspection({ targetMarkerUuids: [UUID, '223e4567-e89b-42d3-a456-426614174000'] })).action)

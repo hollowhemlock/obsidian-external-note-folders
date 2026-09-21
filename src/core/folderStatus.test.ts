@@ -157,6 +157,25 @@ describe('folder status evidence', () => {
     }
     expect(buildLeafReport(scan).tree?.find((row) => row.folderPath === folder)?.evidence?.marker).toBe('invalid');
   });
+  it('treats matching legacy and UUID-named markers as one compatible identity', () => {
+    const { folder, scan } = fixture('Folder.md');
+    scan.markers.push({
+      folderPath: folder,
+      format: 'legacy',
+      markerPath: path.join(folder, '.exnf'),
+      status: 'valid',
+      uuid: UUID
+    });
+
+    const node = buildLeafReport(scan).tree?.find((row) => row.folderPath === folder);
+    expect(node?.evidence).toMatchObject({
+      bindingNote: 'Folder.md',
+      status: 'Bound at expected path',
+      uuid: UUID
+    });
+    expect(node?.conflict).toBe(false);
+    expect(node?.evidence?.explanations.join(' ')).toContain('run marker migration');
+  });
   it('preserves unreadable marker evidence as unchecked', () => {
     const { folder, scan } = fixture('Folder.md');
     const marker = scan.markers[0];

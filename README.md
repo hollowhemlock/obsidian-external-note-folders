@@ -328,11 +328,11 @@ npx --no-install jiti scripts/audit-adoption.ts `
   --output '.\tmp'
 ```
 
-These are also the default source roots; the default output parent is this
-repository's ignored `tmp` directory. Each run writes a fresh timestamped directory
-and prints its absolute path. The command uses the locally installed `jiti` and
-`yaml` packages from the current dependency tree; it does not install packages or
-require a running Obsidian instance. Use `--help` for options.
+These are also the default source roots; the default output parent is the system
+temporary directory under `external-note-folders-audit`. Each run writes a fresh
+timestamped directory and prints its absolute path. The command uses the locally
+installed `jiti` and `yaml` packages from the current dependency tree; it does not
+install packages or require a running Obsidian instance. Use `--help` for options.
 
 The audit reads actual files recursively, without using Obsidian's cache or plugin
 ignore settings. Under `cabin`, it reads markdown files and parses top-level YAML

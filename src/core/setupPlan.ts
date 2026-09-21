@@ -110,10 +110,18 @@ export function buildSetupPlan(input: {
   }
 
   const directoryIdentities = new Set(inspection.directoryPaths.map(normalizePathForIdentity));
-  const hasDeeperExactCandidate = input.notePaths
-    .filter((notePath) => notePath !== input.notePath)
-    .map((notePath) => deriveExternalFolderPath(notePath, inspection.externalRootPath))
-    .some((folderPath) => directoryIdentities.has(normalizePathForIdentity(folderPath)));
+  const hasDeeperExactCandidate = input.notePaths.some((notePath) => {
+    if (notePath === input.notePath) {
+      return false;
+    }
+    try {
+      const folderPath = deriveExternalFolderPath(notePath, inspection.externalRootPath);
+      return directoryIdentities.has(normalizePathForIdentity(folderPath));
+    } catch {
+      // A path that cannot produce a supported external target cannot reserve one.
+      return false;
+    }
+  });
   if (hasDeeperExactCandidate) {
     return blockPlan(input, ['A deeper exact note/folder candidate must be set up first.'], inspection);
   }
