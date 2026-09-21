@@ -275,7 +275,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   const details = element('aside', '', layout, 'leaf-details');
   details.setAttribute('aria-label', 'Selected folder details');
   const disposeSplitter = installReportSplitter(layout, groups, details);
-  const tree = mountLeafTree(groups, selected, badges);
+  const tree = mountLeafTree(groups, selected, descriptor);
   element('p', 'Generated-path filters only change this view. Unmarked does not mean adoption is required.', root, 'leaf-context');
   function setStatus(message: string, running = busy): void {
     if (disposed) {
@@ -308,12 +308,12 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     return result?.availability.get(node.id)?.operation;
   }
 
-  function badges(node: LeafTreeNode): string {
+  function descriptor(node: LeafTreeNode): string {
     const overlay = affected(node);
     if (overlay) {
-      return overlay[1] === null ? ' · ⚠ Pending recovery' : ' · ✓ Binding changed this session';
+      return overlay[1] === null ? '⚠ Pending recovery' : '✓ Binding changed this session';
     }
-    return ` · ${shortFolderStatus(node)}`;
+    return shortFolderStatus(node);
   }
   function renderDetails(node: LeafTreeNode | undefined, hidden: boolean): void {
     const signature = JSON.stringify([hidden, jump?.targetId, model?.stale, result?.availability.get(node?.id ?? '')]);

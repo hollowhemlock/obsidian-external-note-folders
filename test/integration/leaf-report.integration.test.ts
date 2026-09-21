@@ -141,7 +141,7 @@ describe('shared leaf report integration', () => {
       const expansionOrder=ordered();
       branch.click();await wait();
       const initial=tree.querySelector('.leaf-tree-item');initial.click();await wait();
-      tree.scrollTop=80*36;tree.dispatchEvent(new Event('scroll'));
+      tree.scrollTop=80*28;tree.dispatchEvent(new Event('scroll'));
       const scrollFocus=document.activeElement===tree;
       document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}));
       const resumedKeyboard=document.activeElement.getAttribute('role')==='treeitem';
@@ -151,7 +151,7 @@ describe('shared leaf report integration', () => {
       tree.dispatchEvent(new KeyboardEvent('keydown',{key:'Home',bubbles:true}));
       const first=el.querySelector('.leaf-tree-item'); first.focus(); first.click(); await wait();
       const sort=el.querySelector('[aria-label="Sort siblings"]'); sort.value='count';sort.dispatchEvent(new Event('change'));await wait();
-      const anchored=document.activeElement.textContent.includes('a-target') && tree.scrollTop>100*36;
+      const anchored=document.activeElement.textContent.includes('a-target') && tree.scrollTop>100*28;
       const sortOrder=ordered();
       const search=el.querySelector('input[type=search]'); search.value='b-0';search.dispatchEvent(new Event('input'));await wait();
       const hidden=el.querySelector('.leaf-details').textContent.includes('hidden by the current filters');
@@ -222,7 +222,29 @@ describe('shared leaf report integration', () => {
       const expandedDetails=Array.from(details().querySelectorAll('details')).every(d=>d.open);
       const definitionsRemoved=!Array.from(details().querySelectorAll('p')).some(p=>/^(exact|yaml|marker): /.test(p.textContent));
       const boundStyle=getComputedStyle(row('Project'));
-      const leftAttention=boundStyle.borderLeftWidth==='8px' && boundStyle.borderRightWidth==='0px' && row('Project').dataset.tone==='healthy';
+      const rowAttention=boundStyle.borderLeftWidth==='0px' && boundStyle.backgroundColor!==getComputedStyle(tree).backgroundColor && row('Project').dataset.tone==='healthy';
+      const child=row('Project'+String.fromCharCode(92)+'child');
+      const aligned=['.leaf-tree-count','.leaf-tree-descriptor','.leaf-tree-evidence'].every(selector=>row('Project').querySelector(selector).getBoundingClientRect().left===child.querySelector(selector).getBoundingClientRect().left);
+      const compact=child.getBoundingClientRect().height===28 && row('Project').getBoundingClientRect().height===28;
+      const selectedStyle=getComputedStyle(child);
+      const selectionVisible=selectedStyle.boxShadow.includes('2px') && selectedStyle.color!==selectedStyle.backgroundColor;
+      const originalTheme=document.body.className;
+      let themePalette=true;
+      try {
+        for (const [theme,fill,ink,mark] of [
+          ['light','rgb(208, 243, 208)','rgb(26, 26, 26)','#278733'],
+          ['dark','rgb(39, 63, 40)','rgb(255, 255, 255)','#80CD82']
+        ]) {
+          document.body.classList.remove('theme-light','theme-dark');document.body.classList.add('theme-'+theme);
+          const style=getComputedStyle(row('Project'));
+          themePalette=themePalette && style.backgroundColor===fill && style.color===ink && style.getPropertyValue('--leaf-attention').trim()===mark;
+          themePalette=themePalette && getComputedStyle(row('Project').querySelector('.leaf-evidence')).color===ink;
+        }
+      } finally { document.body.className=originalTheme; }
+      const text=details().querySelector('.leaf-path-value');
+      const range=document.createRange();range.selectNodeContents(text);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+      const copyable=getComputedStyle(text).userSelect==='text' && selection.toString()===text.textContent;
+      selection.removeAllRanges();
       const neutralChild=row('Project'+String.fromCharCode(92)+'child').dataset.tone==='neutral';
       const search=el.querySelector('input[type=search]');
       search.value='Other';search.dispatchEvent(new Event('input'));await wait();
@@ -254,7 +276,7 @@ describe('shared leaf report integration', () => {
       const escape=!menu.open && document.activeElement===menu.querySelector('summary');
       menu.querySelector('summary').click();search.click();
       const outside=!menu.open;
-      return JSON.stringify({relationship,revealed,sorted,cancelled,back,root,selectionEnds,filterEnds,refreshEnds,escape,outside,expandedDetails,definitionsRemoved,leftAttention,neutralChild});
+      return JSON.stringify({relationship,revealed,sorted,cancelled,back,root,selectionEnds,filterEnds,refreshEnds,escape,outside,expandedDetails,definitionsRemoved,rowAttention,aligned,compact,selectionVisible,themePalette,copyable,neutralChild});
     })()`);
     for (
       const key of [
@@ -271,7 +293,12 @@ describe('shared leaf report integration', () => {
         'outside',
         'expandedDetails',
         'definitionsRemoved',
-        'leftAttention',
+        'rowAttention',
+        'aligned',
+        'compact',
+        'selectionVisible',
+        'themePalette',
+        'copyable',
         'neutralChild'
       ]
     ) {

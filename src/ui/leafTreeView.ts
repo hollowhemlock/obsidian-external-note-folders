@@ -11,7 +11,8 @@ import {
 import { TREE_PAGE_SIZE } from '../core/leafTree.ts';
 import { ATTENTION_LABELS } from './folderAttention.ts';
 
-const ROW_HEIGHT = 36;
+const ROW_HEIGHT = 28;
+const HEADER_HEIGHT = 28;
 const WINDOW_ROWS = 60;
 const OVERSCAN_ROWS = 5;
 const BASE_PADDING = 12;
@@ -36,7 +37,7 @@ interface TreeEntry {
 export function mountLeafTree(
   container: HTMLElement,
   selected: (node: LeafTreeNode | undefined, hidden: boolean, userInitiated: boolean) => void,
-  badges: (node: LeafTreeNode) => string
+  descriptor: (node: LeafTreeNode) => string
 ): {
   capture: () => TreeNavigation;
   dispose: () => void;
@@ -51,9 +52,17 @@ export function mountLeafTree(
   tree.setAttribute('role', 'tree');
   tree.setAttribute('aria-label', 'External folders');
   tree.tabIndex = 0;
+  const header = doc.createElement('div');
+  header.className = 'leaf-tree-columns';
+  header.setAttribute('aria-hidden', 'true');
+  for (const title of ['Folder', 'Leaves', 'Descriptor', 'Evidence']) {
+    const cell = doc.createElement('span');
+    cell.textContent = title;
+    header.append(cell);
+  }
   const space = doc.createElement('div');
   space.className = 'leaf-tree-space';
-  tree.append(space);
+  tree.append(header, space);
   container.append(tree);
   let result: TreeResult | undefined;
   let expanded = new Set<string>();
@@ -95,12 +104,42 @@ export function mountLeafTree(
       tree.setAttribute('aria-label', 'External folders — rendering failed; refresh to retry');
     });
   }
-  function label(node: LeafTreeNode): string {
+  function leafCount(node: LeafTreeNode): string {
     const count = result?.counts.get(node.id) ?? 0;
-    const leaves = count === node.total ? count.toLocaleString() : `${count.toLocaleString()}/${node.total.toLocaleString()}`;
-    const branch = node.children.length > 0;
-    const hidden = branch && !result?.children.get(node.id)?.length ? ' · children hidden' : '';
-    return `${glyph(node)} ${node.segments.at(-1) ?? node.relativePath} · ${leaves} ${node.total === 1 ? 'leaf' : 'leaves'}${hidden}${badges(node)}`;
+    return count === node.total ? count.toLocaleString() : `${count.toLocaleString()}/${node.total.toLocaleString()}`;
+  }
+  function renderCells(item: HTMLElement, node: LeafTreeNode | undefined, level: number): void {
+    const rowLabel = doc.createElement('span');
+    rowLabel.className = 'leaf-tree-label';
+    rowLabel.style.paddingLeft = `${String(BASE_PADDING + (level - 1) * LEVEL_INDENT)}px`;
+    rowLabel.textContent = node ? `${glyph(node)} ${node.segments.at(-1) ?? node.relativePath}` : 'Show next 100…';
+    item.append(rowLabel);
+    if (!node) {
+      describeItem(item, node, rowLabel.textContent);
+      return;
+    }
+    if (node.covered) {
+      const inherited = doc.createElement('span');
+      inherited.className = 'leaf-inherited';
+      inherited.textContent = '↑';
+      inherited.title = 'Marker in an ancestor folder. Select this folder to inspect the relationship.';
+      inherited.setAttribute('aria-label', inherited.title);
+      rowLabel.append(inherited);
+    }
+    const count = doc.createElement('span');
+    count.className = 'leaf-tree-count';
+    count.textContent = leafCount(node);
+    count.title = `${count.textContent} ${count.textContent.includes('/') ? 'matching / known' : 'known'} physical leaves`;
+    const status = doc.createElement('span');
+    status.className = 'leaf-tree-descriptor';
+    const hidden = node.children.length > 0 && !result?.children.get(node.id)?.length ? ' · children hidden' : '';
+    status.textContent = `${descriptor(node)}${hidden}`;
+    status.title = status.textContent;
+    const evidence = doc.createElement('span');
+    evidence.className = 'leaf-tree-evidence';
+    renderEvidence(evidence, node);
+    item.append(count, status, evidence);
+    describeItem(item, node, `${rowLabel.textContent}; ${count.title}; ${status.textContent}`);
   }
   function renderWindow(): void {
     if (disposed) {
@@ -127,7 +166,6 @@ export function mountLeafTree(
       placeItem(item, previous);
       previous = item;
       item.style.top = `${String(index * ROW_HEIGHT)}px`;
-      item.style.paddingLeft = `${String(BASE_PADDING + (entry.level - 1) * LEVEL_INDENT)}px`;
       item.tabIndex = entry.id === focused ? 0 : -1;
       item.setAttribute('role', 'treeitem');
       item.setAttribute('aria-level', String(entry.level));
@@ -136,20 +174,7 @@ export function mountLeafTree(
       item.setAttribute('aria-selected', String(entry.id === selection));
       const node = result?.nodes.get(entry.id);
       item.replaceChildren();
-      const rowLabel = doc.createElement('span');
-      rowLabel.className = 'leaf-tree-label';
-      rowLabel.textContent = node ? label(node) : 'Show next 100…';
-      item.append(rowLabel);
-      if (node?.covered) {
-        const inherited = doc.createElement('span');
-        inherited.className = 'leaf-inherited';
-        inherited.textContent = '↑';
-        inherited.title = 'Marker in an ancestor folder. Select this folder to inspect the relationship.';
-        inherited.setAttribute('aria-label', inherited.title);
-        item.append(inherited);
-      }
-      renderEvidence(item, node);
-      describeItem(item, node, rowLabel.textContent);
+      renderCells(item, node, entry.level);
       if (node?.children.length) {
         item.setAttribute('aria-expanded', String(expanded.has(entry.id)));
       } else {
@@ -300,7 +325,7 @@ export function mountLeafTree(
     }
     focused = entry.id;
     const top = index * ROW_HEIGHT;
-    if (top < tree.scrollTop || top + ROW_HEIGHT > tree.scrollTop + tree.clientHeight) {
+    if (top < tree.scrollTop || top + ROW_HEIGHT + HEADER_HEIGHT > tree.scrollTop + tree.clientHeight) {
       tree.scrollTop = top;
     }
     renderWindow();
@@ -408,7 +433,9 @@ export function mountLeafTree(
       tree.scrollTop = navigation.scrollTop;
       renderWindow();
       const position = focused ? positions.get(focused) : undefined;
-      if (position !== undefined && position * ROW_HEIGHT >= tree.scrollTop && (position + 1) * ROW_HEIGHT <= tree.scrollTop + tree.clientHeight) {
+      if (
+        position !== undefined && position * ROW_HEIGHT >= tree.scrollTop && (position + 1) * ROW_HEIGHT + HEADER_HEIGHT <= tree.scrollTop + tree.clientHeight
+      ) {
         restoreFocus();
       } else {
         tree.focus({ preventScroll: true });

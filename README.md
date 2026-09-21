@@ -418,7 +418,7 @@ When descendant markers exist without a confirmed binding, the label is
 **Contains descendant markers**. These replace misleading unassigned/adoption
 candidate labels without overriding local conflicts or unchecked evidence.
 An identified parent without a local marker retains **Marker absent here** and
-its amber review indicator, including membership in that status filter.
+its orange review indicator, including membership in that status filter.
 Tooltips, selected-folder details, and CSV explanations include descendant
 counts and explain why adopting the entire parent would create a nested binding.
 The parent can remain an ordinary container; its local `marker` tag stays absent.
@@ -430,7 +430,7 @@ Active filters are summarized beside **Clear filters**. Display choices last onl
 for the current tab; reopening starts with all folders and natural name sorting.
 **Scan details** lists exclusions, skipped links, and read failures in pages.
 
-**Needs review** narrows the current filters to amber/red rows. **Previous issue**
+**Needs review** narrows the current filters to orange/red rows. **Previous issue**
 and **Next issue** visit those matches in tree order using the current sibling
 sort, including collapsed branches and rows beyond the rendered page. Navigation
 does not wrap or change filters; unavailable directions are disabled. Context-only
@@ -466,8 +466,20 @@ at least 320px wide; **Reset pane width** restores the initial 60/40 split. At r
 widths of 800px or less the panes stack and the divider is hidden. The split is
 remembered only for the current tab/page session and returns when widened.
 
-An 8px bar at the left edge of each row communicates attention level. A matching
-legend, text labels, and symbols accompany brighter light/dark palettes. Blue
+Compact 28px rows align folder names, physical leaf quantities, descriptors, and
+evidence in separate columns. Indentation affects only the name column. Leaf
+quantities show matching/known totals when filters hide leaves. Column headings
+stay visible while scrolling; narrow panes scroll horizontally to retain the
+columns. Details text can be selected and copied normally, alongside the existing
+Copy path buttons.
+
+Solid full-row colors communicate attention level. Light mode uses `#1A1A1A` text on
+pale backgrounds; dark mode uses white text on deep backgrounds. Normal and
+hover backgrounds use the verified equal-lightness palette, with separate
+foreground colors for legend and details indicators. The selected row has
+a solid inset outline, and keyboard focus has a dashed outline. Evidence symbols
+and dashed borders on absent tags distinguish their states without faded text.
+The matching legend and text labels retain meaning without relying on color alone. Blue
 identifies physical branches and leaves with no known adoption blocker, even
 without note matches. It means **Choose a note to check adoption**, not approval;
 the preview still checks the selected note and operation. Scanning temporarily
@@ -476,10 +488,23 @@ disables actions without recoloring the previous completed result.
 | Color | Meaning | Examples |
 | --- | --- | --- |
 | Gray | Informational | Blocked containers, content subfolders, intentionally excluded paths and skipped links |
-| Teal | Healthy binding | Confirmed binding at the expected path |
+| Green | Healthy binding | Confirmed binding at the expected path |
 | Blue | Optional action | Branches or leaves with no known adoption blocker, including unassigned folders |
-| Amber | Review recommended | Drift, unreadable local evidence, unmatched markers, provisional bindings, changes awaiting refresh |
+| Orange | Review recommended | Drift, unreadable local evidence, unmatched markers, provisional bindings, changes awaiting refresh |
 | Red | Conflict / recovery | Invalid identities, duplicate UUIDs, conflicting bindings, pending operations |
+
+| Attention | Light row / hover | Dark row / hover | Light / dark indicator |
+| --- | --- | --- | --- |
+| Informational | `#FFFFFF` / `#F7F7F7` | `#1A1A1A` / `#232323` | `#58677B` / `#A2ADBB` |
+| Healthy green | `#D0F3D0` / `#C6ECC6` | `#273F28` / `#2F4A30` | `#278733` / `#80CD82` |
+| Optional blue | `#D7EAFF` / `#C8E3FF` | `#233A51` / `#2B445F` | `#0F74C5` / `#7CBDFF` |
+| Review orange | `#FFE2CB` / `#FFD7B7` | `#4B321C` / `#583B23` | `#A75C00` / `#F4A25C` |
+| Conflict red | `#FFDFDC` / `#FFD4CF` | `#4F2D2B` / `#5C3633` | `#B94642` / `#FF958D` |
+
+Obsidian's selected theme takes precedence over the operating system preference.
+Offline HTML follows the operating system theme. Indicator colors use the
+palette's foreground marks, avoiding its light-mode accent bars that fall below
+3:1 against highlighted rows. Row colors are opaque, with no transparency blending.
 
 **Contains bound subfolders** remains informational: being unable to adopt the
 parent is an expected restriction. Descendant problems retain their own row
