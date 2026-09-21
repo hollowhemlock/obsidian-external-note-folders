@@ -393,13 +393,18 @@ expansion, keyboard navigation, and virtualized rendering are retained. Search
 matches folder paths and exact/UUID-associated notes. Same-name candidates appear
 separately in details and are never treated as proof of a binding.
 
+Click a different row to select it and inspect its details without expanding or
+collapsing it. Click an already selected branch to toggle its expansion. Keyboard
+Left/Right controls still collapse/expand directly; Enter/Space selects the row.
+
 Every row shows `exact` (plugin-derived note path), `yaml` (valid associated note
-identity), and `marker` (contains .exnf marker) tags. The indicators use `✓` for
-found, `–` for absent, `?` for unchecked, and `⚠` for invalid evidence.
-The legend and tag tooltips explain each state. The details panel shows associated
-notes and actual evidence without repeating the tag definitions. The separate status distinguishes matching bindings,
+identity), and `marker` (contains .exnf marker) columns. Cells show their column
+name for found evidence, stay blank for absent evidence, and show `?` for
+unchecked or `⚠` for invalid evidence.
+The legend and cell tooltips explain each state. The details panel shows associated
+notes and actual evidence without repeating the column definitions. The separate status distinguishes matching bindings,
 path drift, adoption candidates, orphan markers, conflicts, and uncertainty.
-Three active tags do not prove that UUIDs match. Ancestor markers are shown
+Three populated columns do not prove that UUIDs match. Ancestor markers are shown
 separately; a child does not itself contain its ancestor's marker. Missing YAML
 is labeled **YAML exnf not found**, or **No associated note** when no note exists.
 
@@ -477,8 +482,10 @@ Solid full-row colors communicate attention level. Light mode uses `#1A1A1A` tex
 pale backgrounds; dark mode uses white text on deep backgrounds. Normal and
 hover backgrounds use the verified equal-lightness palette, with separate
 foreground colors for legend and details indicators. The selected row has
-a solid inset outline, and keyboard focus has a dashed outline. Evidence symbols
-and dashed borders on absent tags distinguish their states without faded text.
+a solid inset outline, and keyboard focus has a dashed outline. Evidence has
+three aligned columns headed `exact`, `yaml`, and `marker`; absent cells are
+blank to reduce noise. Hover explanations and screen-reader labels preserve
+the meaning of every cell, including absent, unchecked, and invalid states.
 The matching legend and text labels retain meaning without relying on color alone. Blue
 identifies physical branches and leaves with no known adoption blocker, even
 without note matches. It means **Choose a note to check adoption**, not approval;

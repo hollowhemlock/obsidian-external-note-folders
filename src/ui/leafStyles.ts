@@ -37,14 +37,14 @@ export const LEAF_REPORT_CSS = `
 .exnf-leaf-report .leaf-layout{display:grid;grid-template-columns:minmax(320px,var(--leaf-tree-width,60%)) 8px minmax(320px,1fr);gap:8px}
 .exnf-leaf-report .leaf-tree{height:60vh;min-height:260px;overflow:auto;position:relative;border:1px solid var(--background-modifier-border,#bdc8d7);border-radius:6px;background:var(--background-secondary,#fff)}
 .exnf-leaf-report .leaf-tree-space{position:relative;min-width:620px}
-.exnf-leaf-report .leaf-tree-columns,.exnf-leaf-report .leaf-tree-item{display:grid;grid-template-columns:minmax(180px,1fr) 70px minmax(170px,.8fr) 190px;align-items:center;gap:0;height:28px;line-height:28px;padding-right:8px}
+.exnf-leaf-report .leaf-tree-columns,.exnf-leaf-report .leaf-tree-item{display:grid;grid-template-columns:minmax(180px,1fr) 70px minmax(170px,.8fr) repeat(3,60px);align-items:center;gap:0;height:28px;line-height:28px;padding-right:8px}
 .exnf-leaf-report .leaf-tree-columns{position:sticky;top:0;z-index:1;min-width:620px;background:var(--leaf-surface);font-size:12px;font-weight:600;border-bottom:1px solid var(--background-modifier-border,#bdc8d7)}
 .exnf-leaf-report .leaf-tree-columns>span{padding:0 8px}
 .exnf-leaf-report .leaf-tree-columns>span:nth-child(2){text-align:right}
+.exnf-leaf-report .leaf-tree-columns>span:nth-child(n+4){text-align:center}
 .exnf-leaf-report .leaf-tree-label,.exnf-leaf-report .leaf-tree-descriptor{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px}
 .exnf-leaf-report .leaf-tree-descriptor{padding-left:8px;font-size:12px}
 .exnf-leaf-report .leaf-tree-count{text-align:right;padding-right:8px;font-variant-numeric:tabular-nums;font-size:12px}
-.exnf-leaf-report .leaf-tree-evidence{display:flex;gap:4px;justify-content:flex-end}
 .exnf-leaf-report .leaf-tree-item{position:absolute;left:0;right:0;white-space:nowrap;overflow:hidden;cursor:pointer;background:var(--leaf-row-fill,var(--leaf-row-neutral));color:var(--leaf-row-text)}
 .exnf-leaf-report .leaf-tree-item:hover{background:var(--leaf-row-hover,var(--leaf-hover-neutral))}
 .exnf-leaf-report .leaf-tree-item[aria-selected=true]{box-shadow:inset 0 0 0 2px var(--leaf-row-text);font-weight:600}
@@ -54,8 +54,7 @@ export const LEAF_REPORT_CSS = `
 .exnf-leaf-report .leaf-details{min-width:0;overflow-wrap:anywhere;max-height:60vh;overflow:auto;padding:12px;border:1px solid var(--background-modifier-border,#bdc8d7);border-radius:6px}
 .exnf-leaf-report .leaf-details,.exnf-leaf-report .leaf-details *{-webkit-user-select:text;user-select:text}
 .exnf-leaf-report .leaf-details button{-webkit-user-select:none;user-select:none}
-.exnf-leaf-report .leaf-evidence{flex-shrink:0;min-width:62px;text-align:center;font-size:12px;line-height:18px;margin-left:6px;padding:2px 5px;border:1px solid var(--background-modifier-border,#bdc8d7);border-radius:4px}
-.exnf-leaf-report .leaf-tree-evidence .leaf-evidence{min-width:0;margin:0;padding:0 4px;font-size:11px;line-height:18px}
+.exnf-leaf-report .leaf-evidence{min-width:0;text-align:center;font-size:12px;line-height:28px}
 .exnf-leaf-report .leaf-evidence-absent,.exnf-leaf-report .leaf-evidence-unchecked{color:var(--text-muted,#58677b)}
 .exnf-leaf-report .leaf-evidence-invalid{color:var(--leaf-review);font-weight:600}
 .exnf-leaf-report .leaf-tree-item[data-marked=true] .leaf-tree-label{font-weight:650}
@@ -92,5 +91,4 @@ export const LEAF_REPORT_CSS = `
 .theme-dark .exnf-leaf-report{--leaf-surface:var(--background-secondary,#282f39)}
 .theme-light .exnf-leaf-report{--leaf-surface:var(--background-secondary,#fff)}
 .exnf-leaf-report .leaf-tree-item .leaf-evidence,.exnf-leaf-report .leaf-tree-item .leaf-inherited{color:inherit;border-color:currentColor}
-.exnf-leaf-report .leaf-tree-item .leaf-evidence-absent{border-style:dashed}
 `;

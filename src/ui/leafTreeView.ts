@@ -55,7 +55,7 @@ export function mountLeafTree(
   const header = doc.createElement('div');
   header.className = 'leaf-tree-columns';
   header.setAttribute('aria-hidden', 'true');
-  for (const title of ['Folder', 'Leaves', 'Descriptor', 'Evidence']) {
+  for (const title of ['Folder', 'Leaves', 'Descriptor', 'exact', 'yaml', 'marker']) {
     const cell = doc.createElement('span');
     cell.textContent = title;
     header.append(cell);
@@ -135,10 +135,8 @@ export function mountLeafTree(
     const hidden = node.children.length > 0 && !result?.children.get(node.id)?.length ? ' · children hidden' : '';
     status.textContent = `${descriptor(node)}${hidden}`;
     status.title = status.textContent;
-    const evidence = doc.createElement('span');
-    evidence.className = 'leaf-tree-evidence';
-    renderEvidence(evidence, node);
-    item.append(count, status, evidence);
+    item.append(count, status);
+    renderEvidence(item, node);
     describeItem(item, node, `${rowLabel.textContent}; ${count.title}; ${status.textContent}`);
   }
   function renderWindow(): void {
@@ -202,14 +200,15 @@ export function mountLeafTree(
   function renderEvidence(item: HTMLElement, node: LeafTreeNode | undefined): void {
     if (node?.evidence) {
       for (const tag of ['exact', 'yaml', 'marker'] as const) {
-        const badge = doc.createElement('span');
+        const cell = doc.createElement('span');
         const state = node.evidence[tag];
-        badge.className = `leaf-evidence leaf-evidence-${state}`;
-        const symbols = { absent: '–', invalid: '⚠', present: '✓', unchecked: '?' };
-        badge.textContent = `${tag} ${symbols[state]}`;
-        badge.title = evidenceExplanation(node, tag);
-        badge.setAttribute('aria-label', `${tag}: ${badge.title}`);
-        item.append(badge);
+        cell.className = `leaf-evidence leaf-evidence-${state}`;
+        cell.dataset['evidence'] = tag;
+        const labels = { absent: '', invalid: '⚠', present: tag, unchecked: '?' };
+        cell.textContent = labels[state];
+        cell.title = evidenceExplanation(node, tag);
+        cell.setAttribute('aria-label', `${tag}: ${state}. ${cell.title}`);
+        item.append(cell);
       }
     }
   }
@@ -355,7 +354,7 @@ export function mountLeafTree(
     const entry = entries[positions.get(target?.dataset['treeKey'] ?? '') ?? -1];
     if (entry) {
       target?.focus({ preventScroll: true });
-      run(activate(entry, true));
+      run(activate(entry, selection === entry.id));
     }
   }
   function moveRight(entry: TreeEntry, index: number): void {

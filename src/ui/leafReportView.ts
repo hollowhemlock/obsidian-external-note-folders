@@ -260,7 +260,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   });
   element(
     'p',
-    'exact = matching note path · yaml = valid note exnf · marker = Contains .exnf marker · ↑ = marker above. ✓ found · – absent · ? unchecked · ⚠ invalid. Evidence tags do not by themselves prove a binding.',
+    'exact = matching note path · yaml = valid note exnf · marker = Contains .exnf marker · ↑ = marker above. Named cell = found · blank = absent · ? unchecked · ⚠ invalid. Evidence columns do not by themselves prove a binding.',
     root,
     'leaf-legend'
   );

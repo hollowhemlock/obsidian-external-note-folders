@@ -138,8 +138,14 @@ describe('shared leaf report integration', () => {
       await v.report.update(model);
       const branch=Array.from(tree.querySelectorAll('.leaf-tree-item')).find(row=>row.title.startsWith('b-0 —'));
       branch.click();await wait();
-      const expansionOrder=ordered();
+      const selectWithoutExpand=branch.getAttribute('aria-selected')==='true' && branch.getAttribute('aria-expanded')==='false';
       branch.click();await wait();
+      const expansionOrder=ordered() && branch.getAttribute('aria-expanded')==='true';
+      tree.querySelector('.leaf-tree-item').click();await wait();
+      branch.click();await wait();
+      const selectWithoutCollapse=branch.getAttribute('aria-selected')==='true' && branch.getAttribute('aria-expanded')==='true';
+      branch.click();await wait();
+      const collapseSelected=branch.getAttribute('aria-expanded')==='false';
       const initial=tree.querySelector('.leaf-tree-item');initial.click();await wait();
       tree.scrollTop=80*28;tree.dispatchEvent(new Event('scroll'));
       const scrollFocus=document.activeElement===tree;
@@ -170,7 +176,7 @@ describe('shared leaf report integration', () => {
       const layout=el.querySelector('.leaf-layout');
       const narrow=getComputedStyle(layout).gridTemplateColumns.split(' ').length===1;
       report.style.removeProperty('width');
-      return JSON.stringify({anchored,hidden,retained,cancelled,removed,keyboard,paged,narrow,expansionOrder,sortOrder,scrollFocus,resumedKeyboard,statusReset});
+      return JSON.stringify({anchored,hidden,retained,cancelled,removed,keyboard,paged,narrow,selectWithoutExpand,selectWithoutCollapse,collapseSelected,expansionOrder,sortOrder,scrollFocus,resumedKeyboard,statusReset});
     })()`);
     for (
       const key of [
@@ -183,6 +189,9 @@ describe('shared leaf report integration', () => {
         'paged',
         'narrow',
         'expansionOrder',
+        'selectWithoutExpand',
+        'selectWithoutCollapse',
+        'collapseSelected',
         'sortOrder',
         'scrollFocus',
         'resumedKeyboard',
@@ -217,6 +226,7 @@ describe('shared leaf report integration', () => {
       const button=(text,scope=el)=>Array.from(scope.querySelectorAll('button')).find(b=>b.textContent===text);
       const row=(name)=>Array.from(tree.querySelectorAll('.leaf-tree-item')).find(r=>r.title.startsWith(name+' —'));
       row('Project').click();await wait();
+      row('Project').click();await wait();
       row('Project'+String.fromCharCode(92)+'child').click();await wait();
       const relationship=details().textContent.includes('bound to Project.md') && details().textContent.includes('1 level above') && button('Adopt this folder…',details()).disabled;
       const expandedDetails=Array.from(details().querySelectorAll('details')).every(d=>d.open);
@@ -224,7 +234,13 @@ describe('shared leaf report integration', () => {
       const boundStyle=getComputedStyle(row('Project'));
       const rowAttention=boundStyle.borderLeftWidth==='0px' && boundStyle.backgroundColor!==getComputedStyle(tree).backgroundColor && row('Project').dataset.tone==='healthy';
       const child=row('Project'+String.fromCharCode(92)+'child');
-      const aligned=['.leaf-tree-count','.leaf-tree-descriptor','.leaf-tree-evidence'].every(selector=>row('Project').querySelector(selector).getBoundingClientRect().left===child.querySelector(selector).getBoundingClientRect().left);
+      const aligned=['.leaf-tree-count','.leaf-tree-descriptor','[data-evidence=exact]','[data-evidence=yaml]','[data-evidence=marker]'].every(selector=>row('Project').querySelector(selector).getBoundingClientRect().left===child.querySelector(selector).getBoundingClientRect().left);
+      const columns=['exact','yaml','marker'].every((tag,i)=>{
+        const heading=tree.querySelector('.leaf-tree-columns').children[i+3];
+        const found=row('Project').querySelector('[data-evidence='+tag+']');
+        const absent=child.querySelector('[data-evidence='+tag+']');
+        return heading.textContent===tag && found.textContent===tag && absent.textContent==='' && absent.getAttribute('aria-label').includes('absent') && absent.title.length>0 && found.getBoundingClientRect().left===heading.getBoundingClientRect().left;
+      });
       const compact=child.getBoundingClientRect().height===28 && row('Project').getBoundingClientRect().height===28;
       const selectedStyle=getComputedStyle(child);
       const selectionVisible=selectedStyle.boxShadow.includes('2px') && selectedStyle.color!==selectedStyle.backgroundColor;
@@ -276,7 +292,13 @@ describe('shared leaf report integration', () => {
       const escape=!menu.open && document.activeElement===menu.querySelector('summary');
       menu.querySelector('summary').click();search.click();
       const outside=!menu.open;
-      return JSON.stringify({relationship,revealed,sorted,cancelled,back,root,selectionEnds,filterEnds,refreshEnds,escape,outside,expandedDetails,definitionsRemoved,rowAttention,aligned,compact,selectionVisible,themePalette,copyable,neutralChild});
+      // Render captured uncertainty explicitly; blank cells must mean absence only.
+      const warningModel=structuredClone(model), warningNode=warningModel.tree.find(n=>n.relativePath==='Other');
+      warningNode.evidence.yaml='unchecked';warningNode.evidence.marker='invalid';
+      await v.report.update(warningModel);
+      const unchecked=row('Other').querySelector('[data-evidence=yaml]'), invalid=row('Other').querySelector('[data-evidence=marker]');
+      const warnings=unchecked.textContent==='?' && unchecked.getAttribute('aria-label').includes('unchecked') && invalid.textContent==='⚠' && invalid.title.includes('malformed');
+      return JSON.stringify({relationship,revealed,sorted,cancelled,back,root,selectionEnds,filterEnds,refreshEnds,escape,outside,expandedDetails,definitionsRemoved,rowAttention,aligned,columns,warnings,compact,selectionVisible,themePalette,copyable,neutralChild});
     })()`);
     for (
       const key of [
@@ -295,6 +317,8 @@ describe('shared leaf report integration', () => {
         'definitionsRemoved',
         'rowAttention',
         'aligned',
+        'columns',
+        'warnings',
         'compact',
         'selectionVisible',
         'themePalette',
@@ -340,6 +364,7 @@ describe('shared leaf report integration', () => {
       const button=(text,parent=el)=>Array.from(parent.querySelectorAll('button')).find(b=>b.textContent===text);
       const row=(name)=>Array.from(tree.querySelectorAll('.leaf-tree-item')).find(r=>r.title.startsWith(name+' —'));
       const wait=async()=>{await new Promise(r=>setTimeout(r,60));for(let i=0;i<200 && root.getAttribute('aria-busy')==='true';i++)await new Promise(r=>setTimeout(r,20));};
+      row('Branch').click();await wait();
       row('Branch').click();await wait();
       const blue=row('Branch').dataset.tone==='optional' && !button('Adopt this folder…',details()).disabled;
       // The captured availability still allows adoption until the scheduled query publishes.

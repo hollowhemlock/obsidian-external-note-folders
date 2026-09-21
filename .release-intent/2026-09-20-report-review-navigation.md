@@ -25,3 +25,10 @@ Apply the verified equal-lightness row and hover palette with green healthy
 bindings, blue optional actions, orange review states, and red conflicts. Keep
 foreground indicator colors separate from row fills and use contrasting row
 text in both themes. Obsidian theme selection overrides the system preference.
+
+Replace evidence badges with aligned exact, yaml, and marker columns. Show the
+column name for present evidence, leave absent cells blank, and retain explicit
+unchecked/invalid symbols plus tooltip and screen-reader explanations.
+
+Select a different folder without changing its expansion. Clicking an already
+selected branch toggles expansion; keyboard Left/Right navigation is unchanged.
