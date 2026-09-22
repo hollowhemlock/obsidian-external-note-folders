@@ -1,5 +1,13 @@
 # Exact-Path External Folder Adoption Plan
 
+Status: Historical implementation plan for the original command rollout.
+
+The two-PR sequence below is retained for context, not as pending work. Current
+bulk adoption behavior is governed by [ADR-0026](../adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md).
+Single-folder adoption is a separate workflow under
+[ADR-0032](../adr/0032-explicit-folder-group-adoption.md). See the
+[README command reference](../../../README.md#commands) for the current surface.
+
 ## Summary
 
 Implement external-root adoption in two PRs. PR 1 makes `Open external folder`

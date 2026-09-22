@@ -1,8 +1,11 @@
 # Procedure: MVP Validation
 
-This procedure defines the repeatable validation flow for work implementing `docs/dev/plans/mvp.md`.
+Status: Maintained baseline validation procedure; the filename reflects its MVP origin.
 
-Use `docs/dev/procedures/mvp-implementation-workflow.md` before coding to define scope, sequencing, status tracking, and mutation safety expectations. Use this procedure after or during implementation to collect validation evidence.
+Use the current task, [product intent](../product/intent.md), and
+[testing guide](../testing/README.md) to choose relevant checks. The historical
+MVP plan and phase workflow are context, not the current backlog. Collect
+validation evidence against the actual code revision being reviewed.
 
 ## When to Use
 
@@ -12,11 +15,21 @@ Use this procedure for any change that affects:
 - marker parsing or writing
 - path derivation, sanitization, or boundary checks
 - external-root scanning or raw filesystem access
-- command behavior (`Assign UUID`, `Set up external folder`, `Open External Folder`, `Adopt exact-path external folders`, moved-folder suggestions, drift report, `Reconcile`)
+- command behavior, including setup/open, bulk and single-folder adoption,
+  reconciliation, marker migration, and journal recovery
+- shared status analysis, offline HTML, report filtering/exports, and Obsidian status-tab behavior
 
 ## Baseline Commands
 
-Run these before requesting review:
+For documentation-only local work, check changed-file formatting, relative links
+and anchors, and claims against their source code or configuration. The current
+`npm run format:check` configuration excludes Markdown, so it does not validate
+prose layout; inspect Markdown structure and run `git diff --check` as well.
+There is no need to reset the Obsidian sandbox solely for prose changes. Normal required CI
+and the [review gate](commit-pull-request-merge-review-gate.md) still apply to PRs
+and merges.
+
+For code changes, run these before requesting review:
 
 ```bash
 npm run lint

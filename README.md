@@ -4,7 +4,7 @@ This is a plugin for [Obsidian](https://obsidian.md/) that associates Obsidian v
 
 ## What It Does
 
-External Note Folders links a markdown note to an external folder by storing a canonical UUID in the note's `exnf` frontmatter field and creating an empty `<uuid>.exnf` marker file in the external folder. The canonical filename is the marker's complete identity; its contents are never read. Legacy fixed `.exnf` markers are read during the 2.0.0 migration window and should be migrated with the explicit migration command.
+External Note Folders links a markdown note to an external folder by storing a canonical UUID in the note's `exnf` frontmatter field and creating an empty `<uuid>.exnf` marker file in the external folder. The canonical filename is the marker's complete identity; its contents are never read. Legacy fixed `.exnf` markers remain readable for migration and should be migrated with the explicit migration command.
 
 External folder paths normally mirror the vault-relative note path without `.md`. Folder-note layouts collapse to the parent folder, so `Projects/Alpha/Alpha.md` uses `Projects/Alpha/` instead of `Projects/Alpha/Alpha/`.
 
@@ -284,18 +284,49 @@ reconciliation.
 - Bulk adoption is strict, partial, and leaf-first: it only adopts deepest exact derived-path matches whose individual target row is safe. Existing bindings and planned leaves are pruned from a compact residual-tree summary; malformed, duplicate, and skipped evidence remains visible as grouped warnings or blocked candidates, while configured ignores appear as notices. Residual directories are informational and are never modified.
 - `Report external folder drift` is read-only and can be used before reconcile to inspect missing, orphaned, unexpected, occupied, and likely moved folders without changing the vault or external root.
 - `Open external folder` does not assign note identity. Use `Set up external folder` for the one-command workflow or `Assign external folder identifier` when identity should exist before a folder.
-- ADR-0025 recovery scans are active-note scoped, not a substitute for full drift reporting. Long-running commands show a start/progress modal, but scan caps, cancellation, and cached indexes are intentionally out of scope until performance requires them.
+- ADR-0025 recovery scans are active-note scoped, not a substitute for full drift reporting. Their start/progress modal is separate from the status window's cancellable physical audit and scheduled analysis.
 - Concurrent UUID assignment across unsynced devices can create orphan external folders.
 - Sync tool conflicts in note frontmatter or external marker files are outside the plugin's repair scope; `Report external folder drift` surfaces the resulting state.
-- Fixed `.exnf` markers are deprecated legacy evidence during the 2.0.0 migration window. New writes create empty `<uuid>.exnf` files; run `Migrate legacy marker files` to rename old markers.
+- Fixed `.exnf` markers remain readable as deprecated legacy evidence. New writes create empty `<uuid>.exnf` files; run `Migrate legacy marker files` to rename old markers.
 - New UUID-named markers are empty because their canonical filename carries the folder identity. Existing UUID-named marker contents are opaque and ignored. Legacy fixed `.exnf` markers still carry their UUID in their content during the migration window.
 
 ## Contributor Guide
 
+### Documentation map
+
+Use this map for human and LLM-assisted maintenance. Current task instructions
+take precedence; repository documents do not independently authorize commits,
+publishing, or mutations. Check the current checkout before assuming a proposal
+has shipped or an earlier test result still applies.
+
+| Task | Start here | Status / purpose |
+| --- | --- | --- |
+| Understand commands and settings | [Commands](#commands), [External folder status](#external-folder-status) | Current user-facing behavior; not a roadmap. |
+| Change product behavior | [Product intent](docs/dev/product/intent.md), [ADR index](docs/dev/adr/README.md) | Product authority, then accepted architectural and safety decisions. Superseded ADRs are historical. |
+| Find implementation boundaries | [Project structure](#project-structure), [Agent guide](AGENTS.md) | Code navigation and task workflow; keep business rules in core. |
+| Decide task authority | [Autonomy policy](docs/dev/agent/autonomy-policy.md) | Scope and escalation rules; advisory observations do not authorize work. |
+| Add or verify coverage | [Testing guide](docs/dev/testing/README.md), [State matrix](docs/dev/testing/external-folder-state-matrix.md) | Current coverage expectations; the linked ledger distinguishes tested and planned scenarios. |
+| Run live Obsidian tests | [Integration guide](test/integration/README.md), [Fixture guide](test/fixtures/README.md) | Primary-checkout-only disposable sandbox; never substitute a real user vault. |
+| Review or release | [Review gate](docs/dev/procedures/commit-pull-request-merge-review-gate.md), [Release procedure](docs/dev/procedures/release.md) | Required evidence and publication workflow; local tests do not replace required CI. |
+| Investigate earlier designs | [MVP plan](docs/dev/plans/mvp.md), [Adoption plan](docs/dev/plans/external-folder-adoption.md), [Marker notes](docs/dev/plans/uuid-marker-filenames.md) | Historical implementation context, not a current backlog. |
+| Change active-note recovery UX | [Recovery spec](docs/dev/plans/open-external-folder-recovery.md) | Maintained supporting spec, subordinate to product intent and accepted ADRs. |
+
+`.release-intent/` records describe the intent and validation of their original
+changes. They are not the installed-version source or fresh test evidence.
+Release Please owns version metadata and the changelog; use the exact release
+tag to inspect a published version. `CLAUDE.md` delegates to `AGENTS.md` so agent
+guidance has one entry point. The ADR index is generated; update its source ADRs
+and run `npm run docs:adr:index` rather than editing the index by hand.
+
 ### Project structure
 
-- `src/`: plugin source (entrypoint `main.ts`, core plugin classes, UI samples, editor extensions, styles)
-- `scripts/`: local development helpers
+- `src/main.ts`, `src/Plugin.ts`: plugin entry point, commands, mutation lock, and adapter wiring
+- `src/core/`: pure identity, path, report, and planning logic; no filesystem IO or Obsidian imports
+- `src/storage/`: filesystem/process adapters, journals, physical audit scanning, and report output
+- `src/obsidian/`: vault API adapters, status tab, and single-folder adoption controller/dialog
+- `src/ui/`: shared browser-safe report UI, session state, navigation, and presentation
+- Root `src/*Modal.ts` and `src/PluginSettingsTab.ts`: Obsidian-specific dialogs and settings UI
+- `scripts/`: standalone audit/HTML entry points, performance checks, sandbox helpers, and release tooling
 - `test/fixtures/`: committed fixture data and disposable sandbox data
 - `docs/dev/adr/`: architecture decision records
 - `docs/dev/procedures/`: development and release procedures
@@ -613,7 +644,11 @@ historical snapshot, with a stale warning until **Refresh**. Standalone HTML has
 no adoption controls. Single-folder writes avoid creating unwanted notes, but
 safety checks can still require full-root scans.
 
-The tab labels its scope **Full physical audit — ignore patterns not applied**.
+The tab labels its scope **Physical audit — command-specific exclusions are disclosed below**.
+It scans all folders by default. Only this command's **Skip scanning ignored
+folders** setting enables its configured external-directory exclusions; those
+settings never exclude vault notes. Normal external-root ignore settings do not
+apply to the report scan. Excluded paths and other coverage gaps remain visible.
 This audit explicitly permits raw, read-only filesystem reads of the active vault;
 it does not use cached frontmatter. Vault adapters without an absolute filesystem
 root are unsupported. Existing commands keep their vault adapters, ignore rules,

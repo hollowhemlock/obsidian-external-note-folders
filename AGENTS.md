@@ -2,6 +2,12 @@
 
 Primary project guidance is centralized in [README.md](README.md).
 
+Start with the README's [documentation map](README.md#documentation-map) and read
+only the authorities relevant to the task. Historical plans, release-intent
+records, and old validation results are context, not new implementation requests
+or proof that the current checkout passes. Check the branch and working tree
+before relying on release metadata or prior results.
+
 ## Project
 
 External Note Folders is an Obsidian plugin that binds a markdown note to an
@@ -47,8 +53,9 @@ Layered, with a strict dependency rule from ADR-0016: `obsidian -> core`, never
 - `src/core/`: pure domain logic; no Obsidian imports and no filesystem IO.
   Owns path derivation, status classification, validation, and dry-run plan
   building. May use `node:path` and `node:crypto` for pure computation only.
-- `src/storage/`: Node fs/process adapter for the external root, outside the
-  vault. This is where real `node:fs` mutation happens.
+- `src/storage/`: Node fs/process adapters for external folders, journals, and
+  audit exports. `auditScan.ts` is an explicit read-only exception: it scans both
+  the physical vault and external root. It never writes vault notes.
 - `src/obsidian/`: Obsidian API adapter for vault reads and writes:
   `scanVault` via `metadataCache`, and `assignUuidToNote` / `writeUuidToNote`
   via `fileManager`.
@@ -56,12 +63,17 @@ Layered, with a strict dependency rule from ADR-0016: `obsidian -> core`, never
   mutation lock and `mutationSequence`, and wires core plans to storage and
   Obsidian effects.
 - `src/main.ts`: default-exports the plugin class only.
-- UI lives in `*Modal.ts` classes plus `PluginSettings.ts` and
-  `PluginSettingsTab.ts`.
+- `src/ui/`: shared DOM report interface and browser-safe queries/controllers;
+  no Obsidian imports. The offline HTML and Obsidian tab supply host actions.
+  Core modules used by the browser must also avoid Node imports.
+- Obsidian-specific UI lives in root `*Modal.ts` classes, `PluginSettingsTab.ts`,
+  and `src/obsidian/`; settings data lives in `PluginSettings.ts`.
+- `scripts/`: standalone audit/HTML generation and development tooling. Do not
+  import these entry points into the plugin runtime.
 
 ### Mutating Commands
 
-Adoption, reconcile, and marker migration follow this pattern:
+Bulk adoption, reconcile, and marker migration follow this pattern:
 
 1. Build a dry-run plan in `core`; the plan captures the current
    `mutationSequence`.
@@ -72,6 +84,14 @@ Adoption, reconcile, and marker migration follow this pattern:
    adoption, write the marker file before note frontmatter.
 5. Long scans run inside `withProgressModal`, which enforces a minimum visible
    duration via `core/progressTiming`.
+
+Single-folder adoption and selected repairs use `GroupAdoptionController` and
+their own preview/recovery UI with the same mutation lock. Active-note setup has
+a targeted fast path and dedicated journal; do not add whole-root scans or
+confirmation to every setup without a behavior change request. The status audit
+runs outside the mutation lock with cancellation and mutation-overlap warnings.
+See the README's [status window](README.md#external-folder-status) and
+[ADR-0031](docs/dev/adr/0031-pragmatic-active-note-setup.md) for these distinctions.
 
 ## Conventions
 
@@ -100,5 +120,7 @@ For architecture and process details, use:
 - `docs/dev/product/intent.md`
 - `docs/dev/agent/autonomy-policy.md`
 - Commit policy and local hook behavior: `README.md` -> Contributor Guide -> Commit conventions / Local git hooks
-- PR review comment handling and thread resolution policy:
-  `docs/dev/procedures/commit-pull-request-merge-review-gate.md` -> Stage 2 -> Review Thread Resolution
+- PR review requirements:
+  [Review gate, Stage 2](docs/dev/procedures/commit-pull-request-merge-review-gate.md#stage-2-pull-request-review).
+  That procedure does not define a separate review-thread resolution policy;
+  follow the current task's authorization for posting or resolving comments.
