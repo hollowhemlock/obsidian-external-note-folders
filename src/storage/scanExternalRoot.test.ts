@@ -82,6 +82,7 @@ describe('external root scanning', () => {
 
     expect(result.accessErrors).toEqual([
       {
+        code: expect.any(String) as string,
         location: await realpath(externalRootPath),
         message: expect.any(String) as string
       }
@@ -146,7 +147,7 @@ describe('external root scanning', () => {
       fileSystem: {
         readDirectoryEntries: async (directoryPath) => {
           if (directoryPath === skippedFolderPath) {
-            throw new Error('permission denied');
+            throw Object.assign(new Error('permission denied'), { code: 'EPERM' });
           }
 
           return readdir(directoryPath, {
@@ -162,6 +163,7 @@ describe('external root scanning', () => {
     expect(result.accessErrors).toEqual([]);
     expect(result.skippedDirectories).toEqual([
       {
+        code: 'EPERM',
         location: skippedFolderPath,
         message: 'permission denied'
       }
@@ -189,14 +191,14 @@ describe('external root scanning', () => {
     const externalRootPath = await createTempRoot(tempDirectories);
 
     const result = await scanExternalRoot(externalRootPath, {
-      ignorePatterns: ['C:/Users/ryanh/foo/', '//server/share/foo/']
+      ignorePatterns: ['C:/Users/alice/foo/', '//server/share/foo/']
     });
 
     expect(result.accessErrors).toEqual([]);
     expect(result.ignoreErrors).toEqual([
       {
         message: 'Ignore patterns must be relative to the configured external root.',
-        pattern: 'C:/Users/ryanh/foo/'
+        pattern: 'C:/Users/alice/foo/'
       },
       {
         message: 'Ignore patterns must be relative to the configured external root.',
@@ -220,6 +222,38 @@ describe('external root scanning', () => {
         [secondFolderPath, firstFolderPath].sort()
       ]])
     );
+  });
+
+  it('binds empty UUID-named markers by their filename', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const folderPath = path.join(externalRootPath, 'Projects', 'Alpha');
+    await mkdir(folderPath, { recursive: true });
+    await writeFile(path.join(folderPath, buildExnfMarkerFileName(VALID_UUID)), '', 'utf8');
+
+    const result = await scanExternalRoot(externalRootPath);
+
+    expect(result.bindings).toEqual(new Map([[VALID_UUID, folderPath]]));
+    expect(result.malformedMarkers).toEqual([]);
+  });
+
+  it('does not read UUID-named marker contents', async () => {
+    const externalRootPath = path.join(os.tmpdir(), 'external-note-folders-filename-only');
+    const folderPath = path.join(externalRootPath, 'Alpha');
+    const result = await scanExternalRoot(externalRootPath, {
+      fileSystem: {
+        readDirectoryEntries: async (directoryPath) =>
+          directoryPath === externalRootPath
+            ? [mockDirent('Alpha', 'directory')]
+            : [mockDirent(buildExnfMarkerFileName(VALID_UUID), 'file')],
+        readMarkerFile: async () => {
+          throw new Error('canonical marker content must not be read');
+        },
+        resolveRealPath: async () => externalRootPath
+      }
+    });
+
+    expect(result.bindings).toEqual(new Map([[VALID_UUID, folderPath]]));
+    expect(result.malformedMarkers).toEqual([]);
   });
 
   it('scans directory entries in stable name order', async () => {
@@ -253,19 +287,15 @@ describe('external root scanning', () => {
     expect(result.duplicatePaths).toEqual(new Map([[VALID_UUID, [alphaFolderPath, zetaFolderPath]]]));
   });
 
-  it('reports malformed markers', async () => {
+  it('ignores UUID-named marker contents', async () => {
     const externalRootPath = await createTempRoot(tempDirectories);
     const folderPath = path.join(externalRootPath, 'Projects', 'Alpha');
     await writeMarker(folderPath, VALID_UUID, OTHER_UUID.toUpperCase());
 
     const result = await scanExternalRoot(externalRootPath);
 
-    expect(result.malformedMarkers).toEqual([
-      {
-        location: path.join(folderPath, buildExnfMarkerFileName(VALID_UUID)),
-        message: 'Marker must contain a canonical lowercase UUID.'
-      }
-    ]);
+    expect(result.bindings).toEqual(new Map([[VALID_UUID, folderPath]]));
+    expect(result.malformedMarkers).toEqual([]);
   });
 
   it('reads valid legacy markers as deprecated binding evidence', async () => {
@@ -282,6 +312,27 @@ describe('external root scanning', () => {
       markerPath: path.join(folderPath, EXNF_LEGACY_MARKER_FILE_NAME),
       uuid: VALID_UUID
     }]);
+  });
+
+  it('distinguishes unreadable legacy markers from malformed legacy contents', async () => {
+    const externalRootPath = await createTempRoot(tempDirectories);
+    const markerPath = path.join(externalRootPath, '.exnf');
+    await writeFile(markerPath, 'not a UUID', 'utf8');
+    const readable = await scanExternalRoot(externalRootPath);
+    expect(readable.malformedMarkers).toHaveLength(1);
+    expect(readable.markerReadErrors).toEqual([]);
+
+    const unreadable = await scanExternalRoot(externalRootPath, {
+      fileSystem: {
+        readDirectoryEntries: async (directoryPath) => readdir(directoryPath, { encoding: 'utf8', withFileTypes: true }),
+        readMarkerFile: async () => {
+          throw Object.assign(new Error('permission denied'), { code: 'EACCES' });
+        },
+        resolveRealPath: realpath
+      }
+    });
+    expect(unreadable.markerReadErrors).toEqual([{ code: 'EACCES', location: markerPath, message: 'permission denied' }]);
+    expect(unreadable.malformedMarkers).toEqual([{ location: markerPath, message: 'permission denied' }]);
   });
 
   it('reports legacy and UUID-named marker conflicts in the same folder', async () => {

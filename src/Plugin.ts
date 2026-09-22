@@ -4,48 +4,83 @@ import {
   TFile
 } from 'obsidian';
 
+import type { CommandProgressOptions } from './CommandProgressModal.ts';
 import type { AdoptionPlan } from './core/adoptionPlan.ts';
 import type { ExnfFrontmatterValue } from './core/frontmatter.ts';
 import type {
   OpenExternalFolderRecoveryPlan,
   OpenRecoveryCandidateRow
 } from './core/openExternalFolderRecovery.ts';
+import type { SetupPlan } from './core/setupPlan.ts';
+import type { ReportContext } from './modalReport.ts';
 import type { PluginSettings } from './PluginSettings.ts';
 import type { AdoptionExecutionOperations } from './storage/adoptionExecutor.ts';
+import type {
+  SetupExecutionOperations,
+  SetupJournal
+} from './storage/setupExecutor.ts';
 
 import { AdoptionPlanModal } from './AdoptionPlanModal.ts';
 import { AdoptionResumeModal } from './AdoptionResumeModal.ts';
 import { CommandProgressModal } from './CommandProgressModal.ts';
 import {
-  buildAdoptionPlan,
+  buildExactPathAdoptionPlan,
+  buildExactPathCandidateIdentities,
   haveSameAdoptionRows
 } from './core/adoptionPlan.ts';
 import { buildDriftReport } from './core/driftReport.ts';
 import { getExnfFrontmatterValue } from './core/frontmatter.ts';
 import {
+  buildExistingIdentifiedNoteTargets,
+  findIdentifiedNoteConflict
+} from './core/identifiedNoteTargets.ts';
+import {
   buildMarkerMigrationPlan,
   haveSameMarkerMigrationRows
 } from './core/markerMigrationPlan.ts';
+import { buildMovedFolderSuggestionReport } from './core/movedFolderSuggestions.ts';
 import { chooseInitialOpenExternalFolderAction } from './core/openExternalFolderFlow.ts';
 import { buildOpenExternalFolderRecoveryPlan } from './core/openExternalFolderRecovery.ts';
+import { normalizePathForIdentity } from './core/pathPolicy.ts';
 import {
   DEFAULT_PROGRESS_MODAL_MIN_VISIBLE_MS,
   waitForMinimumVisibleDuration
 } from './core/progressTiming.ts';
 import { buildReconcilePlan } from './core/reconcilePlan.ts';
+import {
+  buildSetupPlan,
+  haveSameSetupPlan,
+  validateSetupMarkerUniqueness,
+  validateSetupRestoration
+} from './core/setupPlan.ts';
+import { generateUnusedCanonicalUuid } from './core/uuid.ts';
 import { buildVerifyReport } from './core/verify.ts';
 import { DriftReportModal } from './DriftReportModal.ts';
 import { MarkerMigrationPlanModal } from './MarkerMigrationPlanModal.ts';
+import { MovedFolderSuggestionModal } from './MovedFolderSuggestionModal.ts';
 import { assignUuidToNote } from './obsidian/assignUuidToNote.ts';
+import { GroupAdoptionController } from './obsidian/GroupAdoptionController.ts';
+import {
+  LEAF_REPORT_VIEW_TYPE,
+  LeafReportTab
+} from './obsidian/LeafReportTab.ts';
 import { scanVault } from './obsidian/scanVault.ts';
 import {
   assertNoteUuidMatches,
   writeUuidToNoteIfMissing
 } from './obsidian/writeUuidToNote.ts';
 import { OpenRecoveryModal } from './OpenRecoveryModal.ts';
+import {
+  buildRecoveryDetails,
+  describeRecoveryReason,
+  RECOVERY_SEARCH_DESCRIPTION,
+  RECOVERY_SEARCH_FOOTER
+} from './openRecoveryPresentation.ts';
 import { DEFAULT_SETTINGS } from './PluginSettings.ts';
 import { PluginSettingsTab } from './PluginSettingsTab.ts';
 import { ReconcilePlanModal } from './ReconcilePlanModal.ts';
+import { SetupPlanModal } from './SetupPlanModal.ts';
+import { SetupResumeModal } from './SetupResumeModal.ts';
 import {
   executeAdoptionPlan,
   listIncompleteAdoptionJournals,
@@ -65,12 +100,27 @@ import {
 import {
   buildAdoptionJournalRootPath,
   buildJournalRootPath,
-  buildMarkerMigrationJournalRootPath
+  buildMarkerMigrationJournalRootPath,
+  buildSetupJournalRootPath
 } from './storage/journalPath.ts';
 import { executeMarkerMigrationPlan } from './storage/markerMigrationExecutor.ts';
 import { executeReconcilePlan } from './storage/reconcileExecutor.ts';
 import { scanExternalRoot } from './storage/scanExternalRoot.ts';
-import { VerifyReportModal } from './VerifyReportModal.ts';
+import {
+  executeSetupPlan,
+  listIncompleteSetupJournals,
+  resumeSetupJournal
+} from './storage/setupExecutor.ts';
+import {
+  assertSetupMarkerWriteReady,
+  createSetupTargetExclusively,
+  inspectSetupTarget
+} from './storage/setupTarget.ts';
+
+interface ExactPathAdoptionAnalysis {
+  movedSuggestionCount: null | number;
+  plan: AdoptionPlan;
+}
 
 interface ScanContext {
   externalScan: Awaited<ReturnType<typeof scanExternalRoot>>;
@@ -87,11 +137,71 @@ const LOG_PREFIX = '[external-note-folders]';
 export class Plugin extends ObsidianPlugin {
   public settings: PluginSettings = DEFAULT_SETTINGS;
 
+  private groupAdoption: GroupAdoptionController | undefined;
   private isMutationInProgress = false;
+  private mutationActivitySequence = 0;
   private mutationSequence = 0;
 
   public override async onload(): Promise<void> {
     await this.loadSettings();
+    this.groupAdoption = new GroupAdoptionController(this.app, this.manifest.id, {
+      changed: (folder, note): void => {
+        for (const leaf of this.app.workspace.getLeavesOfType(LEAF_REPORT_VIEW_TYPE)) {
+          if (leaf.view instanceof LeafReportTab) {
+            leaf.view.markAdopted(folder, note);
+          }
+        }
+      },
+      mutate: async (operation): Promise<void> => {
+        if (this.isMutationInProgress) {
+          throw new Error('Another mutation is running. Try again when it finishes.');
+        }
+        await this.runMutatingCommand('adopt folder group', operation);
+      },
+      sequence: (): number => this.mutationSequence,
+      settings: (): PluginSettings => this.settings
+    });
+    this.register(() => this.groupAdoption?.dispose());
+    this.addCommand({
+      callback: () => {
+        this.groupAdoption?.showRecovery().catch((error: unknown) => {
+          this.showUnexpectedError(error);
+        });
+      },
+      id: 'resume-folder-adoption',
+      name: 'Resume folder adoption…'
+    });
+    this.registerView(LEAF_REPORT_VIEW_TYPE, (leaf) =>
+      new LeafReportTab(leaf, {
+        adopt: (folder): void => this.groupAdoption?.open(folder),
+        externalRoot: (): string => this.settings.externalRootPath,
+        mutationState: (): { active: boolean; activity: number; sequence: number } => ({
+          active: this.isMutationInProgress,
+          activity: this.mutationActivitySequence,
+          sequence: this.mutationSequence
+        }),
+        pending: async (): Promise<number> => (await this.groupAdoption?.pending())?.length ?? 0,
+        repair: async (folder, direction): Promise<void> => this.groupAdoption?.repair(folder, direction),
+        resume: async (): Promise<void> => this.groupAdoption?.showRecovery(),
+        scanPatterns: (): string[] => this.settings.statusSkipIgnored ? [...(this.settings.statusIgnorePatterns ?? [])] : []
+      }));
+    this.register(() => {
+      for (const leaf of this.app.workspace.getLeavesOfType(LEAF_REPORT_VIEW_TYPE)) {
+        if (leaf.view instanceof LeafReportTab) {
+          leaf.view.shutdown();
+        }
+      }
+      this.app.workspace.detachLeavesOfType(LEAF_REPORT_VIEW_TYPE);
+    });
+    this.addCommand({
+      callback: () => {
+        this.openLeafReport().catch((error: unknown) => {
+          this.showUnexpectedError(error);
+        });
+      },
+      id: 'explore-unmarked-external-leaf-folders',
+      name: 'External folder status'
+    });
 
     this.addSettingTab(new PluginSettingsTab(this.app, this));
 
@@ -107,6 +217,16 @@ export class Plugin extends ObsidianPlugin {
 
     this.addCommand({
       callback: () => {
+        this.runSetupExternalFolderCommand().catch((error: unknown) => {
+          this.showUnexpectedError(error);
+        });
+      },
+      id: 'setup-external-folder',
+      name: 'Set up external folder'
+    });
+
+    this.addCommand({
+      callback: () => {
         this.runReportExternalFolderDriftCommand().catch((error: unknown) => {
           this.showUnexpectedError(error);
         });
@@ -117,12 +237,22 @@ export class Plugin extends ObsidianPlugin {
 
     this.addCommand({
       callback: () => {
-        this.runAdoptExistingExternalFoldersCommand().catch((error: unknown) => {
+        this.runAdoptExactPathExternalFoldersCommand().catch((error: unknown) => {
           this.showUnexpectedError(error);
         });
       },
       id: 'adopt-existing-external-folders',
-      name: 'Adopt existing external folders'
+      name: 'Adopt exact-path external folders'
+    });
+
+    this.addCommand({
+      callback: () => {
+        this.runSuggestMovedExternalFolderMatchesCommand().catch((error: unknown) => {
+          this.showUnexpectedError(error);
+        });
+      },
+      id: 'suggest-moved-external-folder-matches',
+      name: 'Suggest moved external folder matches'
     });
 
     this.addCommand({
@@ -160,14 +290,15 @@ export class Plugin extends ObsidianPlugin {
     await this.saveData(this.settings);
   }
 
-  private async buildAdoptionDryRunPlan(): Promise<AdoptionPlan> {
-    const { externalScan, vaultScan } = await this.collectScanContext();
-    return buildAdoptionPlan({
-      externalScan,
-      mutationSequence: this.mutationSequence,
-      notePaths: this.getMarkdownNotePaths(),
-      vaultScan
+  private async assertSetupJournalTargetSafe(journal: SetupJournal): Promise<void> {
+    const inspection = await inspectSetupTarget({
+      externalRootPath: journal.externalRootPath,
+      ignorePatterns: this.settings.externalRootIgnorePatterns,
+      notePath: journal.notePath
     });
+    if (!isSetupResumeTargetSafe(inspection, journal, scanVault(this.app))) {
+      throw new Error('Expected folder topology, marker identity, or vault UUID ownership changed before setup could continue.');
+    }
   }
 
   private buildAdoptionExecutionOperations(externalRootPath: string): AdoptionExecutionOperations {
@@ -195,6 +326,103 @@ export class Plugin extends ObsidianPlugin {
     };
   }
 
+  private async buildExactPathAdoptionAnalysis(): Promise<ExactPathAdoptionAnalysis> {
+    const { externalScan, vaultScan } = await this.collectScanContext();
+    const notePaths = this.getMarkdownNotePaths();
+    const exactCandidateIdentities = buildExactPathCandidateIdentities({
+      externalScan,
+      notePaths,
+      vaultScan
+    });
+    const plan = buildExactPathAdoptionPlan({
+      externalScan,
+      mutationSequence: this.mutationSequence,
+      notePaths,
+      vaultScan
+    });
+    const suggestionReport = buildMovedFolderSuggestionReport({
+      exactCandidateIdentities,
+      externalScan,
+      notePaths,
+      vaultScan
+    });
+    return {
+      movedSuggestionCount: suggestionReport.classificationOmitted
+        ? null
+        : suggestionReport.summary.uniqueSuggestions,
+      plan
+    };
+  }
+
+  private buildSetupExecutionOperations(): SetupExecutionOperations {
+    return {
+      assertComplete: async (journal): Promise<void> => {
+        await this.assertSetupJournalTargetSafe(journal);
+        await assertNoteUuidMatches(this.app, this.getMarkdownFileByPath(journal.notePath), journal.uuid);
+      },
+      createFolder: async (journal, resume): Promise<void> => {
+        await createSetupTargetExclusively(journal.externalRootPath, journal.targetPath, resume);
+      },
+      writeMarker: async (journal): Promise<void> => {
+        await this.assertSetupJournalTargetSafe(journal);
+        await assertSetupMarkerWriteReady({
+          allowPayload: journal.action === 'confirm-unmarked-adoption',
+          targetPath: journal.targetPath,
+          uuid: journal.uuid
+        });
+        await writeExpectedMarkerIfMissingOrMatching({
+          externalRootPath: journal.externalRootPath,
+          notePath: journal.notePath,
+          uuid: journal.uuid
+        });
+      },
+      writeNoteUuid: async (journal): Promise<void> => {
+        await this.assertSetupJournalTargetSafe(journal);
+        await writeUuidToNoteIfMissing(this.app, this.getMarkdownFileByPath(journal.notePath), journal.uuid);
+      }
+    };
+  }
+
+  private async buildSetupPlanForFile(activeFile: TFile): Promise<SetupPlan> {
+    const identity = this.getActiveFileUuidValue(activeFile);
+    if (identity.kind !== 'missing') {
+      return buildSetupPlan({
+        identity,
+        inspection: null,
+        mutationSequence: this.mutationSequence,
+        notePath: activeFile.path,
+        notePaths: this.getMarkdownNotePaths(),
+        vaultScan: scanVault(this.app)
+      });
+    }
+
+    const inspection = await inspectSetupTarget({
+      externalRootPath: this.settings.externalRootPath,
+      ignorePatterns: this.settings.externalRootIgnorePatterns,
+      notePath: activeFile.path
+    });
+    let plan = buildSetupPlan({
+      identity,
+      inspection,
+      mutationSequence: this.mutationSequence,
+      notePath: activeFile.path,
+      notePaths: this.getMarkdownNotePaths(),
+      vaultScan: scanVault(this.app)
+    });
+    if (plan.action === 'confirm-marker-restore') {
+      const externalScan = await this.withProgressModal(
+        'Imported marker restoration scan started',
+        'Scanning the complete external root to prove the imported UUID is unique.',
+        () =>
+          scanExternalRoot(inspection.externalRootPath, {
+            ignorePatterns: this.settings.externalRootIgnorePatterns
+          })
+      );
+      plan = validateSetupRestoration(plan, externalScan, scanVault(this.app));
+    }
+    return plan;
+  }
+
   private async collectScanContext(): Promise<ScanContext> {
     const vaultScan = scanVault(this.app);
     const externalScan = await scanExternalRoot(this.settings.externalRootPath, {
@@ -208,6 +436,12 @@ export class Plugin extends ObsidianPlugin {
       vaultScan,
       verifyReport
     };
+  }
+
+  private generateUnusedVaultUuid(): string {
+    const vaultScan = scanVault(this.app);
+    const existingUuids = new Set([...vaultScan.bindings.keys(), ...vaultScan.duplicatePaths.keys()]);
+    return generateUnusedCanonicalUuid(existingUuids);
   }
 
   private getActiveFileUuidValue(activeFile: TFile): ExnfFrontmatterValue {
@@ -259,6 +493,21 @@ export class Plugin extends ObsidianPlugin {
 
   private getMarkerMigrationJournalRootPath(): string {
     return buildMarkerMigrationJournalRootPath({
+      configDir: this.app.vault.configDir,
+      pluginId: this.manifest.id,
+      vaultRootPath: this.getVaultRootPath()
+    });
+  }
+
+  private getReportContext(externalRootPath: string): ReportContext {
+    return {
+      externalRootPath,
+      vaultPath: this.getVaultRootPath()
+    };
+  }
+
+  private getSetupJournalRootPath(): string {
+    return buildSetupJournalRootPath({
       configDir: this.app.vault.configDir,
       pluginId: this.manifest.id,
       vaultRootPath: this.getVaultRootPath()
@@ -340,7 +589,16 @@ export class Plugin extends ObsidianPlugin {
     });
   }
 
-  private openRecoveryModal(plan: OpenExternalFolderRecoveryPlan): void {
+  private async openLeafReport(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(LEAF_REPORT_VIEW_TYPE)[0];
+    const leaf = existing ?? this.app.workspace.getLeaf('tab');
+    if (!existing) {
+      await leaf.setViewState({ active: true, type: LEAF_REPORT_VIEW_TYPE });
+    }
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
+  private openRecoveryModal(plan: OpenExternalFolderRecoveryPlan, openedFolderPath: null | string): void {
     new OpenRecoveryModal(this.app, {
       onAdoptCandidate: async (row: OpenRecoveryCandidateRow): Promise<void> => {
         await this.runMutatingCommand('adopt an exact-name candidate external folder', async () => {
@@ -398,11 +656,13 @@ export class Plugin extends ObsidianPlugin {
           uuid: plan.uuid
         });
       },
-      plan
+      openedFolderPath,
+      plan,
+      reportContext: this.getReportContext(plan.externalRootPath)
     }).open();
   }
 
-  private async runAdoptExistingExternalFoldersCommand(): Promise<void> {
+  private async runAdoptExactPathExternalFoldersCommand(): Promise<void> {
     const incompleteJournals = await listIncompleteAdoptionJournals(this.getAdoptionJournalRootPath());
     if (incompleteJournals.length > 1) {
       new Notice('Multiple incomplete adoption journals exist. Inspect the journal folder before resuming adoption.');
@@ -425,7 +685,8 @@ export class Plugin extends ObsidianPlugin {
           } catch (error: unknown) {
             this.showUnexpectedError(error);
           }
-        }
+        },
+        this.getReportContext(journal.externalRootPath)
       ).open();
       return;
     }
@@ -435,11 +696,12 @@ export class Plugin extends ObsidianPlugin {
       vaultRootPath: this.getVaultRootPath()
     });
 
-    const plan = await this.withProgressModal(
+    const analysis = await this.withProgressModal(
       'External folder adoption started',
       'Scanning the vault and external root to build the adoption dry-run plan.',
-      () => this.buildAdoptionDryRunPlan()
+      () => this.buildExactPathAdoptionAnalysis()
     );
+    const { plan } = analysis;
     new Notice(`External folder adoption dry-run complete: ${plan.summaryText}.`);
     this.logInfo('external folder adoption dry-run complete', { plan });
     new AdoptionPlanModal(
@@ -452,7 +714,9 @@ export class Plugin extends ObsidianPlugin {
           this.showUnexpectedError(error);
         }
       },
-      this.settings.dryRunByDefault
+      this.settings.dryRunByDefault,
+      analysis.movedSuggestionCount,
+      this.getReportContext(plan.externalRootPath)
     ).open();
   }
 
@@ -473,11 +737,12 @@ export class Plugin extends ObsidianPlugin {
         return false;
       }
 
-      const currentPlan = await this.withProgressModal(
+      const currentAnalysis = await this.withProgressModal(
         'External folder adoption preflight started',
         'Rescanning the vault and external root before writing marker files or note frontmatter.',
-        () => this.buildAdoptionDryRunPlan()
+        () => this.buildExactPathAdoptionAnalysis()
       );
+      const currentPlan = currentAnalysis.plan;
       if (currentPlan.hasGlobalErrors || !haveSameAdoptionRows(plan, currentPlan)) {
         new Notice('Adoption preflight changed. Review the opened dry-run plan before executing.');
         this.logWarn('adoption execution blocked by changed preflight', {
@@ -494,7 +759,9 @@ export class Plugin extends ObsidianPlugin {
               this.showUnexpectedError(error);
             }
           },
-          true
+          true,
+          currentAnalysis.movedSuggestionCount,
+          this.getReportContext(currentPlan.externalRootPath)
         ).open();
         return false;
       }
@@ -551,21 +818,28 @@ export class Plugin extends ObsidianPlugin {
       return;
     }
 
-    await this.runMutatingCommand('assign an external folder UUID', async () => {
-      const { verifyReport } = await this.withProgressModal(
-        'Assign external folder identifier started',
-        'Scanning the external root for integrity errors before writing note frontmatter.',
-        () => this.collectScanContext()
-      );
-      if (verifyReport.hasIntegrityErrors) {
-        new Notice('Cannot assign an identifier while integrity errors exist. Review the opened report for details.');
-        this.logWarn('assign UUID blocked by integrity errors', { report: verifyReport });
-        new VerifyReportModal(this.app, verifyReport, false).open();
-        return;
-      }
+    const identity = this.getActiveFileUuidValue(activeFile);
+    if (identity.kind === 'valid') {
+      new Notice(`Note already has an external folder identifier: ${identity.uuid}`);
+      this.logInfo('note already has external folder identifier', {
+        notePath: activeFile.path,
+        uuid: identity.uuid
+      });
+      return;
+    }
+    if (identity.kind === 'invalid') {
+      new Notice(`Cannot assign UUID because exnf frontmatter ${identity.reason}.`);
+      return;
+    }
 
+    await this.runMutatingCommand('assign an external folder UUID', async () => {
       try {
-        const outcome = await assignUuidToNote(this.app, activeFile);
+        const vaultScan = scanVault(this.app);
+        const existingUuids = new Set([
+          ...vaultScan.bindings.keys(),
+          ...vaultScan.duplicatePaths.keys()
+        ]);
+        const outcome = await assignUuidToNote(this.app, activeFile, { existingUuids });
         if (outcome.kind === 'assigned') {
           new Notice(`Assigned external folder identifier to ${activeFile.path}.`);
           this.logInfo('assigned external folder identifier', {
@@ -576,10 +850,6 @@ export class Plugin extends ObsidianPlugin {
         }
 
         new Notice(`Note already has an external folder identifier: ${outcome.uuid}`);
-        this.logInfo('note already has external folder identifier', {
-          notePath: activeFile.path,
-          uuid: outcome.uuid
-        });
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Failed to assign UUID.';
         new Notice(message);
@@ -634,7 +904,8 @@ export class Plugin extends ObsidianPlugin {
               this.showUnexpectedError(error);
             }
           },
-          true
+          true,
+          this.getReportContext(currentPlan.externalRootPath)
         ).open();
         return false;
       }
@@ -692,7 +963,8 @@ export class Plugin extends ObsidianPlugin {
           this.showUnexpectedError(error);
         }
       },
-      this.settings.dryRunByDefault
+      this.settings.dryRunByDefault,
+      this.getReportContext(plan.externalRootPath)
     ).open();
   }
 
@@ -706,6 +978,7 @@ export class Plugin extends ObsidianPlugin {
     }
 
     this.isMutationInProgress = true;
+    this.mutationActivitySequence += 1;
     let shouldAdvanceMutationSequence = true;
     try {
       shouldAdvanceMutationSequence = await operation() !== false;
@@ -726,7 +999,7 @@ export class Plugin extends ObsidianPlugin {
 
     const exnfValue = this.getActiveFileUuidValue(activeFile);
     if (exnfValue.kind === 'missing') {
-      new Notice('This note does not have an external folder identifier. Run Assign external folder identifier first.');
+      new Notice('This note does not have an external folder identifier. Run Set up external folder.');
       this.logInfo('open external folder skipped for note without identifier', {
         notePath: activeFile.path
       });
@@ -772,6 +1045,13 @@ export class Plugin extends ObsidianPlugin {
           activeFile.path,
           initialAction.uuid
         );
+        if (initialAction.additionalMarkerUuids.length > 0) {
+          new Notice(
+            `Opened the matching external folder, but it also contains marker UUID(s): ${
+              initialAction.additionalMarkerUuids.join(', ')
+            }. Run Report external folder drift.`
+          );
+        }
         return;
       }
 
@@ -782,8 +1062,8 @@ export class Plugin extends ObsidianPlugin {
 
       if (initialAction.kind === 'run-recovery') {
         const plan = await this.withProgressModal(
-          'External folder recovery scan started',
-          'Searching the external root for this note UUID and exact-name candidate folders.',
+          'Searching for the external folder',
+          `${describeRecoveryReason(initialAction.expectedState)} ${RECOVERY_SEARCH_DESCRIPTION}`,
           async () => {
             const vaultScan = scanVault(this.app);
             const externalScan = await scanExternalRoot(externalRootPath, {
@@ -796,18 +1076,29 @@ export class Plugin extends ObsidianPlugin {
               uuid: initialAction.uuid,
               vaultScan
             });
+          },
+          {
+            details: buildRecoveryDetails({
+              expectedState: initialAction.expectedState,
+              externalRootPath,
+              notePath: activeFile.path,
+              uuid: initialAction.uuid
+            }, 'Searching in'),
+            footerText: RECOVERY_SEARCH_FOOTER
           }
         );
 
+        let openedFolderPath: null | string = null;
         if (plan.autoOpenFolderPath) {
           await openExternalFolderInFileManager(plan.autoOpenFolderPath);
+          openedFolderPath = plan.autoOpenFolderPath;
           new Notice(`Opened recovered external folder for ${activeFile.path}. Review the opened recovery details.`);
           this.logWarn('opened external folder from recovery scan', { plan });
         } else {
           new Notice(`External folder recovery scan complete: ${plan.summaryText}.`);
           this.logInfo('external folder recovery scan complete', { plan });
         }
-        this.openRecoveryModal(plan);
+        this.openRecoveryModal(plan, openedFolderPath);
         return;
       }
 
@@ -850,7 +1141,8 @@ export class Plugin extends ObsidianPlugin {
           this.showUnexpectedError(error);
         }
       },
-      this.settings.dryRunByDefault
+      this.settings.dryRunByDefault,
+      this.getReportContext(plan.externalRootPath)
     ).open();
   }
 
@@ -898,17 +1190,196 @@ export class Plugin extends ObsidianPlugin {
       vaultRootPath: this.getVaultRootPath()
     });
 
-    const driftReport = await this.withProgressModal(
+    const { driftReport, externalRootPath } = await this.withProgressModal(
       'External folder drift report started',
       'Scanning the vault and external root to build the drift report.',
       async () => {
         const { externalScan, vaultScan } = await this.collectScanContext();
-        return buildDriftReport(vaultScan, externalScan);
+        return {
+          driftReport: buildDriftReport(vaultScan, externalScan),
+          externalRootPath: externalScan.rootPath
+        };
       }
     );
     new Notice(`External folder drift report complete: ${driftReport.summaryText}.`);
     this.logInfo('drift report complete', { report: driftReport });
-    new DriftReportModal(this.app, driftReport).open();
+    new DriftReportModal(this.app, driftReport, this.getReportContext(externalRootPath)).open();
+  }
+
+  private async runSetupExecuteCommand(plan: SetupPlan): Promise<void> {
+    await this.runMutatingCommand('set up an external folder', async () => {
+      if (plan.mutationSequence !== this.mutationSequence) {
+        new Notice('External folder setup changed before execution. Run setup again.');
+        return false;
+      }
+      const activeFile = this.getMarkdownFileByPath(plan.notePath);
+      const currentPlan = await this.buildSetupPlanForFile(activeFile);
+      if (!haveSameSetupPlan(plan, currentPlan)) {
+        new Notice('External folder setup preflight changed. Nothing was written; run setup again.');
+        return false;
+      }
+
+      const executablePlan = plan.uuid ? plan : { ...plan, uuid: this.generateUnusedVaultUuid() };
+      const result = await executeSetupPlan({
+        journalRootPath: this.getSetupJournalRootPath(),
+        operations: this.buildSetupExecutionOperations(),
+        plan: executablePlan
+      });
+      if (!result.succeeded) {
+        new Notice(`External folder setup stopped after a failure. Journal: ${result.journalPath}`);
+        this.logWarn('external folder setup stopped after failure', { result });
+        return true;
+      }
+      try {
+        await openExternalFolderInFileManager(result.journal.targetPath);
+        new Notice(`Set up and opened external folder for ${result.journal.notePath}.`);
+      } catch (error: unknown) {
+        new Notice(`External folder setup completed, but the folder could not be opened. Journal: ${result.journalPath}`);
+        this.logError('external folder setup completed but open failed', error, { result });
+      }
+      return true;
+    });
+  }
+
+  private async runSetupExternalFolderCommand(): Promise<void> {
+    const activeFile = this.getActiveMarkdownFile();
+    if (!activeFile) {
+      new Notice('Open a markdown note to set up an external folder.');
+      return;
+    }
+
+    const incompleteJournals = await listIncompleteSetupJournals(this.getSetupJournalRootPath(), activeFile.path);
+    if (incompleteJournals.length > 1) {
+      new Notice('Multiple incomplete setup journals exist for this note. Inspect the setup journal folder before continuing.');
+      return;
+    }
+    const incompleteJournal = incompleteJournals[0];
+    if (incompleteJournal) {
+      new SetupResumeModal(this.app, incompleteJournal, async () => {
+        try {
+          await this.runSetupResumeCommand(incompleteJournal);
+        } catch (error: unknown) {
+          this.showUnexpectedError(error);
+        }
+      }, this.getReportContext(incompleteJournal.externalRootPath)).open();
+      return;
+    }
+
+    const plan = await this.buildSetupPlanForFile(activeFile);
+    if (plan.action === 'open-existing') {
+      await this.runOpenExternalFolderCommand();
+      return;
+    }
+    if (plan.action === 'block') {
+      new Notice('External folder setup is blocked. Review the opened details.');
+      new SetupPlanModal(
+        this.app,
+        plan,
+        async () => undefined,
+        this.getReportContext(plan.externalRootPath || this.settings.externalRootPath)
+      ).open();
+      return;
+    }
+    if (plan.action === 'create-new') {
+      await this.runSetupExecuteCommand(plan);
+      return;
+    }
+
+    new SetupPlanModal(
+      this.app,
+      plan,
+      async () => {
+        try {
+          await this.runSetupExecuteCommand(plan);
+        } catch (error: unknown) {
+          this.showUnexpectedError(error);
+        }
+      },
+      this.getReportContext(plan.externalRootPath || this.settings.externalRootPath)
+    ).open();
+  }
+
+  private async runSetupResumeCommand(journal: { journalPath: string } & SetupJournal): Promise<void> {
+    await this.runMutatingCommand('resume external folder setup', async () => {
+      const note = this.getMarkdownFileByPath(journal.notePath);
+      const identity = this.getActiveFileUuidValue(note);
+      if (identity.kind === 'invalid' || (identity.kind === 'valid' && identity.uuid !== journal.uuid)) {
+        new Notice('Cannot resume setup because the note identity changed. Inspect the setup journal.');
+        return false;
+      }
+      const vaultScan = scanVault(this.app);
+      const ownerPath = vaultScan.bindings.get(journal.uuid);
+      if (vaultScan.duplicatePaths.has(journal.uuid) || (ownerPath && ownerPath !== journal.notePath)) {
+        new Notice('Cannot resume setup because its UUID now belongs to another vault note.');
+        return false;
+      }
+      const inspection = await inspectSetupTarget({
+        externalRootPath: journal.externalRootPath,
+        ignorePatterns: this.settings.externalRootIgnorePatterns,
+        notePath: journal.notePath
+      });
+      if (!isSetupResumeTargetSafe(inspection, journal, vaultScan)) {
+        new Notice('Cannot resume setup because the expected folder topology changed. Inspect the setup journal.');
+        return false;
+      }
+      if (journal.action === 'confirm-marker-restore') {
+        const externalScan = await this.withProgressModal(
+          'Imported marker restoration resume scan started',
+          'Rescanning the complete external root before restoring note identity.',
+          () =>
+            scanExternalRoot(journal.externalRootPath, {
+              ignorePatterns: this.settings.externalRootIgnorePatterns
+            })
+        );
+        if (validateSetupMarkerUniqueness(journal.uuid, journal.targetPath, externalScan).length > 0) {
+          new Notice('Cannot resume marker restoration because UUID uniqueness can no longer be proven.');
+          return false;
+        }
+      }
+      const result = await resumeSetupJournal({
+        journalPath: journal.journalPath,
+        operations: this.buildSetupExecutionOperations()
+      });
+      if (!result.succeeded) {
+        new Notice(`External folder setup resume stopped after a failure. Journal: ${result.journalPath}`);
+        return true;
+      }
+      try {
+        await openExternalFolderInFileManager(result.journal.targetPath);
+        new Notice(`Resumed setup and opened external folder for ${result.journal.notePath}.`);
+      } catch (error: unknown) {
+        new Notice(`External folder setup completed, but the folder could not be opened. Journal: ${result.journalPath}`);
+        this.logError('resumed setup completed but open failed', error, { result });
+      }
+      return true;
+    });
+  }
+
+  private async runSuggestMovedExternalFolderMatchesCommand(): Promise<void> {
+    this.logInfo('moved external folder suggestion scan started', {
+      externalRootPath: this.settings.externalRootPath,
+      vaultRootPath: this.getVaultRootPath()
+    });
+    const { externalRootPath, report } = await this.withProgressModal(
+      'Moved external folder suggestion scan started',
+      'Scanning the vault and external root for unique equivalently named paths.',
+      async () => {
+        const { externalScan, vaultScan } = await this.collectScanContext();
+        const notePaths = this.getMarkdownNotePaths();
+        return {
+          externalRootPath: externalScan.rootPath,
+          report: buildMovedFolderSuggestionReport({
+            exactCandidateIdentities: buildExactPathCandidateIdentities({ externalScan, notePaths, vaultScan }),
+            externalScan,
+            notePaths,
+            vaultScan
+          })
+        };
+      }
+    );
+    new Notice(`Moved external folder suggestion scan complete: ${report.summaryText}.`);
+    this.logInfo('moved external folder suggestion scan complete', { report });
+    new MovedFolderSuggestionModal(this.app, report, this.getReportContext(externalRootPath)).open();
   }
 
   private showUnexpectedError(error: unknown): void {
@@ -920,9 +1391,10 @@ export class Plugin extends ObsidianPlugin {
   private async withProgressModal<T>(
     title: string,
     description: string,
-    operation: () => Promise<T>
+    operation: () => Promise<T>,
+    options: CommandProgressOptions = {}
   ): Promise<T> {
-    const progressModal = new CommandProgressModal(this.app, title, description);
+    const progressModal = new CommandProgressModal(this.app, title, description, options);
     progressModal.open();
     await new Promise<void>((resolve) => {
       setTimeout(resolve, 0);
@@ -945,4 +1417,28 @@ export class Plugin extends ObsidianPlugin {
       progressModal.close();
     }
   }
+}
+
+function isSetupResumeTargetSafe(
+  inspection: Awaited<ReturnType<typeof inspectSetupTarget>>,
+  journal: SetupJournal,
+  vaultScan: ReturnType<typeof scanVault>
+): boolean {
+  const reservation = findIdentifiedNoteConflict(
+    buildExistingIdentifiedNoteTargets(vaultScan, inspection.externalRootPath, journal.notePath),
+    normalizePathForIdentity(inspection.targetPath)
+  );
+  const requiresMarker = journal.stage === 'frontmatter-write' || journal.stage === 'complete';
+  const ownerPath = vaultScan.bindings.get(journal.uuid);
+  return inspection.errors.length === 0
+    && !vaultScan.duplicatePaths.has(journal.uuid)
+    && (!ownerPath || ownerPath === journal.notePath)
+    && normalizePathForIdentity(inspection.targetPath) === normalizePathForIdentity(journal.targetPath)
+    && !inspection.targetIgnored
+    && inspection.ancestorMarkerPaths.length === 0
+    && inspection.descendantMarkerPaths.length === 0
+    && inspection.skippedDirectories.length === 0
+    && !reservation
+    && (!requiresMarker || (inspection.targetKind === 'directory' && inspection.targetMarkerUuids.length === 1))
+    && inspection.targetMarkerUuids.every((uuid) => uuid === journal.uuid);
 }

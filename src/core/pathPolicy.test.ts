@@ -75,8 +75,8 @@ describe('path policy', () => {
   });
 
   it('normalizes paths for identity comparisons', () => {
-    const upper = normalizePathForIdentity('X:/ExternalRoot/Folder');
-    const lower = normalizePathForIdentity('x:/externalroot/folder');
+    const upper = normalizePathForIdentity('X:/External-Root/Folder');
+    const lower = normalizePathForIdentity('x:/external-root/folder');
 
     if (process.platform === 'darwin' || process.platform === 'win32') {
       expect(upper).toBe(lower);

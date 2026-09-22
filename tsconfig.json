@@ -8,7 +8,6 @@
     "importHelpers": true,
     "inlineSourceMap": true,
     "inlineSources": true,
-    "jsx": "react-jsx",
     "lib": [
       "DOM",
       "ES2024"
@@ -19,17 +18,14 @@
     "skipLibCheck": false,
     "target": "ES2024",
     "types": [
-      "node",
-      "svelte"
+      "node"
     ],
     "verbatimModuleSyntax": true
   },
   "include": [
     "./eslint.config.*ts",
     "./vitest.config.ts",
-    "./src/**/*.svelte",
     "./src/**/*.ts",
-    "./src/**/*.tsx",
     "./scripts/**/*.ts",
     "./test/**/*.ts"
   ]

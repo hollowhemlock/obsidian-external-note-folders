@@ -51,10 +51,24 @@ or blocked rows but does not suppress safe rows.
 The old invariant was whole-root pristine/coherent. The new invariant is
 row-local coherence for each adopted exact match.
 
+Candidate selection is leaf-first across the complete scan. When exact
+candidates have an ancestor/descendant relationship, only candidates with no
+candidate descendants are eligible. An ancestor remains suppressed even when
+its descendant is blocked, so a broader folder is never adopted as fallback.
+Multiple deepest sibling candidates remain independently eligible. This
+prevents one adoption run from creating nested bound folders.
+
+Existing valid vault identities also reserve their current note-derived target
+topology, even when the corresponding external marker is missing or drifted.
+New candidates whose targets equal, contain, or fall inside one of those
+reserved targets are blocked. Adoption therefore cannot introduce UUID
+identity at two levels of the same vault/external path branch.
+
 Only root-level scan failures and invalid ignore settings remain global blockers.
 Existing unrelated vault identities, external markers, malformed markers,
-skipped descendant directories, and ignored directories are reported but do not
-block unrelated adoptable rows.
+skipped descendant directories, and ignored directories do not block unrelated
+adoptable rows. Skipped evidence is grouped as warnings, while configured
+ignores are reported separately as intentional notices.
 
 ### Ignore Pattern Contract
 
@@ -82,9 +96,10 @@ adoption, verify, drift, reconcile, or active-note open recovery scans. If an
 existing note identity points at an ignored path, reports classify it as
 ignored/unchecked, not healthy, missing, drifted, or reconciled.
 
-Ignored directory reporting includes a count and the first 20 ignored relative
-paths. The matching ignore pattern is not reported because the `ignore` package
-does not expose that information directly.
+Ignored directory notices include a count and the first 20 ignored relative
+paths, and explain that ignored subtrees are unchecked and excluded from
+adoption topology. The matching ignore pattern is not reported because the
+`ignore` package does not expose that information directly.
 
 ### Adoption Row Policy
 
@@ -96,19 +111,37 @@ does not expose that information directly.
 - Malformed markers are warnings unless they overlap a candidate target;
   candidate targets with exact, ancestor, or descendant malformed markers block
   only that note.
-- Skipped directories are warnings unless the note's target is inside a skipped
-  subtree; that note is blocked.
+- Skipped directories are grouped by filesystem error code with exact counts and
+  at most five deterministic root-relative samples. A note is blocked when its
+  target is inside a skipped subtree or contains a skipped descendant because
+  either overlap leaves its marker topology incomplete.
 - Ignored target paths block the affected note with an ignored-target message.
 - Duplicate normalized derived targets block the affected notes.
 - Duplicate normalized target directories block the affected notes.
-- Ancestor directories of bound, blocked, or adoptable external folders are
-  structural containers and are omitted from unmatched external folder rows.
+- Ancestor directories of existing bound or planned adoptable external folders
+  are structural containers and are omitted from residual-directory counts.
 - Adoption reports are external-root driven. Unbound vault notes whose derived
   external folder is absent from the scanned, ignored, or skipped external-root
   tree are omitted instead of reported as unmatched notes. When a real external
   branch matches duplicate note forms, such as sibling `A/B.md` and folder note
   `A/B/B.md`, both notes are reported as blocked duplicate candidates.
-- No fuzzy, suffix, tree-tail, or basename-only adoption is allowed.
+- Existing bound folders and planned adoptable folders are conceptually pruned
+  with their descendants. Their structural ancestors are also omitted. The
+  remaining external directories are reported as exact counts grouped by their
+  first root-relative segment, with at most five deterministic sample paths per
+  group; individual residual rows are not materialized.
+- Existing valid vault identities and external markers are summarized as
+  pruned binding counts instead of one warning per identity. Malformed,
+  duplicate, and skipped evidence remains visible. Ignored directories remain
+  visible as notices instead of warnings.
+- Repeated blocked candidates are grouped by reason and message for display.
+  Markdown includes exact counts and at most five samples; the modal retains all
+  underlying rows in lazily expanded details.
+- Residual-directory groups are explicitly informational and are never modified
+  by adoption.
+- Depth-limited adoption stages are not allowed because a partial scan cannot
+  prove that a shallower candidate has no descendant candidate or marker.
+- No fuzzy, suffix, tree-tail, or basename-only adoption is allowed. ADR-0030 permits literal basename evidence only in a separate read-only suggestion report; it does not weaken adoption eligibility.
 
 Execution remains marker-first, frontmatter-second, journaled, and preflighted
 immediately before apply.
@@ -132,6 +165,8 @@ immediately before apply.
 - The ignore pattern subset is less powerful than full `.gitignore` behavior
   because v1 rejects `!` negation
 - Reports need an additional ignored/unchecked state
+- Ancestor notes with exact external folders remain unassigned when a deeper
+  exact candidate exists; users must change the topology before adopting them
 
 ## Pros and Cons of the Options
 
@@ -173,5 +208,6 @@ immediately before apply.
 - [ADR-0015](0015-external-folder-path-derivation.md)
 - [ADR-0024](0024-strict-exact-adoption-with-journaled-marker-first-writes.md)
 - [ADR-0025](0025-active-note-open-recovery-scan.md)
+- [ADR-0030](0030-read-only-moved-folder-name-suggestions.md)
 - [Git gitignore documentation](https://git-scm.com/docs/gitignore)
 - [`ignore` package documentation](https://github.com/kaelzhang/node-ignore)

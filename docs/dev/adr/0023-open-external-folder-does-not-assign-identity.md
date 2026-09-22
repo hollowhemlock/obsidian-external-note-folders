@@ -40,6 +40,9 @@ the external root without changing vault frontmatter.
 valid `exnf`, it stops and directs the user to an explicit assignment or adoption
 flow.
 
+ADR-0031 adds `Set up external folder` as that explicit one-command workflow. It does not weaken
+this command boundary: invoking `Open external folder` still never assigns or restores identity.
+
 For notes that already have a valid `exnf`, the command may inspect and mutate
 external-root state only to open, create, or explicitly adopt an external folder
 for that existing note identity. It must not generate a UUID, write note
@@ -111,3 +114,4 @@ identity boundary.
 - [ADR-0025](0025-active-note-open-recovery-scan.md)
 - [docs/dev/plans/external-folder-adoption.md](../plans/external-folder-adoption.md)
 - [docs/dev/plans/open-external-folder-recovery.md](../plans/open-external-folder-recovery.md)
+- [ADR-0031](0031-pragmatic-active-note-setup.md)

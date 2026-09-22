@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "domain": "moved-folder-suggestions",
+  "scenario": "modal-smoke",
+  "summary": {
+    "errors": 0,
+    "warningGroups": 0,
+    "ignoredDirectories": 0,
+    "skippedDirectories": 0,
+    "uniqueSuggestions": 1,
+    "ambiguousNames": 1
+  },
+  "uniqueSuggestion": {
+    "notePath": "moved-folder-suggestions/current/unique-moved.md",
+    "expectedExternalFolder": "moved-folder-suggestions/current/unique-moved",
+    "candidateExternalFolder": "moved-folder-suggestions/previous/unique-moved"
+  },
+  "ambiguity": {
+    "normalizedName": "ambiguous-moved",
+    "noteCount": 2,
+    "folderCount": 2,
+    "noteSamples": [
+      "moved-folder-suggestions/current-a/ambiguous-moved.md",
+      "moved-folder-suggestions/current-b/ambiguous-moved.md"
+    ],
+    "folderSamples": [
+      "moved-folder-suggestions/previous-a/ambiguous-moved",
+      "moved-folder-suggestions/previous-b/ambiguous-moved"
+    ]
+  },
+  "payloads": [
+    {
+      "folderPath": "moved-folder-suggestions/previous/unique-moved",
+      "fileName": "external-folder-content.txt",
+      "content": "Unique moved-folder payload.\n"
+    },
+    {
+      "folderPath": "moved-folder-suggestions/previous-a/ambiguous-moved",
+      "fileName": "external-folder-content.txt",
+      "content": "Ambiguous moved-folder payload A.\n"
+    },
+    {
+      "folderPath": "moved-folder-suggestions/previous-b/ambiguous-moved",
+      "fileName": "external-folder-content.txt",
+      "content": "Ambiguous moved-folder payload B.\n"
+    }
+  ]
+}

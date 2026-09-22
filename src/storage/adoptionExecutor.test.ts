@@ -273,6 +273,7 @@ describe('adoption executor', () => {
 
     expect(incompleteJournals).toHaveLength(2);
     expect(incompleteJournals.every((journal) => journal.entryCount === 1)).toBe(true);
+    expect(incompleteJournals.every((journal) => journal.externalRootPath === 'X:/External')).toBe(true);
   });
 
   it('ignores stale completed journals when listing incomplete journals', async () => {
@@ -355,6 +356,8 @@ function buildPlan(): AdoptionPlan {
     hasGlobalErrors: false,
     markdownReport: '',
     mutationSequence: 0,
+    notices: [],
+    residualGroups: [],
     rows: [
       {
         externalFolder: 'Projects/Alpha',
@@ -363,6 +366,16 @@ function buildPlan(): AdoptionPlan {
         notePath: 'Projects/Alpha.md'
       }
     ],
+    summary: {
+      adoptableLeafMatches: 1,
+      blockedCandidates: 0,
+      errorCount: 0,
+      ignoredDirectories: 0,
+      prunedExistingBindings: 0,
+      residualDirectories: 0,
+      suppressedAncestorCandidates: 0,
+      warningCount: 0
+    },
     summaryText: '',
     warnings: []
   };

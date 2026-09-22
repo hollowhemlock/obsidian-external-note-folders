@@ -17,7 +17,7 @@ import type {
 import {
   classifyExnfMarkerFileName,
   parseExnfMarker,
-  parseExnfMarkerFile
+  parseUuidNamedExnfMarkerFile
 } from '../core/marker.ts';
 import { assertPathIsWithinRoot } from '../core/pathPolicy.ts';
 
@@ -114,9 +114,9 @@ async function assertNoConflictingUuidNamedMarker(folderPath: string, uuid: stri
       continue;
     }
 
-    let marker: ReturnType<typeof parseExnfMarkerFile>;
+    let marker: ReturnType<typeof parseUuidNamedExnfMarkerFile>;
     try {
-      marker = parseExnfMarkerFile(entry.name, await readFile(markerPath, 'utf8'));
+      marker = parseUuidNamedExnfMarkerFile(entry.name);
     } catch (error: unknown) {
       throw new Error(`Marker at ${markerPath} is malformed: ${error instanceof Error ? error.message : 'Unknown marker parse error.'}`, {
         cause: error
@@ -166,7 +166,7 @@ async function executeRename(externalRootPath: string, row: MarkerMigrationRenam
     await assertNoConflictingUuidNamedMarker(path.dirname(row.sourcePath), row.uuid);
     await rename(row.sourcePath, row.targetPath);
 
-    const migratedMarker = parseExnfMarkerFile(path.basename(row.targetPath), await readFile(row.targetPath, 'utf8'));
+    const migratedMarker = parseUuidNamedExnfMarkerFile(path.basename(row.targetPath));
     if (migratedMarker.uuid !== row.uuid) {
       throw new Error(`Migrated marker UUID ${migratedMarker.uuid} does not match expected UUID ${row.uuid}.`);
     }

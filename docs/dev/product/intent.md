@@ -25,7 +25,7 @@ external folder without requiring the folder path to stay fixed.
 The relationship is identity-based:
 
 - the vault note stores a canonical UUID in `exnf` frontmatter;
-- the external folder stores the same UUID in a marker file;
+- the external folder stores the same UUID in the canonical filename of an empty marker file;
 - current folder paths are derived from the current vault note path, but identity survives note and
   folder moves.
 
@@ -75,11 +75,10 @@ It is especially justified for users who:
 The main workflow is active-note driven:
 
 1. User works in an Obsidian note.
-2. User runs `Open external folder`.
-3. If the note has a valid identity and the expected folder is correctly bound, the folder opens
-   immediately.
-4. If the expected folder is not correctly bound, the plugin shows focused recovery information for
-   that note.
+2. User runs `Set up external folder` for a new relationship or `Open external folder` for an
+   existing one.
+3. Ordinary missing-folder setup uses targeted checks and opens immediately after a journaled bind.
+4. Imported marker restoration uses explicit confirmation and complete UUID uniqueness evidence.
 5. Root-wide diagnosis and repair remain explicit commands: drift report, adoption, reconcile, and
    migration.
 
@@ -87,6 +86,7 @@ References:
 
 - [ADR-0023: Open External Folder Does Not Assign Identity](../adr/0023-open-external-folder-does-not-assign-identity.md)
 - [ADR-0025: Active-Note Open Recovery Scan](../adr/0025-active-note-open-recovery-scan.md)
+- [ADR-0031: Pragmatic Active-Note Setup](../adr/0031-pragmatic-active-note-setup.md)
 
 ## Product Principles
 
@@ -96,7 +96,13 @@ The vault is the source of truth for note identity. External folders reflect vau
 not define it.
 
 External state may be incomplete, unavailable, stale, or reorganized outside Obsidian. That state is
-reported, not used to automatically rewrite vault identity.
+not used to automatically rewrite vault identity. One exact-path imported marker identity may be
+restored only through the explicit confirmation and uniqueness proof defined by ADR-0031.
+
+[ADR-0032](../adr/0032-explicit-folder-group-adoption.md) permits explicit, previewed
+single-folder adoption from the report, including creating a note or moving a
+selected note to match the external layout. Names and aliases suggest candidates;
+they never establish identity. Reconciliation remains note-driven.
 
 References:
 
@@ -162,6 +168,11 @@ temporary folders, or historical marker evidence.
 The product should let safe rows proceed without requiring the entire root to be pristine. It should
 not compensate with fuzzy identity inference.
 
+Bulk adoption scans the complete tree and selects deepest exact matches. Existing and planned bound
+subtrees are pruned from a grouped residual-tree summary rather than expanded into exhaustive
+unmatched-path rows. Depth-limited passes are unsafe because they can hide descendant candidates or
+marker evidence.
+
 References:
 
 - [ADR-0026: Safe Partial Exact Adoption with External Root Ignore Patterns](../adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md)
@@ -187,6 +198,9 @@ References:
 If a known note identity points to a problematic, ignored, missing, malformed, duplicate, or occupied
 state, the user should see that state in the appropriate command output.
 
+Every user-facing report and plan identifies the absolute active-vault path and external-root path
+at the top, and preserves that context in copied output.
+
 Ignored linked folders are not treated as healthy, missing, drifted, or reconciled. They are
 reported as ignored/unchecked so the user can decide whether to remove the note identity, move the
 note, or amend ignore settings.
@@ -200,9 +214,11 @@ References:
 
 | Command | Product intent | Mutation posture | Governing references |
 | --- | --- | --- | --- |
-| Assign external folder identifier | Explicitly create vault note identity. | Writes vault frontmatter only after preflight. | [ADR-0001](../adr/0001-vault-is-source-of-truth.md), [ADR-0007](../adr/0007-uuid-regeneration-and-manual-edits.md) |
+| Assign external folder identifier | Explicitly create vault note identity. | Writes vault frontmatter after vault-only identity validation; never scans or writes the external root. | [ADR-0001](../adr/0001-vault-is-source-of-truth.md), [ADR-0007](../adr/0007-uuid-regeneration-and-manual-edits.md) |
+| Set up external folder | Pragmatically create, bind, restore, open, or resume the active note's expected folder. | Targeted checks for fresh setup; complete scan and confirmation for imported identity restoration; dedicated journal; no overwrite or delete. | [ADR-0031](../adr/0031-pragmatic-active-note-setup.md) |
 | Open external folder | Navigate from active note to its bound folder and provide active-note recovery when needed. | May create/adopt external folder state only for an already-identified note. Never creates note identity. | [ADR-0023](../adr/0023-open-external-folder-does-not-assign-identity.md), [ADR-0025](../adr/0025-active-note-open-recovery-scan.md) |
-| Adopt existing external folders | Bind exact safe note/folder matches in mixed roots. | Marker first, frontmatter second, journaled, row-local safe. | [ADR-0026](../adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md) |
+| Adopt exact-path external folders | Bind deepest exact safe note/folder matches in mixed roots without creating nested bindings. | Whole-plan confirmation, marker first, frontmatter second, journaled, row-local safe. | [ADR-0026](../adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md) |
+| Suggest moved external folder matches | Surface equivalently named unassigned notes and unmarked folders whose relative paths diverged without treating a name as identity. | Read-only; unique among checked eligible paths; never adopts, writes, or moves. | [ADR-0030](../adr/0030-read-only-moved-folder-name-suggestions.md) |
 | Report external folder drift | Explain current vault/external-root mismatch without mutation. | Read-only. | [ADR-0009](../adr/0009-status-model.md), [ADR-0028](../adr/0028-core-fixture-semantics-with-cli-smoke.md) |
 | Reconcile external folders | Move existing bound folders to current note-derived paths. | Dry-run first, explicit confirmation, journaled, no delete, no overwrite. | [ADR-0006](../adr/0006-reconcile-is-explicit.md), [ADR-0011](../adr/0011-reconcile-execution-safety-model.md), [ADR-0022](../adr/0022-reconcile-planner-and-execution-contract.md) |
 | Migrate legacy marker files | Move users from fixed `.exnf` markers to `<uuid>.exnf` markers. | Dry-run first, explicit confirmation, journaled, no overwrite. | [ADR-0027](../adr/0027-uuid-named-marker-files.md) |

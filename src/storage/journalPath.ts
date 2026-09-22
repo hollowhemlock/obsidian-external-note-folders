@@ -23,3 +23,11 @@ export function buildMarkerMigrationJournalRootPath(input: {
 }): string {
   return path.join(buildJournalRootPath(input), 'marker-migration');
 }
+
+export function buildSetupJournalRootPath(input: {
+  configDir: string;
+  pluginId: string;
+  vaultRootPath: string;
+}): string {
+  return path.join(buildJournalRootPath(input), 'setup');
+}

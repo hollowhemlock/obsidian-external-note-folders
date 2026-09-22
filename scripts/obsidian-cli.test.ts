@@ -1,7 +1,9 @@
 import {
+  afterEach,
   describe,
   expect,
-  it
+  it,
+  vi
 } from 'vitest';
 
 import type { ObsidianCliResult } from './obsidian-cli.ts';
@@ -9,8 +11,13 @@ import type { ObsidianCliResult } from './obsidian-cli.ts';
 import {
   isRuntimeUnavailable,
   isSupportedObsidianVersion,
-  parseObsidianVersion
+  parseObsidianVersion,
+  runObsidianCli
 } from './obsidian-cli.ts';
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 function buildCliResult(overrides: Partial<ObsidianCliResult>): ObsidianCliResult {
   return {
@@ -61,6 +68,17 @@ describe('Obsidian CLI version support', () => {
 });
 
 describe('Obsidian CLI runtime availability', () => {
+  it('reports a missing configured executable without trimming absent output', () => {
+    vi.stubEnv('OBSIDIAN_CLI_BIN', '__missing_obsidian_cli_for_test__');
+
+    expect(runObsidianCli(['version'], process.cwd(), 1_000)).toMatchObject({
+      errorMessage: 'No Obsidian CLI binary found in configured/default locations.',
+      status: null,
+      stderr: '',
+      stdout: ''
+    });
+  });
+
   it('detects an unavailable runtime from the CLI stderr', () => {
     expect(isRuntimeUnavailable(buildCliResult({
       status: 1,

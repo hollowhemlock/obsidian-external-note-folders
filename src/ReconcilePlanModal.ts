@@ -9,8 +9,12 @@ import type {
   ReconcilePlan,
   ReconcilePlanRow
 } from './core/reconcilePlan.ts';
+import type { ReportContext } from './modalReport.ts';
 
-import { renderCopyableReport } from './modalReport.ts';
+import {
+  renderCopyableReport,
+  renderReportContext
+} from './modalReport.ts';
 
 export class ReconcilePlanModal extends Modal {
   private executeArmed: boolean;
@@ -19,7 +23,8 @@ export class ReconcilePlanModal extends Modal {
     app: Modal['app'],
     private readonly plan: ReconcilePlan,
     private readonly onExecute: () => Promise<void>,
-    private readonly dryRunByDefault: boolean
+    private readonly dryRunByDefault: boolean,
+    private readonly reportContext: ReportContext
   ) {
     super(app);
     this.executeArmed = !dryRunByDefault;
@@ -34,6 +39,7 @@ export class ReconcilePlanModal extends Modal {
     const conflictRows = this.plan.rows.filter((row): row is ReconcileConflictRow => row.kind === 'conflict');
 
     contentEl.createEl('h2', { text: 'Reconcile external folders' });
+    renderReportContext(contentEl, this.reportContext);
     contentEl.createEl('p', { text: this.plan.summaryText });
     contentEl.createEl('p', {
       cls: 'setting-item-description',
@@ -56,7 +62,7 @@ export class ReconcilePlanModal extends Modal {
     this.renderTableSection(contentEl, 'Conflicts', conflictRows, 'No move conflicts detected.');
     this.renderTableSection(contentEl, 'Other Rows', this.plan.rows.filter((row) => row.kind !== 'move' && row.kind !== 'conflict'), 'No other rows.');
 
-    renderCopyableReport(contentEl, 'Copyable plan', this.plan.markdownReport);
+    renderCopyableReport(contentEl, 'Copyable plan', this.plan.markdownReport, this.reportContext);
 
     const actionsEl = contentEl.createDiv({
       cls: 'external-note-folders-modal-actions'

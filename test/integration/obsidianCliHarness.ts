@@ -1,9 +1,15 @@
+import { randomUUID } from 'node:crypto';
+import {
+  unlinkSync,
+  writeFileSync
+} from 'node:fs';
 import {
   access,
   mkdir,
   readFile,
   writeFile
 } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolvePathFromRoot } from 'obsidian-dev-utils/ScriptUtils/Root';
 import { expect } from 'vitest';
@@ -28,6 +34,31 @@ const COMMAND_REGISTRATION_ATTEMPTS = 5;
 const COMMAND_REGISTRATION_RETRY_DELAY_MILLISECONDS = 500;
 const MODAL_TEXT_ATTEMPTS = 20;
 const MODAL_TEXT_RETRY_DELAY_MILLISECONDS = 500;
+
+/** Keep long multiline scripts out of the Windows CLI's JSON argument transport. */
+export function runSandboxEval(code: string): CliResult {
+  const scriptPath = path.join(tmpdir(), `exnf-integration-${randomUUID()}.js`);
+  writeFileSync(scriptPath, code, 'utf8');
+  try {
+    return runObsidianCli(
+      ['eval', `code=eval(require('fs').readFileSync(${JSON.stringify(scriptPath)},'utf8'))`],
+      getSandboxVaultPath(),
+      30_000
+    );
+  } finally {
+    unlinkSync(scriptPath);
+  }
+}
+
+export async function closeSandboxModals(): Promise<void> {
+  const closeResult = runSandboxCli([
+    'eval',
+    'code=Array.from(document.querySelectorAll(".modal")).forEach((modal) => { const closeButton = Array.from(modal.querySelectorAll("button")).find((button) => button.textContent?.trim() === "Close") ?? modal.querySelector(".modal-close-button, .modal-header-button:has(.lucide-x)"); closeButton?.click(); })'
+  ]);
+  expect(closeResult.status, formatCliResult(closeResult)).toBe(0);
+  await delay(MODAL_TEXT_RETRY_DELAY_MILLISECONDS);
+}
+
 export async function assertSandboxPluginInstalled(pluginId: string): Promise<void> {
   await access(path.join(
     getSandboxVaultPath(),
@@ -47,7 +78,7 @@ export async function createCliNote(notePath: string, uuid: string): Promise<voi
   const createResult = runSandboxCli([
     'create',
     `path=${notePath}`,
-    `content=---\nexnf: ${uuid}\n---\n\nCLI drift matrix note.`,
+    `content=${['---', `exnf: ${uuid}`, '---', '', 'CLI drift matrix note.'].join('\n')}`,
     'overwrite'
   ]);
   expect(createResult.status, formatCliResult(createResult)).toBe(0);
@@ -105,8 +136,8 @@ export async function waitForPluginCommands(pluginId: string, vaultPath = getSan
   return latestResult;
 }
 
-export async function waitForSandboxModalText(containsText: string): Promise<CliResult> {
-  let latestResult = runSandboxCli(['dev:dom', 'selector=.modal', 'text']);
+export async function waitForSandboxModalText(containsText: string, selector = '.modal'): Promise<CliResult> {
+  let latestResult = runSandboxCli(['dev:dom', `selector=${selector}`, 'text']);
 
   for (let attempt = 1; attempt < MODAL_TEXT_ATTEMPTS; attempt += 1) {
     if (latestResult.status === 0 && latestResult.stdout.includes(containsText)) {
@@ -114,7 +145,7 @@ export async function waitForSandboxModalText(containsText: string): Promise<Cli
     }
 
     await delay(MODAL_TEXT_RETRY_DELAY_MILLISECONDS);
-    latestResult = runSandboxCli(['dev:dom', 'selector=.modal', 'text']);
+    latestResult = runSandboxCli(['dev:dom', `selector=${selector}`, 'text']);
   }
 
   return latestResult;

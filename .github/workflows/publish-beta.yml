@@ -1,0 +1,144 @@
+name: publish-beta
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Branch, tag, or commit to build
+        required: true
+        default: dev
+        type: string
+      version:
+        description: Prerelease version, for example 2.0.1-beta.2
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-beta
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate prerelease version
+        id: release
+        shell: bash
+        env:
+          BETA_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$BETA_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*$ ]]; then
+            echo "Version must be a semantic prerelease such as 2.0.1-beta.2." >&2
+            exit 1
+          fi
+
+          echo "tag=external-note-folders-$BETA_VERSION" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref }}
+          fetch-depth: 0
+
+      - name: Resolve source commit and ensure tag is unused
+        id: source
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          SOURCE_SHA="$(git rev-parse HEAD)"
+          set +e
+          git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1
+          TAG_STATUS=$?
+          set -e
+
+          if [[ "$TAG_STATUS" -eq 0 ]]; then
+            echo "Tag already exists: $RELEASE_TAG" >&2
+            exit 1
+          fi
+
+          if [[ "$TAG_STATUS" -ne 2 ]]; then
+            echo "Could not determine whether tag exists: $RELEASE_TAG" >&2
+            exit 1
+          fi
+
+          echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test plugin
+        run: npm run test
+
+      - name: Lint plugin
+        run: npm run lint
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Collect prerelease artifacts
+        shell: bash
+        env:
+          BETA_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          cp dist/build/main.js release-assets/main.js
+          cp styles.css release-assets/styles.css
+          cp manifest.json release-assets/manifest.json
+          node -e "const fs=require('node:fs'); const p='release-assets/manifest.json'; const m=JSON.parse(fs.readFileSync(p,'utf8')); m.version=process.env.BETA_VERSION; fs.writeFileSync(p, JSON.stringify(m,null,2)+'\n');"
+
+      - name: Validate prerelease artifacts
+        shell: bash
+        env:
+          BETA_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          test -s release-assets/main.js
+          test -s release-assets/styles.css
+          test -s release-assets/manifest.json
+
+          MANIFEST_ID="$(node -p "JSON.parse(require('node:fs').readFileSync('release-assets/manifest.json', 'utf8')).id")"
+          MANIFEST_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('release-assets/manifest.json', 'utf8')).version")"
+          MIN_APP_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('release-assets/manifest.json', 'utf8')).minAppVersion || ''")"
+
+          if [[ "$MANIFEST_ID" != "external-note-folders" ]]; then
+            echo "Unexpected plugin id: $MANIFEST_ID" >&2
+            exit 1
+          fi
+
+          if [[ "$MANIFEST_VERSION" != "$BETA_VERSION" ]]; then
+            echo "Expected manifest version $BETA_VERSION, found $MANIFEST_VERSION." >&2
+            exit 1
+          fi
+
+          if [[ -z "$MIN_APP_VERSION" ]]; then
+            echo "manifest.json is missing minAppVersion." >&2
+            exit 1
+          fi
+
+      - name: Publish prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          target_commitish: ${{ steps.source.outputs.sha }}
+          name: "external-note-folders: v${{ inputs.version }}"
+          prerelease: true
+          fail_on_unmatched_files: true
+          body: |
+            BRAT prerelease built from `${{ inputs.source_ref }}` at `${{ steps.source.outputs.sha }}`.
+          files: |
+            release-assets/main.js
+            release-assets/styles.css
+            release-assets/manifest.json

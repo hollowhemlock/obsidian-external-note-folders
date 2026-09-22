@@ -20,7 +20,8 @@ import {
   classifyExnfMarkerFileName,
   findLegacyMarkerConflict,
   formatLegacyMarkerConflictMessage,
-  parseExnfMarkerFile
+  parseLegacyExnfMarkerFile,
+  parseUuidNamedExnfMarkerFile
 } from '../core/marker.ts';
 import { assertPathIsWithinRoot } from '../core/pathPolicy.ts';
 
@@ -78,8 +79,21 @@ export async function executeReconcilePlan(input: {
       continue;
     }
 
+    // Persist the exact intent before a rename can succeed or be interrupted.
+    const index = journal.entries.length;
+    journal.entries.push({
+      completedAt: null,
+      message: 'Move pending or interrupted. Inspect both paths before retrying.',
+      notePath: row.notePath,
+      outcome: 'failure',
+      sourcePath: row.sourcePath,
+      startedAt: new Date().toISOString(),
+      targetPath: row.targetPath,
+      uuid: row.uuid
+    });
+    await writeJournal(journalPath, journal);
     const entry = await executeMove(input.plan.externalRootPath, row);
-    journal.entries.push(entry);
+    journal.entries[index] = entry;
     await writeJournal(journalPath, journal);
     if (entry.outcome === 'failure') {
       succeeded = false;
@@ -114,7 +128,9 @@ async function assertMarkerMatches(folderPath: string, uuid: string): Promise<vo
         continue;
       }
 
-      const marker = parseExnfMarkerFile(entry.name, await readFile(markerPath, 'utf8'));
+      const marker = fileNameResult.kind === 'uuid-named'
+        ? parseUuidNamedExnfMarkerFile(entry.name)
+        : parseLegacyExnfMarkerFile(entry.name, await readFile(markerPath, 'utf8'));
       parsedMarkers.push({
         format: marker.format,
         markerPath,

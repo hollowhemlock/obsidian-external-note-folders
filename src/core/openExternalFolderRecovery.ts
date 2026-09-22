@@ -24,7 +24,7 @@ export interface OpenExternalFolderRecoveryPlan {
   errors: string[];
   expectedExternalFolder: string;
   expectedFolderPath: string;
-  expectedState: Exclude<ExpectedExternalFolderState, { kind: 'bound' }>;
+  expectedState: RecoverableExpectedExternalFolderState;
   externalRootPath: string;
   markdownReport: string;
   notePath: string;
@@ -60,8 +60,13 @@ interface FolderMarkerState {
   uuid: null | string;
 }
 
+type RecoverableExpectedExternalFolderState = Exclude<
+  ExpectedExternalFolderState,
+  { kind: 'bound-with-additional-markers' | 'bound' }
+>;
+
 export function buildOpenExternalFolderRecoveryPlan(input: {
-  expectedState: Exclude<ExpectedExternalFolderState, { kind: 'bound' }>;
+  expectedState: RecoverableExpectedExternalFolderState;
   externalScan: ExternalScanResult;
   notePath: string;
   uuid: string;
@@ -204,7 +209,7 @@ function buildMarkdownReport(input: {
   candidateRows: OpenRecoveryCandidateRow[];
   errors: string[];
   expectedExternalFolder: string;
-  expectedState: Exclude<ExpectedExternalFolderState, { kind: 'bound' }>;
+  expectedState: RecoverableExpectedExternalFolderState;
   notePath: string;
   summaryText: string;
   uuid: string;
@@ -293,7 +298,7 @@ function formatCandidateRows(rows: readonly OpenRecoveryCandidateRow[]): string 
   ].join('\n');
 }
 
-function formatExpectedState(expectedState: Exclude<ExpectedExternalFolderState, { kind: 'bound' }>): string {
+function formatExpectedState(expectedState: RecoverableExpectedExternalFolderState): string {
   if (expectedState.kind === 'malformed-marker') {
     return `malformed marker at ${expectedState.markerPath}: ${expectedState.message}`;
   }

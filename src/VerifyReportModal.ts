@@ -5,14 +5,19 @@ import type {
   VerifyReport,
   VerifyTableRow
 } from './core/verify.ts';
+import type { ReportContext } from './modalReport.ts';
 
-import { renderCopyableReport } from './modalReport.ts';
+import {
+  renderCopyableReport,
+  renderReportContext
+} from './modalReport.ts';
 
 export class VerifyReportModal extends Modal {
   public constructor(
     app: Modal['app'],
     private readonly verifyReport: VerifyReport,
-    private readonly resultsMayBeStale: boolean
+    private readonly resultsMayBeStale: boolean,
+    private readonly reportContext: ReportContext
   ) {
     super(app);
   }
@@ -23,6 +28,7 @@ export class VerifyReportModal extends Modal {
     contentEl.addClass('external-note-folders-wide-modal');
 
     contentEl.createEl('h2', { text: 'Verify external folders' });
+    renderReportContext(contentEl, this.reportContext);
     contentEl.createEl('p', {
       text: this.verifyReport.summaryText
     });
@@ -47,7 +53,7 @@ export class VerifyReportModal extends Modal {
     this.renderIgnoredTableSection(contentEl, 'Ignored / Unchecked', this.verifyReport.ignoredRows, 'No ignored bindings detected.');
     this.renderTableSection(contentEl, 'Unavailable', this.verifyReport.unavailableRows, 'No missing bound folders detected.');
     this.renderTableSection(contentEl, 'OK', this.verifyReport.okRows, 'No healthy bindings were discovered.');
-    renderCopyableReport(contentEl, 'Copyable report', this.verifyReport.markdownReport);
+    renderCopyableReport(contentEl, 'Copyable report', this.verifyReport.markdownReport, this.reportContext);
   }
 
   private renderIgnoredTableSection(

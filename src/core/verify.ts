@@ -31,12 +31,14 @@ export interface ExternalScanResult {
   legacyMarkers?: ExternalMarkerRecord[];
   malformedMarkers: ScanIssue[];
   markerConflicts?: ScanIssue[];
+  markerReadErrors?: ScanIssue[];
   markers?: ExternalMarkerRecord[];
   rootPath: string;
   skippedDirectories: ScanIssue[];
 }
 
 export interface ScanIssue {
+  code?: string;
   location: string;
   message: string;
 }

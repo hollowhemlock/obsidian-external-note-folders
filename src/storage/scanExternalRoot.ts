@@ -17,7 +17,8 @@ import {
   classifyExnfMarkerFileName,
   findLegacyMarkerConflict,
   formatLegacyMarkerConflictMessage,
-  parseExnfMarkerFile
+  parseLegacyExnfMarkerFile,
+  parseUuidNamedExnfMarkerFile
 } from '../core/marker.ts';
 import { registerUuidBinding } from '../core/scanResult.ts';
 
@@ -59,6 +60,7 @@ export async function scanExternalRoot(
     legacyMarkers: [],
     malformedMarkers: [],
     markerConflicts: [],
+    markerReadErrors: [],
     markers: [],
     rootPath: trimmedRootPath,
     skippedDirectories: []
@@ -97,6 +99,14 @@ export async function scanExternalRoot(
   result.ignorePatterns = ignoreMatcher.patterns;
   await walkDirectory(canonicalRootPath, result, fileSystem, ignoreMatcher, true);
   return result;
+}
+
+function getErrorCode(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('code' in error) || typeof error.code !== 'string') {
+    return undefined;
+  }
+
+  return error.code;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -138,7 +148,9 @@ async function walkDirectory(
   try {
     entries = await fileSystem.readDirectoryEntries(directoryPath);
   } catch (error: unknown) {
+    const code = getErrorCode(error);
     const issue = {
+      ...(code ? { code } : {}),
       location: directoryPath,
       message: getErrorMessage(error)
     };
@@ -176,8 +188,9 @@ async function walkDirectory(
       continue;
     }
 
+    let markerFileName: ReturnType<typeof classifyExnfMarkerFileName>;
     try {
-      const markerFileName = classifyExnfMarkerFileName(entry.name);
+      markerFileName = classifyExnfMarkerFileName(entry.name);
       if (markerFileName.kind === 'not-marker') {
         continue;
       }
@@ -189,9 +202,23 @@ async function walkDirectory(
       continue;
     }
 
+    let legacyContents = '';
+    if (markerFileName.kind === 'legacy') {
+      try {
+        legacyContents = await fileSystem.readMarkerFile(entryPath);
+      } catch (error: unknown) {
+        const issue = { location: entryPath, message: getErrorMessage(error) };
+        const code = getErrorCode(error);
+        result.markerReadErrors?.push({ ...issue, ...(code ? { code } : {}) });
+        result.malformedMarkers.push(issue);
+        continue;
+      }
+    }
+
     try {
-      const markerContent = await fileSystem.readMarkerFile(entryPath);
-      const marker = parseExnfMarkerFile(entry.name, markerContent);
+      const marker = markerFileName.kind === 'uuid-named'
+        ? parseUuidNamedExnfMarkerFile(entry.name)
+        : parseLegacyExnfMarkerFile(entry.name, legacyContents);
       const record: ExternalMarkerRecord = {
         folderPath: directoryPath,
         format: marker.format,

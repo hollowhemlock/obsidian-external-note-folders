@@ -77,22 +77,23 @@ This maps to the current fast-path-then-recovery-scan behavior in ADR-0025.
 ### Scenario
 
 1. `Projects/Alpha.md` exists in the vault with no `exnf` frontmatter.
-2. Device A goes offline. The user runs `Assign external folder identifier`.
-   UUID `aaa-111` is written to frontmatter and to the marker file at
+2. Device A goes offline. The user runs `Set up external folder`. UUID
+   `aaa-111` is written to frontmatter and to the UUID-named marker file at
    `external/Projects/Alpha/`.
 3. Device B was offline at the same pre-assignment vault state. The user runs
-   assign on B. UUID `bbb-222` is written to frontmatter and marker.
+   setup on B. UUID `bbb-222` is written to frontmatter and marker.
 4. Both devices come online and sync.
 
-The UUID examples above are abbreviated for readability. Actual marker content
-continues to require canonical lowercase UUIDs under the current contract.
+The UUID examples above are abbreviated for readability. Actual marker
+filenames require canonical lowercase UUIDs. Canonical marker contents are
+opaque.
 
 ### Resulting Conflicts
 
 | Layer | Behavior |
 | --- | --- |
 | Vault frontmatter | Standard sync conflict on the note. Resolution depends on the sync tool: winner-takes-all or conflict copy. |
-| External root, synced | Two different marker writes target the same `.exnf` path. The sync tool picks one or creates conflict-renamed siblings such as `.exnf.conflict-20260515`, `.exnf 2`, or similar. |
+| External root, synced | Two distinct UUID-named markers can coexist. The plugin preserves both and reports the additional identity instead of selecting or overwriting either marker. |
 | External root, not synced | Each device has its own marker. Neither device knows about the other. One device's frontmatter no longer matches its local marker. |
 
 ### Severity
@@ -101,16 +102,16 @@ This is a visible, recoverable inconsistency rather than silent corruption. The
 existing drift report and active-note recovery scan can surface the state for
 manual user resolution.
 
-However, under the current fixed `.exnf` filename scheme, the failure mode can
-be destructive at the marker-discovery layer. A sync-conflict rename can move
-the useful marker content into a filename that the plugin does not consider
-canonical.
+Under the legacy fixed `.exnf` filename scheme, a sync-conflict rename could
+hide the useful marker payload in a filename the plugin did not consider
+canonical. UUID-named markers remove that single-filename collision.
 
 ## Proposal Captured by ADR-0027: `<uuid>.exnf` Marker Filenames
 
 Rename the marker file from a fixed `.exnf` to `<uuid>.exnf`, for example
-`550e8400-e29b-41d4-a716-446655440000.exnf`, where the UUID in the filename
-matches the UUID written inside the file and in the note's `exnf` frontmatter.
+`550e8400-e29b-41d4-a716-446655440000.exnf`, where the UUID in the filename is
+the marker's complete identity and matches the note's `exnf` frontmatter. The
+file body is opaque and is not read.
 
 ADR-0027 accepts `<uuid>.exnf` as the marker contract. Fixed `.exnf` markers are
 treated as deprecated legacy markers during migration, not as the long-term
@@ -134,6 +135,7 @@ or more `*.exnf` files:
 
 - The `<frontmatter-uuid>.exnf` file, if present, is the current binding for
   that note.
+- UUID-named marker contents never participate in identity or integrity checks.
 - Any other `*.exnf` files in the folder are stale, orphaned, or misplaced
   markers.
 - Stale or orphaned markers should surface in drift reports as cleanup
@@ -194,8 +196,8 @@ a first-class drift category with clear remediation:
 
 - Detect when a note's `exnf` UUID resolves to no marker, but a marker exists in
   the expected folder with a different UUID.
-- Offer explicit rebind options such as adopting the folder's UUID into the
-  note, or moving the folder under the note's UUID.
+- Offer the exact-path, confirmation-gated imported-marker restoration defined
+  by ADR-0031 after proving the UUID occurs in exactly one checked folder.
 - Never auto-resolve frontmatter conflicts.
 
 ### Migration

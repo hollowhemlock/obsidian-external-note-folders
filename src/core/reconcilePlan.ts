@@ -155,6 +155,21 @@ export function buildReconcilePlan(input: {
   };
 }
 
+/** Caller must establish complete evidence and unique ownership for this binding. */
+export function buildSelectedReconcilePlan(externalScan: ExternalScanResult, notePath: string, uuid: string, mutationSequence: number): ReconcilePlan {
+  const row = buildVaultRow({ context: buildPlannerContext(externalScan), notePath, uuid });
+  return {
+    errors: [],
+    externalRootPath: externalScan.rootPath,
+    hasGlobalErrors: false,
+    markdownReport: row.kind === 'move' ? `Move ${row.sourcePath} to ${row.targetPath}` : 'Selected binding cannot move.',
+    mutationSequence,
+    rows: [row],
+    summaryText: 'Move one external folder',
+    warnings: []
+  };
+}
+
 function buildBindingUuidsByIdentity(bindings: Map<string, string>): Map<string, string> {
   const uuidsByIdentity = new Map<string, string>();
   for (const [uuid, folderPath] of bindings) {

@@ -2,6 +2,22 @@
   "schemaVersion": 1,
   "coveredScenarios": [
     {
+      "kind": "unit-test",
+      "domain": "open-recovery",
+      "scenario": "recovery-explanations",
+      "testPath": "src/openRecoveryPresentation.test.ts",
+      "stateIds": ["T0", "T2", "T7", "T8", "T9", "R0", "R2", "R3", "R15"],
+      "notes": "Covers readable initial failure reasons, actual search paths and marker filename, blocking-error precedence, confirmed opening, duplicate matches, and same-name candidates requiring review."
+    },
+    {
+      "kind": "integration-test",
+      "domain": "open-recovery",
+      "scenario": "pending-search-and-results",
+      "testPath": "test/integration/open-recovery.integration.test.ts",
+      "stateIds": ["T0", "R0"],
+      "notes": "Holds a sandbox recovery scan pending to inspect the actual progress modal, full selectable wrapping paths, marker filename, ignore disclosure, and subsequent no-match result."
+    },
+    {
       "kind": "semantic-fixture",
       "domain": "drift-report",
       "scenario": "basic-drift-matrix",
@@ -52,7 +68,7 @@
         "R3",
         "R7"
       ],
-      "notes": "Covers identity-integrity drift states: duplicate vault identities, duplicate external identities, expected folders occupied by another UUID, malformed target markers, and marker filename/payload mismatch."
+      "notes": "Covers identity-integrity drift states: duplicate vault identities, duplicate external identities, expected folders occupied by another UUID, malformed marker filenames, and filename-authoritative canonical marker contents."
     },
     {
       "kind": "unit-test",
@@ -71,7 +87,7 @@
         "G11",
         "G12"
       ],
-      "notes": "Covers scanner-level global root states: unset, relative, missing, file root, unreadable root, empty root, skipped descendants, symlink entries, and invalid ignore settings."
+      "notes": "Covers scanner-level global root states: unset, relative, missing, file root, unreadable root, empty root, skipped descendants, symlink entries, and invalid ignore settings. Distinguishes unreadable legacy marker evidence from successfully read malformed contents while preserving existing diagnostics."
     },
     {
       "kind": "unit-test",
@@ -86,12 +102,12 @@
     {
       "kind": "unit-test",
       "domain": "adoption-plan",
-      "scenario": "broad-root-structural-containers",
+      "scenario": "broad-root-residual-groups",
       "testPath": "src/core/adoptionPlan.test.ts",
       "stateIds": [
         "G14"
       ],
-      "notes": "Covers broad-root noise by treating root container paths such as test fixture ancestors as structural folders rather than unmatched external folders."
+      "notes": "Covers broad-root noise by pruning structural containers and returning exact residual counts with bounded deterministic samples instead of per-directory rows."
     },
     {
       "kind": "unit-test",
@@ -165,19 +181,21 @@
         "T12",
         "T19",
         "T20",
-        "T22"
+        "T22",
+        "T26"
       ],
-      "notes": "Covers expected-folder files, unmarked directories, matching uuid and legacy markers, legacy conflicts, malformed legacy markers, multiple UUID-named markers, symlink/reparse rejection, parent creation, and root-boundary safety."
+      "notes": "Covers expected-folder files, unmarked directories, filename-authoritative UUID markers with opaque contents, legacy markers and conflicts, malformed marker filenames or legacy contents, multiple UUID-named markers, symlink/reparse rejection, parent creation, and root-boundary safety. Marker writers reject directories and junctions occupying the canonical marker path while preserving an opaque regular marker that appears after inspection."
     },
     {
       "kind": "unit-test",
       "domain": "adoption-plan",
-      "scenario": "skipped-target",
+      "scenario": "skipped-target-overlap",
       "testPath": "src/core/adoptionPlan.test.ts",
       "stateIds": [
-        "T18"
+        "T18",
+        "T25"
       ],
-      "notes": "Covers adoption blocking when a note's derived expected folder is inside a skipped external subtree."
+      "notes": "Covers adoption blocking when a note's derived expected folder is inside a skipped external subtree or contains a skipped descendant."
     },
     {
       "kind": "unit-test",
@@ -237,13 +255,13 @@
     {
       "kind": "unit-test",
       "domain": "adoption-plan",
-      "scenario": "unrelated-existing-identities",
+      "scenario": "summarized-existing-identities",
       "testPath": "src/core/adoptionPlan.test.ts",
       "stateIds": [
         "R10",
         "R11"
       ],
-      "notes": "Covers unrelated existing vault identities and unrelated external markers as adoption warnings instead of global blockers."
+      "notes": "Covers unrelated valid vault identities and external markers as summarized pruned bindings instead of warning rows or global blockers."
     },
     {
       "kind": "unit-test",
@@ -260,13 +278,13 @@
     {
       "kind": "unit-test",
       "domain": "adoption-plan",
-      "scenario": "structural-container-filtering",
+      "scenario": "leaf-first-topology-and-residual-filtering",
       "testPath": "src/core/adoptionPlan.test.ts",
       "stateIds": [
         "R19",
         "R20"
       ],
-      "notes": "Covers ancestor container directories and descendants under marked folders being excluded from unmatched external folder rows."
+      "notes": "Covers deepest-candidate selection plus ancestor containers and marked descendants being excluded from grouped residual-directory counts."
     },
     {
       "kind": "unit-test",
@@ -287,6 +305,99 @@
         "R22"
       ],
       "notes": "Covers adoption preserving existing external folder payload files after marker and frontmatter writes."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "moved-folder-suggestions",
+      "scenario": "unique-ambiguous-and-excluded-name-evidence",
+      "testPath": "src/core/movedFolderSuggestions.test.ts",
+      "stateIds": [
+        "R23",
+        "R24",
+        "R25"
+      ],
+      "notes": "Covers unique literal-name suggestions, ambiguity groups without Cartesian rows, and exclusion of exact, identified, marked, malformed, ignored, and skipped topology."
+    },
+    {
+      "kind": "integration-test",
+      "domain": "moved-folder-suggestions",
+      "scenario": "nonzero-modal-suggestions-and-ambiguity",
+      "testPath": "test/integration/adoption.integration.test.ts",
+      "stateIds": [
+        "R23",
+        "R24"
+      ],
+      "notes": "Covers real Obsidian modal rendering for one unique divergent-path suggestion and one ambiguous name group, including collapsed lazy rows and read-only filesystem state."
+    },
+    {
+      "kind": "integration-test",
+      "domain": "setup",
+      "scenario": "imported-marker-restoration-confirmation",
+      "testPath": "test/integration/setup.integration.test.ts",
+      "stateIds": [
+        "V2",
+        "V20",
+        "T0",
+        "T11",
+        "T14",
+        "R26"
+      ],
+      "notes": "Covers real Obsidian command wiring for targeted missing-folder setup despite unrelated malformed evidence, confirmation rendering for one unique imported marker, opaque canonical contents, and open-with-warning behavior for a delayed additional marker."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "setup-plan",
+      "scenario": "targeted-setup-and-imported-restoration",
+      "testPath": "src/core/setupPlan.test.ts",
+      "stateIds": [
+        "V20",
+        "V21",
+        "T27",
+        "T28",
+        "R26",
+        "R27",
+        "R28",
+        "R29"
+      ],
+      "notes": "Covers missing and unmarked exact targets, imported marker restoration, vault and external UUID conflicts, unreadable marker and incomplete scan evidence, ignored evidence disclosure, and leaf-first topology. Exact, ancestor, and descendant identified-note reservations include duplicate vault owners and apply before creating missing targets; fixtures use native absolute paths."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "setup-command",
+      "scenario": "setup-preflight-and-resume-safety",
+      "testPath": "src/Plugin.setup.test.ts",
+      "stateIds": [
+        "V21",
+        "T27",
+        "R28",
+        "J16",
+        "J17",
+        "J18"
+      ],
+      "notes": "Exercises actual Plugin setup operations with temporary external folders: live preflight and immediate-before-write reservation checks, missing/replaced/competing resume markers, stage and UUID preservation without note writes on failure, early empty-target resume, successful and idempotent frontmatter resume, incomplete complete-stage revalidation, and unreadable legacy markers blocking initial restoration and resume. Restoration refreshes vault ownership after scanning and rejects single or duplicate UUID owners introduced during resume scans or immediately before frontmatter writes."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "setup-target",
+      "scenario": "stop-at-unsafe-ancestor",
+      "testPath": "src/storage/setupTarget.test.ts",
+      "stateIds": [
+        "T19"
+      ],
+      "notes": "A real directory link in the expected target's ancestors blocks inspection before traversing the linked target or collecting its marker and descendant evidence."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "setup-executor",
+      "scenario": "setup-journal-lifecycle",
+      "testPath": "src/storage/setupExecutor.test.ts",
+      "stateIds": [
+        "J16",
+        "J17",
+        "J18",
+        "J20"
+      ],
+      "notes": "Covers journal-first setup, pre-action stages, idempotent resume with the journaled UUID, and note-scoped incomplete journal lookup."
     },
     {
       "kind": "unit-test",
@@ -350,9 +461,10 @@
         "J9",
         "J13",
         "J14",
-        "J15"
+        "J15",
+        "J19"
       ],
-      "reason": "Remaining journal states require command-boundary or deliberately fault-injected integration coverage: missing external root during resume, impossible frontmatter-without-marker recovery, stale preflight plans, concurrent mutating commands, and UI failure after successful external write."
+      "reason": "Remaining journal states require command-boundary or deliberately fault-injected integration coverage: missing external root during resume, impossible frontmatter-without-marker recovery, stale preflight plans, concurrent mutating commands, UI failure after successful external write, and setup completion followed by an opener failure."
     }
   ]
 }

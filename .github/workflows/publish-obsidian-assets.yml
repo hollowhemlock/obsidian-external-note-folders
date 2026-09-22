@@ -16,6 +16,7 @@ permissions:
 
 jobs:
   build-and-upload:
+    if: github.event_name != 'release' || !github.event.release.prerelease
     runs-on: ubuntu-latest
     steps:
       - name: Resolve release tag

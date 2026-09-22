@@ -7,19 +7,27 @@ import {
   getExnfFrontmatterValue,
   setExnfFrontmatterValue
 } from '../core/frontmatter.ts';
-import { generateCanonicalUuid } from '../core/uuid.ts';
+import {
+  generateCanonicalUuid,
+  generateUnusedCanonicalUuid
+} from '../core/uuid.ts';
+
+export interface AssignUuidOptions {
+  existingUuids?: ReadonlySet<string>;
+  generateUuid?: () => string;
+}
 
 export type AssignUuidOutcome =
   | { kind: 'assigned'; uuid: string }
   | { kind: 'existing'; uuid: string };
 
-export async function assignUuidToNote(app: App, file: TFile): Promise<AssignUuidOutcome> {
+export async function assignUuidToNote(app: App, file: TFile, options: AssignUuidOptions = {}): Promise<AssignUuidOutcome> {
   let outcome: AssignUuidOutcome | undefined;
 
   await app.fileManager.processFrontMatter(file, (frontmatter) => {
     const currentValue = getExnfFrontmatterValue(frontmatter as Record<string, unknown>);
     if (currentValue.kind === 'missing') {
-      const uuid = generateCanonicalUuid();
+      const uuid = generateUnusedCanonicalUuid(options.existingUuids ?? new Set(), options.generateUuid ?? generateCanonicalUuid);
       setExnfFrontmatterValue(frontmatter as Record<string, unknown>, uuid);
       outcome = {
         kind: 'assigned',

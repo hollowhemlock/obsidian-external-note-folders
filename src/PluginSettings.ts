@@ -2,10 +2,14 @@ export interface PluginSettings {
   dryRunByDefault: boolean;
   externalRootIgnorePatterns: string[];
   externalRootPath: string;
+  statusIgnorePatterns?: string[];
+  statusSkipIgnored?: boolean;
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
   dryRunByDefault: true,
   externalRootIgnorePatterns: [],
-  externalRootPath: ''
+  externalRootPath: '',
+  statusIgnorePatterns: ['.git/', 'node_modules/', 'build/', 'dist/', '.cache/', '__pycache__/', '.venv/'],
+  statusSkipIgnored: false
 };
