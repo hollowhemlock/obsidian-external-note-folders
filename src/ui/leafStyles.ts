@@ -37,6 +37,15 @@ export const LEAF_REPORT_CSS = `
 .exnf-leaf-report .leaf-layout{display:grid;grid-template-columns:minmax(320px,var(--leaf-tree-width,60%)) 8px minmax(320px,1fr);gap:8px}
 .exnf-leaf-report .leaf-heading-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .exnf-leaf-report .leaf-heading-row h1{margin:0}
+.exnf-leaf-report .leaf-quick-views{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 10px}
+.exnf-leaf-report .leaf-root-info{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0}
+.exnf-leaf-report .leaf-root-info h2{flex:1;min-width:180px}
+.exnf-leaf-report .leaf-filter-field{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;min-width:140px}
+.exnf-leaf-report .leaf-filter-field select{font-size:14px;font-weight:400;max-width:100%}
+.exnf-leaf-report .leaf-toolbar:has(>.leaf-filter-field){align-items:flex-end;margin:10px 0}
+.exnf-leaf-report .leaf-filter-chips{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.exnf-leaf-report .leaf-filter-chips button{border-radius:16px;padding:3px 10px;font-size:12px;overflow-wrap:anywhere;text-align:left}
+.exnf-leaf-report .leaf-empty{border:1px solid var(--background-modifier-border,#bdc8d7);border-radius:6px;padding:18px;margin-bottom:8px}
 .exnf-leaf-report .leaf-search-field{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;margin:12px 0 8px}
 .exnf-leaf-report .leaf-search-field input{width:100%;font-weight:400}
 .exnf-leaf-report .leaf-details-pane{min-width:0;max-height:60vh;display:flex;flex-direction:column}
@@ -80,6 +89,11 @@ export const LEAF_REPORT_CSS = `
 .exnf-leaf-report button[aria-pressed=true]{background:var(--background-modifier-hover,#e5edf9);box-shadow:inset 0 0 0 2px var(--text-accent,#245f9e)}
 .exnf-leaf-report .leaf-details-header{position:sticky;top:-12px;z-index:1;background:var(--background-primary,#f6f8fb);padding:8px 0;border-bottom:1px solid var(--background-modifier-border,#bdc8d7)}
 .exnf-leaf-report .leaf-details-header .leaf-toolbar{margin:6px 0;gap:6px}
+.exnf-leaf-report .leaf-details-header{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 8px;align-items:center}
+.exnf-leaf-report .leaf-details-header h2{margin:0}
+.exnf-leaf-report .leaf-details-header>.leaf-toolbar{grid-column:2;grid-row:1;margin:0}
+.exnf-leaf-report .leaf-details-summary{grid-column:1/-1;display:flex;gap:6px 12px;flex-wrap:wrap;font-size:12px;align-items:center}
+.exnf-leaf-report .leaf-details-summary .leaf-tags{margin:0}
 .exnf-leaf-report .leaf-relative-path{max-height:3em;overflow:auto}
 .exnf-leaf-report .leaf-path-field{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 8px;margin:12px 0;padding:8px;background:var(--background-secondary,#fff);border-radius:4px}
 .exnf-leaf-report .leaf-path-field strong{grid-column:1/-1}

@@ -124,21 +124,45 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   const heading = element('div', '', root, 'leaf-heading-row');
   element('h1', 'External folder status', heading);
   const topActions = element('div', '', heading, 'leaf-toolbar');
-  element('p', 'Folder bindings, note associations, and scan coverage.', root);
-  element('p', 'Physical audit — scan and template exclusions are disclosed below', root, 'leaf-context');
+  const scanTimestamp = element('p', 'No completed scan yet.', root, 'leaf-context leaf-scan-timestamp');
   const scanDetails = reportDisclosure(root, 'Scan details');
   const context = element('div', '', scanDetails, 'leaf-context');
   const scanIssues = element('div', '', scanDetails);
   const warning = element('div', '', root, 'leaf-warning');
+  const rootInfo = element('div', '', root, 'leaf-root-info');
+  const rootLabel = element('h2', '', rootInfo);
+  rootLabel.tabIndex = -1;
+  action('Inspect external root', rootInfo, async () => {
+    if (model?.rootFolder) {
+      await jumpTo(model.rootFolder);
+    }
+  });
+  const quickViews = element('div', '', root, 'leaf-quick-views');
+  quickViews.setAttribute('role', 'group');
+  quickViews.setAttribute('aria-label', 'Quick views');
+  const quickButtons = new Map<string, HTMLButtonElement>();
+  for (const [key, label] of [['all', 'All folders'], ['adoptable', 'Adoptable leaves'], ['review', 'Needs review']] as const) {
+    const button = action(label, quickViews, () => {
+      query.adoptableOnly = key === 'adoptable';
+      query.needsReview = key === 'review';
+      query.mode = 'all';
+      changed();
+    });
+    button.setAttribute('aria-pressed', String(key === 'all'));
+    quickButtons.set(key, button);
+  }
   const toolbar = element('div', '', root, 'leaf-toolbar');
   const searchField = element('label', 'Search within results', root, 'leaf-search-field');
   const search = element('input', '', searchField);
   search.type = 'search';
   search.placeholder = 'Filter current results by folder or note…';
   search.setAttribute('aria-label', 'Search folders and notes');
-  const viewMenu = reportDisclosure(toolbar, 'View');
+  const statusField = element('label', 'Status', toolbar, 'leaf-filter-field');
+  const categoryField = element('label', 'Category', toolbar, 'leaf-filter-field');
+  const sortField = element('label', 'Sort', toolbar, 'leaf-filter-field');
+  const viewMenu = reportDisclosure(toolbar, 'Advanced');
   const viewControls = element('div', '', viewMenu, 'leaf-toolbar');
-  const category = element('select', '', viewControls);
+  const category = element('select', '', categoryField);
   category.setAttribute('aria-label', 'Folder category');
   for (
     const [value, label] of [['all', 'All categories'], ['ordinary', 'Ordinary paths'], ['git', 'Git internals'], ['dependencies', 'Dependencies'], [
@@ -149,12 +173,13 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     const option = element('option', label ?? '', category);
     option.value = value ?? '';
   }
-  const mode = element('select', '', viewControls);
+  const modeField = element('label', 'Folder scope', viewControls, 'leaf-filter-field');
+  const mode = element('select', '', modeField);
   mode.setAttribute('aria-label', 'Tree view');
   for (const [value, label] of [['all', 'All scanned folders'], ['results', 'Unmarked leaves']]) {
     element('option', label ?? '', mode).value = value ?? '';
   }
-  const statusFilter = element('select', '', viewControls);
+  const statusFilter = element('select', '', statusField);
   statusFilter.setAttribute('aria-label', 'Binding status');
   element('option', 'All statuses', statusFilter).value = '';
   statusFilter.addEventListener('change', () => {
@@ -168,7 +193,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     await refilter();
   });
   expectedToggle.setAttribute('aria-pressed', 'false');
-  const sort = element('select', '', viewControls);
+  const sort = element('select', '', sortField);
   sort.setAttribute('aria-label', 'Sort siblings');
   for (const [value, label] of [['name', 'Name'], ['count', 'Most leaves']]) {
     element('option', label ?? '', sort).value = value ?? '';
@@ -186,12 +211,6 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   if (cancel) {
     cancel.hidden = true;
   }
-  const reviewToggle = action('Needs review', toolbar, () => {
-    query.needsReview = !query.needsReview;
-    reviewToggle.setAttribute('aria-pressed', String(query.needsReview));
-    changed();
-  });
-  reviewToggle.setAttribute('aria-pressed', 'false');
   const issueControls = element('div', '', root, 'leaf-issue-controls');
   const previousIssue = action('Previous issue', issueControls, () => navigateIssue(-1));
   const issuePosition = element('span', 'No issues in current filters', issueControls);
@@ -207,17 +226,13 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   const exportControls = element('div', '', exportMenu, 'leaf-toolbar');
   const disposeMenus = installReportMenus(root, [viewMenu, exportMenu]);
   const activeFilters = element('div', '', root, 'leaf-active-filters');
-  const filterText = element('span', '', activeFilters);
-  const clearFilters = action('Clear filters', activeFilters, () => {
-    Object.assign(query, { ...DEFAULT_TREE_QUERY, includeExpected: false, needsReview: false, sort: query.sort, status: '' });
-    search.value = '';
-    reviewToggle.setAttribute('aria-pressed', 'false');
-    category.value = 'all';
-    mode.value = 'all';
-    statusFilter.value = '';
-    expectedToggle.setAttribute('aria-pressed', 'false');
+  activeFilters.setAttribute('aria-label', 'Active filters');
+  const filterChips = element('div', '', activeFilters, 'leaf-filter-chips');
+  const clearFilters = action('Clear filters', activeFilters, clearAllFilters);
+  function clearAllFilters(): void {
+    Object.assign(query, { ...DEFAULT_TREE_QUERY, adoptableOnly: false, includeExpected: false, needsReview: false, sort: query.sort, status: '' });
     changed();
-  });
+  }
   if (host.exportStatus) {
     action('Export filtered status', exportControls, async () => {
       if (result) {
@@ -260,14 +275,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     updateLink();
     reportSelect.addEventListener('change', updateLink);
   }
-  const rootLabel = element('h2', '', root);
-  rootLabel.tabIndex = -1;
-  action('Inspect external root', root, async () => {
-    if (model?.rootFolder) {
-      await jumpTo(model.rootFolder);
-    }
-  });
-  root.append(searchField);
+  root.append(searchField, activeFilters);
   element(
     'p',
     'exact = matching note path · yaml = valid note exnf · marker = Contains .exnf marker · ↑ = marker above. Named cell = found · blank = absent · ? unchecked · ⚠ invalid. Evidence columns do not by themselves prove a binding.',
@@ -282,6 +290,10 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     label.dataset['tone'] = tone;
   }
   const groups = element('div', '', layout);
+  const emptyState = element('div', '', groups, 'leaf-empty');
+  emptyState.hidden = true;
+  element('p', 'No folders match this view.', emptyState);
+  action('Clear filters and show all folders', emptyState, clearAllFilters);
   const detailsPane = element('div', '', layout, 'leaf-details-pane');
   detailsPane.append(issueControls);
   const details = element('aside', '', detailsPane, 'leaf-details');
@@ -483,26 +495,93 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     stats.textContent = `${String(physical)} physical folders · ${String(leaves)} known physical leaves · ${String(displayed)} displayed folders · ${
       String(excluded)
     } excluded branches · ${String(virtual)} displayed virtual paths`;
-    showAll.textContent = query.showGenerated ? 'Hide generated/internal paths' : 'Show all generated/internal paths';
-    showAll.setAttribute('aria-pressed', String(query.showGenerated));
     renderActiveFilters();
+    emptyState.hidden = filtered.matched.size > 0;
     await tree.update(jump ? revealTreePath(filtered, jump.targetId, query.sort) : filtered, query.search, reset);
     if (result === filtered) {
       setStatus(status.textContent, busy);
     }
   }
   function renderActiveFilters(): void {
-    const labels = [
-      query.search ? `Search: ${query.search}` : '',
-      query.category === 'all' ? '' : `Category: ${query.category}`,
-      query.mode === 'all' ? '' : 'Unmarked leaves',
-      query.status ?? '',
-      query.needsReview ? 'Needs review' : '',
-      query.showGenerated ? '' : 'Generated paths hidden',
-      query.includeExpected ? 'Expected paths included' : ''
-    ].filter(Boolean);
-    filterText.textContent = labels.length ? labels.join(' · ') : 'All scanned folders';
-    clearFilters.hidden = !labels.length;
+    syncFilterControls();
+    const filters: { label: string; reset: () => void }[] = [
+      {
+        label: query.search ? `Search: ${query.search}` : '',
+        reset: (): void => {
+          query.search = '';
+        }
+      },
+      {
+        label: query.category === 'all' ? '' : `Category: ${category.selectedOptions[0]?.textContent ?? query.category}`,
+        reset: (): void => {
+          query.category = 'all';
+        }
+      },
+      {
+        label: query.mode === 'all' ? '' : 'Unmarked leaves',
+        reset: (): void => {
+          query.mode = 'all';
+        }
+      },
+      {
+        label: query.status ?? '',
+        reset: (): void => {
+          query.status = '';
+        }
+      },
+      {
+        label: query.needsReview ? 'Needs review' : '',
+        reset: (): void => {
+          query.needsReview = false;
+        }
+      },
+      {
+        label: query.adoptableOnly ? 'Adoptable leaves' : '',
+        reset: (): void => {
+          query.adoptableOnly = false;
+        }
+      },
+      {
+        label: query.showGenerated ? '' : 'Generated paths hidden',
+        reset: (): void => {
+          query.showGenerated = true;
+        }
+      },
+      {
+        label: query.includeExpected ? 'Expected paths included' : '',
+        reset: (): void => {
+          query.includeExpected = false;
+        }
+      }
+    ];
+    filterChips.replaceChildren();
+    for (const filter of filters.filter((item) => !!item.label)) {
+      const chip = action(`${filter.label} ×`, filterChips, () => {
+        filter.reset();
+        changed();
+        search.focus();
+      });
+      chip.setAttribute('aria-label', `Remove filter: ${filter.label}`);
+    }
+    clearFilters.hidden = !filterChips.childElementCount;
+    activeFilters.hidden = clearFilters.hidden;
+    const advancedSummary = viewMenu.querySelector('summary');
+    if (advancedSummary) {
+      advancedSummary.textContent = `Advanced${query.mode !== 'all' || !query.showGenerated || query.includeExpected ? ' •' : ''}`;
+    }
+  }
+  function syncFilterControls(): void {
+    search.value = query.search;
+    category.value = query.category;
+    mode.value = query.mode;
+    statusFilter.value = query.status ?? '';
+    expectedToggle.setAttribute('aria-pressed', String(!!query.includeExpected));
+    showAll.textContent = 'Include generated/internal paths';
+    showAll.setAttribute('aria-pressed', String(query.showGenerated));
+    const currentView = query.adoptableOnly ? 'adoptable' : 'all';
+    for (const [key, button] of quickButtons) {
+      button.setAttribute('aria-pressed', String(key === (query.needsReview ? 'review' : currentView)));
+    }
   }
   function changed(preserveJump = false): void {
     if (!preserveJump) {
@@ -618,6 +697,8 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       }
       statusFilter.value = query.status ?? '';
       rootLabel.textContent = next.externalRoot;
+      const completedAt = new Date(next.finishedAt);
+      scanTimestamp.textContent = `Physical audit · Last scanned: ${Number.isNaN(completedAt.getTime()) ? next.finishedAt : completedAt.toLocaleString()}`;
       adoptions.clear();
       for (const [folder, note] of retained) {
         adoptions.set(folder, note);

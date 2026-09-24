@@ -31,6 +31,7 @@ export interface LeafTreeNode extends LeafRow {
   unchecked: boolean;
 }
 export interface TreeQuery {
+  adoptableOnly?: boolean;
   category: 'all' | 'ordinary' | LeafRow['categories'][number];
   includeExpected?: boolean;
   mode: 'all' | 'results';
@@ -230,6 +231,7 @@ function* aggregateMatches(ordered: LeafTreeNode[], visible: Set<string>, metric
 }
 function allowedNode(node: LeafTreeNode, query: TreeQuery, availability: FolderAvailability | undefined): boolean {
   return matchesCategory(node, query) && (node.kind !== 'virtual' || query.includeExpected === true)
+    && (!query.adoptableOnly || isAdoptableLeaf(node, availability))
     && (!query.status || node.evidence?.status === query.status)
     && (!query.needsReview || availability?.attention === 'review' || availability?.attention === 'conflict');
 }

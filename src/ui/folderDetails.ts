@@ -63,11 +63,12 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
   const heading = reportElement(header, 'h2', isRoot ? 'External root' : node.segments.at(-1) ?? node.relativePath);
   heading.tabIndex = -1;
   heading.dataset['detailKey'] = 'section:header';
-  reportElement(header, 'p', shortFolderStatus(node), 'leaf-tags');
+  const statusSummary = reportElement(header, 'div', '', 'leaf-details-summary');
+  reportElement(statusSummary, 'span', shortFolderStatus(node), 'leaf-tags');
   const attention = options.availability?.attention ?? 'neutral';
-  reportElement(header, 'p', ATTENTION_LABELS[attention], 'leaf-attention').dataset['tone'] = attention;
+  reportElement(statusSummary, 'span', ATTENTION_LABELS[attention], 'leaf-attention').dataset['tone'] = attention;
   if (node.segments.length > 1) {
-    reportElement(header, 'p', node.relativePath, 'leaf-context leaf-relative-path');
+    reportElement(parent, 'p', node.relativePath, 'leaf-context leaf-relative-path');
   }
   const navigation = reportElement(header, 'div', '', 'leaf-toolbar');
   button(navigation, 'Copy path', () => host.copy(node.folderPath));

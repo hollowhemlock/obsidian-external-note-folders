@@ -495,11 +495,19 @@ counts and explain why adopting the entire parent would create a nested binding.
 The parent can remain an ordinary container; its local `marker` tag stays absent.
 The adoption restrictions list names the affected paths and offers navigation.
 
-**Refresh** and **Export** sit beside the page title. **Search within results**
-sits immediately above the legends and narrows the current filters without
-rescanning. **View** contains sorting and display filters; **Export** contains
-downloads. Escape closes either disclosure and returns focus.
-Active filters are summarized beside **Clear filters**. Display choices last only
+**Refresh** and **Export** sit beside the page title, with the last completed scan
+time below. **All folders**, **Adoptable leaves**, and **Needs review** are quick
+views. Choosing one preserves search, status, and category filters and resets the
+advanced folder scope to all scanned folders. Adoptable leaves includes only
+physical leaves with no known adoption blocker; context ancestors remain visible.
+**Status**, **Category**, and **Sort** are always labeled and visible. **Advanced**
+contains unmarked-leaf scope, generated/internal paths, expected paths, and adoption
+recovery. It shows an indicator when an advanced filter is active. **Export**
+contains downloads. Escape closes either disclosure and returns focus.
+**Search within results** sits above removable filter chips and the legends,
+narrowing the current view without rescanning. Each chip removes only its own
+filter; **Clear filters** resets every filter while preserving sort order. Empty
+results offer the same clear-filter action. Display choices last only
 for the current tab; reopening starts with all folders and natural name sorting.
 **Scan details** lists exclusions, skipped links, and read failures in pages.
 
@@ -533,10 +541,11 @@ means no blocker is established by the snapshot; the adoption preview and fresh
 execution checks remain authoritative. Associated notes, same-name suggestions,
 other marked ancestors, and technical/scan details start expanded; each section
 can be collapsed. Same-name suggestions remain separate from confirmed associations.
-Scan details and the View/Export controls outside the selected-folder panel
+Scan details and the Advanced/Export controls outside the selected-folder panel
 continue to start closed.
 
-A compact sticky header keeps the selected folder, status, and navigation visible.
+A compact sticky header keeps the selected folder, status, and path actions visible.
+The relative path scrolls with the details, leaving more room for restrictions.
 Binding relationships and actions precede note suggestions and technical records.
 Actual/expected paths have labeled copy controls. Sorting, filtering, and refresh
 preserve the same folder's section expansion, scroll position, and keyboard focus;

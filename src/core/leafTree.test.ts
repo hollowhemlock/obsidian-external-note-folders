@@ -28,6 +28,20 @@ function fixture(paths: string[]): ReturnType<typeof auditFixture> {
   return scan;
 }
 describe('filesystem report tree', () => {
+  it('filters adoptable physical leaves with the current search and availability', () => {
+    const model = buildLeafReport(fixture(['Branch', 'Branch/Available', 'Branch/Blocked', 'Other']));
+    const blocked = model.tree!.find((node) => node.segments.at(-1) === 'Blocked')!;
+    blocked.blocked = true;
+    const query = { ...DEFAULT_TREE_QUERY, adoptableOnly: true, search: 'Branch' };
+    const result = queryTree(model, query);
+    expect([...result.matched].map((id) => result.nodes.get(id)?.segments.at(-1))).toEqual(['Available']);
+    expect(result.rows.map((row) => row.segments.at(-1))).toEqual(['Available']);
+    expect([...result.visible].map((id) => result.nodes.get(id)?.segments.at(-1))).toContain('Branch');
+    expect(queryTree(model, { ...query, category: 'git' }).matched.size).toBe(0);
+    model.stale = true;
+    expect(queryTree(model, query).matched.size).toBe(0);
+  });
+
   it('counts adoptable leaves separately from all leaves and keeps whole-branch totals under filtering', () => {
     const model = buildLeafReport(fixture(['Branch', 'Branch/Available', 'Branch/Blocked', 'Elsewhere']));
     const branch = model.tree!.find((node) => node.relativePath === 'Branch')!;
