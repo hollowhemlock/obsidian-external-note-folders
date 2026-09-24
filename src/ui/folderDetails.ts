@@ -242,6 +242,18 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
       if (items.length) {
         reportElement(blockers, 'p', `${String(items.length)} known adoption ${items.length === 1 ? 'restriction' : 'restrictions'}:`);
       }
+      if (index.vaultIssueIds.some((id) => index.issues.get(id)?.kind === 'note')) {
+        const suggestion = reportElement(
+          blockers,
+          'p',
+          'Intentional template frontmatter? Configure template exclusion patterns, then refresh. Only exclude files that should never own bindings.'
+        );
+        if (host.openTemplateSettings) {
+          button(suggestion, 'Open template exclusion settings', host.openTemplateSettings).classList.add('leaf-settings-link');
+        } else {
+          reportElement(suggestion, 'span', ' In Obsidian: Settings → External Note Folders → Template exclusion patterns.');
+        }
+      }
       paged(blockers, items, (item) => {
         const entry = reportElement(blockers, 'div');
         entry.dataset['record'] = `${item.location}:${item.message}`;

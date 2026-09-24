@@ -68,6 +68,7 @@ import {
   LEAF_REPORT_VIEW_TYPE,
   LeafReportTab
 } from './obsidian/LeafReportTab.ts';
+import { openPluginSettings } from './obsidian/openPluginSettings.ts';
 import { scanVault } from './obsidian/scanVault.ts';
 import {
   assertNoteUuidMatches,
@@ -146,6 +147,7 @@ export class Plugin extends ObsidianPlugin {
   private lastTemplatePatterns = '[]';
   private mutationActivitySequence = 0;
   private mutationSequence = 0;
+  private settingsTab: PluginSettingsTab | undefined;
 
   public override async onload(): Promise<void> {
     await this.loadSettings();
@@ -185,6 +187,10 @@ export class Plugin extends ObsidianPlugin {
           activity: this.mutationActivitySequence,
           sequence: this.mutationSequence
         }),
+        openTemplateSettings: (): void => {
+          openPluginSettings(this.app, this.manifest.id);
+          this.settingsTab?.focusTemplatePatterns();
+        },
         pending: async (): Promise<number> => (await this.groupAdoption?.pending())?.length ?? 0,
         repair: async (folder, direction): Promise<void> => this.groupAdoption?.repair(folder, direction),
         resume: async (): Promise<void> => this.groupAdoption?.showRecovery(),
@@ -209,7 +215,8 @@ export class Plugin extends ObsidianPlugin {
       name: 'External folder status'
     });
 
-    this.addSettingTab(new PluginSettingsTab(this.app, this));
+    this.settingsTab = new PluginSettingsTab(this.app, this);
+    this.addSettingTab(this.settingsTab);
 
     this.addCommand({
       callback: () => {

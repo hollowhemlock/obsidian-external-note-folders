@@ -8,6 +8,7 @@ import { auditFixture } from '../../test/support/auditFixture.ts';
 import { finishAuditSteps } from './auditSteps.ts';
 import {
   adjacentIssue,
+  adoptableLeafOrderSteps,
   issueOrderSteps
 } from './issueNavigation.ts';
 import { buildLeafReport } from './leafReport.ts';
@@ -18,6 +19,31 @@ import {
 import { revealTreePath } from './leafTreeNavigation.ts';
 
 describe('review filter and issue navigation', () => {
+  it('limits adoptable navigation to matching leaves even when another folder is temporarily revealed', () => {
+    const model = buildLeafReport(auditFixture(3));
+    const target = model.tree!.find((node) => node.relativePath === 'folder-1')!;
+    const other = model.tree!.find((node) => node.relativePath === 'folder-2')!;
+    const filtered = queryTree(model, { ...DEFAULT_TREE_QUERY, search: 'folder-1' });
+    expect(finishAuditSteps(adoptableLeafOrderSteps(revealTreePath(filtered, other.id))).ids).toEqual([target.id]);
+    expect(finishAuditSteps(adoptableLeafOrderSteps(queryTree(model, { ...DEFAULT_TREE_QUERY, needsReview: true }))).ids).toEqual([]);
+    const changed = queryTree(model, DEFAULT_TREE_QUERY, new Map([[target.folderPath, null]]));
+    expect(finishAuditSteps(adoptableLeafOrderSteps(changed)).ids).not.toContain(target.id);
+  });
+
+  it('navigates adoptable physical leaves past collapsed pages using the shared availability checks', () => {
+    const model = buildLeafReport(auditFixture(150));
+    const first = model.tree!.find((node) => node.relativePath === 'folder-0')!;
+    first.blocked = true;
+    const result = queryTree(model, DEFAULT_TREE_QUERY);
+    const order = finishAuditSteps(adoptableLeafOrderSteps(result));
+    expect(order.ids).toHaveLength(149);
+    expect(order.ids).not.toContain(first.id);
+    expect(adjacentIssue(order, order.ids.at(-1), 1)).toBeUndefined();
+    expect(order.ids.some((id) => result.nodes.get(id)?.relativePath === 'folder-120')).toBe(true);
+    model.stale = true;
+    expect(finishAuditSteps(adoptableLeafOrderSteps(queryTree(model, DEFAULT_TREE_QUERY))).ids).toEqual([]);
+  });
+
   it('visits matches beyond rendered pages and stops at either end', () => {
     const model = buildLeafReport(auditFixture(150));
     for (const n of model.tree!) {

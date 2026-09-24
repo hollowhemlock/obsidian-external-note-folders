@@ -55,7 +55,7 @@ export function mountLeafTree(
   const header = doc.createElement('div');
   header.className = 'leaf-tree-columns';
   header.setAttribute('aria-hidden', 'true');
-  for (const title of ['Folder', 'Leaves', 'Descriptor', 'exact', 'yaml', 'marker']) {
+  for (const title of ['Folder', 'Adoptable / total', 'Descriptor', 'exact', 'yaml', 'marker']) {
     const cell = doc.createElement('span');
     cell.textContent = title;
     header.append(cell);
@@ -105,8 +105,9 @@ export function mountLeafTree(
     });
   }
   function leafCount(node: LeafTreeNode): string {
-    const count = result?.counts.get(node.id) ?? 0;
-    return count === node.total ? count.toLocaleString() : `${count.toLocaleString()}/${node.total.toLocaleString()}`;
+    const adoptable = result?.filteredAdoptableCounts.get(node.id) ?? 0;
+    const total = result?.counts.get(node.id) ?? 0;
+    return `${adoptable.toLocaleString()} / ${total.toLocaleString()}`;
   }
   function renderCells(item: HTMLElement, node: LeafTreeNode | undefined, level: number): void {
     const rowLabel = doc.createElement('span');
@@ -129,7 +130,9 @@ export function mountLeafTree(
     const count = doc.createElement('span');
     count.className = 'leaf-tree-count';
     count.textContent = leafCount(node);
-    count.title = `${count.textContent} ${count.textContent.includes('/') ? 'matching / known' : 'known'} physical leaves`;
+    count.title = `${count.textContent} adoptable / total physical leaves in current filters. Whole branch: ${
+      (result?.adoptableCounts.get(node.id) ?? 0).toLocaleString()
+    } / ${node.total.toLocaleString()}. Adoption still requires a fresh preview.`;
     const status = doc.createElement('span');
     status.className = 'leaf-tree-descriptor';
     const hidden = node.children.length > 0 && !result?.children.get(node.id)?.length ? ' · children hidden' : '';

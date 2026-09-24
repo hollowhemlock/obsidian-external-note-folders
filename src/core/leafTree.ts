@@ -8,7 +8,10 @@ import {
   finishAuditSteps,
   sortAuditSteps
 } from './auditSteps.ts';
-import { folderAvailabilitySteps } from './folderAvailability.ts';
+import {
+  folderAvailabilitySteps,
+  isAdoptableLeaf
+} from './folderAvailability.ts';
 import { classifyLeafSegments } from './leafQuery.ts';
 
 export interface LeafTreeNode extends LeafRow {
@@ -38,9 +41,11 @@ export interface TreeQuery {
   status?: string;
 }
 export interface TreeResult {
+  adoptableCounts: Map<string, number>;
   availability: Map<string, FolderAvailability>;
   children: Map<null | string, string[]>;
   counts: Map<string, number>;
+  filteredAdoptableCounts: Map<string, number>;
   hiddenCount: number;
   matched: Set<string>;
   nodes: Map<string, LeafTreeNode>;
@@ -139,6 +144,8 @@ export function* queryTreeSteps(model: LeafReportModel, query: TreeQuery, operat
   const matchedNodes = new Set<string>();
   const visible = new Set<string>();
   const counts = new Map<string, number>();
+  const adoptableCounts = new Map<string, number>();
+  const filteredAdoptableCounts = new Map<string, number>();
   const rows: LeafRow[] = [];
   const leafPaths = new Map<string, LeafRow>();
   for (const row of model.rows) {
@@ -147,6 +154,8 @@ export function* queryTreeSteps(model: LeafReportModel, query: TreeQuery, operat
   }
   let hiddenCount = 0;
   for (const node of ordered) {
+    const adoptableLeaf = isAdoptableLeaf(node, availability.get(node.id));
+    adoptableCounts.set(node.id, Number(adoptableLeaf));
     const matched = matchesSearch(node, search, matches);
     if (matched) {
       matches.add(node.id);
@@ -158,6 +167,9 @@ export function* queryTreeSteps(model: LeafReportModel, query: TreeQuery, operat
       hiddenCount++;
     }
     if (matched && allowed) {
+      if (adoptableLeaf) {
+        filteredAdoptableCounts.set(node.id, 1);
+      }
       if (leaf) {
         rows.push(leaf);
         counts.set(node.id, 1);
@@ -172,7 +184,7 @@ export function* queryTreeSteps(model: LeafReportModel, query: TreeQuery, operat
     }
     yield;
   }
-  yield* aggregateMatches(ordered, visible, counts);
+  yield* aggregateMatches(ordered, visible, [counts, adoptableCounts, filteredAdoptableCounts]);
   const sorted = yield* sortAuditSteps(tree, (a, b) =>
     (query.sort === 'count' ? b.total - a.total : 0)
     || names.compare(a.segments.at(-1) ?? '', b.segments.at(-1) ?? '') || compareIdentity(a.id, b.id));
@@ -185,19 +197,33 @@ export function* queryTreeSteps(model: LeafReportModel, query: TreeQuery, operat
     }
     yield;
   }
-  return { availability, children, counts, hiddenCount, matched: matchedNodes, nodes, orderedChildren, rows, visible };
+  return {
+    adoptableCounts,
+    availability,
+    children,
+    counts,
+    filteredAdoptableCounts,
+    hiddenCount,
+    matched: matchedNodes,
+    nodes,
+    orderedChildren,
+    rows,
+    visible
+  };
 }
 export function retainAvailableTreeStatus(status: string | undefined, available: readonly string[]): string {
   return status && available.includes(status) ? status : '';
 }
-function* aggregateMatches(ordered: LeafTreeNode[], visible: Set<string>, counts: Map<string, number>): Generator<void, void> {
+function* aggregateMatches(ordered: LeafTreeNode[], visible: Set<string>, metrics: Map<string, number>[]): Generator<void, void> {
   for (let index = ordered.length - 1; index >= 0; index--) {
     const node = ordered[index];
     if (node && node.parent !== null) {
       if (visible.has(node.id)) {
         visible.add(node.parent);
       }
-      counts.set(node.parent, (counts.get(node.parent) ?? 0) + (counts.get(node.id) ?? 0));
+      for (const counts of metrics) {
+        counts.set(node.parent, (counts.get(node.parent) ?? 0) + (counts.get(node.id) ?? 0));
+      }
     }
     yield;
   }

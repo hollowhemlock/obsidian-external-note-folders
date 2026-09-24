@@ -32,6 +32,7 @@ export interface LeafReportTabOptions {
   adopt?: (folder: string) => void;
   externalRoot: () => string;
   mutationState: () => AuditMutationState;
+  openTemplateSettings?: () => void;
   pending?: () => Promise<number>;
   repair?: (folder: string, direction: 'external' | 'note') => Promise<void>;
   resume?: () => Promise<void>;
@@ -77,6 +78,7 @@ export class LeafReportTab extends ItemView {
       ...(this.options.adopt ? { adopt: this.options.adopt } : {}),
       ...(this.options.resume ? { resume: this.options.resume } : {}),
       ...(this.options.repair ? { repair: this.options.repair } : {}),
+      ...(this.options.openTemplateSettings ? { openTemplateSettings: this.options.openTemplateSettings } : {}),
       cancel: () => this.session?.cancel(),
       copy: async (text) => navigator.clipboard.writeText(text),
       exportLeaves: async (rows, filtered) => this.exportRows(rows, filtered),

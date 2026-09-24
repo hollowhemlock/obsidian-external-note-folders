@@ -70,6 +70,7 @@ export class PluginSettingsTab extends PluginSettingTab {
         'One .gitignore-style pattern per line, relative to the vault root. Matching files cannot own external-folder bindings and are excluded from all note identity checks. Leave empty to include every note. Changes apply on refresh; negation is not supported.'
       )
       .addTextArea((text) => {
+        text.inputEl.dataset['exnfTemplateExclusions'] = 'true';
         text.setPlaceholder('*.tpl.md\n/settings/templates/\n/settings/templates.archive/')
           .setValue((this.plugin.settings.templateExcludePatterns ?? []).join('\n'))
           .onChange(async (value) => {
@@ -117,6 +118,12 @@ export class PluginSettingsTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
+  }
+
+  public focusTemplatePatterns(): void {
+    const input = this.containerEl.querySelector<HTMLTextAreaElement>('[data-exnf-template-exclusions]');
+    input?.scrollIntoView({ block: 'center' });
+    input?.focus({ preventScroll: true });
   }
 
   private async handleExternalRootChanged(

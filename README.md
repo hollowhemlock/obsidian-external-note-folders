@@ -495,8 +495,10 @@ counts and explain why adopting the entire parent would create a nested binding.
 The parent can remain an ordinary container; its local `marker` tag stays absent.
 The adoption restrictions list names the affected paths and offers navigation.
 
-Search and Refresh stay visible. **View** contains sorting and display filters;
-**Export** contains downloads. Escape closes either disclosure and returns focus.
+**Refresh** and **Export** sit beside the page title. **Search within results**
+sits immediately above the legends and narrows the current filters without
+rescanning. **View** contains sorting and display filters; **Export** contains
+downloads. Escape closes either disclosure and returns focus.
 Active filters are summarized beside **Clear filters**. Display choices last only
 for the current tab; reopening starts with all folders and natural name sorting.
 **Scan details** lists exclusions, skipped links, and read failures in pages.
@@ -507,6 +509,11 @@ sort, including collapsed branches and rows beyond the rendered page. Navigation
 does not wrap or change filters; unavailable directions are disabled. Context-only
 ancestors and temporary reveals are not issues. The position indicator counts
 issues in the current filters, whether Needs review is on or off.
+These controls sit above the details pane, alongside **Next adoptable leaf**.
+That action selects the next physical leaf with no known adoption blocker within
+the current search and filters, including collapsed branches and later pages.
+It does not adopt, wrap, or change filters. Stale snapshots and pending operations
+are respected; a fresh adoption preview still checks the selected note and mode.
 
 Exact-path evidence uses discovered vault paths independently of external scan
 gaps. An unreadable note still has a usable path, but its YAML identity is
@@ -516,8 +523,12 @@ provisional when scan gaps could conceal duplicate UUIDs.
 
 The details panel leads with the relationship and available actions. Adoption
 stays visible but disabled for known restrictions, naming local, ancestor, or
-descendant markers and excluded, linked, or unreadable paths. Pending operations
-offer recovery; stale results offer Refresh. **Choose a note to check adoption**
+descendant markers and excluded, linked, or unreadable paths. When note restrictions
+could come from intentional template frontmatter, **Open template exclusion settings** opens
+and focuses the plugin's pattern setting. Configure deliberate exclusions and
+refresh; the shortcut does not exclude anything itself. Offline reports show the
+settings path instead. Pending operations offer recovery; stale results offer
+Refresh. **Choose a note to check adoption**
 means no blocker is established by the snapshot; the adoption preview and fresh
 execution checks remain authoritative. Associated notes, same-name suggestions,
 other marked ancestors, and technical/scan details start expanded; each section
@@ -539,8 +550,10 @@ remembered only for the current tab/page session and returns when widened.
 
 Compact 28px rows align folder names, physical leaf quantities, descriptors, and
 evidence in separate columns. Indentation affects only the name column. Leaf
-quantities show matching/known totals when filters hide leaves. Column headings
-stay visible while scrolling; narrow panes scroll horizontally to retain the
+quantities show **Adoptable / total** physical leaves within the current search
+and filters. Tooltips retain the whole branch's adoptable and total leaf counts.
+Adoptable means no known blocker in this snapshot, not approval to adopt. Column
+headings stay visible while scrolling; narrow panes scroll horizontally to retain the
 columns. Details text can be selected and copied normally, alongside the existing
 Copy path buttons.
 
