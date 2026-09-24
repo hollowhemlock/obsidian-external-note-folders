@@ -120,7 +120,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   }
   element('h1', 'External folder status', root);
   element('p', 'Folder bindings, note associations, and scan coverage.', root);
-  element('p', 'Physical audit — command-specific exclusions are disclosed below', root, 'leaf-context');
+  element('p', 'Physical audit — scan and template exclusions are disclosed below', root, 'leaf-context');
   const scanDetails = reportDisclosure(root, 'Scan details');
   const context = element('div', '', scanDetails, 'leaf-context');
   const scanIssues = element('div', '', scanDetails);
@@ -593,6 +593,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       context.textContent = `Vault: ${next.vaultRoot}\nExternal root: ${next.externalRoot}\nScanned: ${next.startedAt} – ${next.finishedAt}\nCoverage: ${
         next.uncheckedCount > 0 ? 'incomplete' : 'complete'
       }`;
+      context.textContent += next.templateExclusionSummary ? `\n${next.templateExclusionSummary}` : '';
       scanIssues.replaceChildren();
       paged(scanIssues, next.coverage?.issues ?? [], (issue) => {
         element('p', `${issue.scope} · ${issue.kind}\n${issue.location}\n${issue.reason}`, scanIssues, 'leaf-context');

@@ -36,6 +36,7 @@ export interface LeafReportTabOptions {
   repair?: (folder: string, direction: 'external' | 'note') => Promise<void>;
   resume?: () => Promise<void>;
   scanPatterns?: () => string[];
+  templatePatterns?: () => string[];
 }
 
 export class LeafReportTab extends ItemView {
@@ -115,7 +116,11 @@ export class LeafReportTab extends ItemView {
         const vaultRoot = adapter.getBasePath?.();
         const externalRoot = this.options.externalRoot();
         assertAuditRoots(vaultRoot, externalRoot);
-        return scanAdoptionAudit(vaultRoot, externalRoot, { ...control, ignorePatterns: [...(this.options.scanPatterns?.() ?? [])] });
+        return scanAdoptionAudit(vaultRoot, externalRoot, {
+          ...control,
+          ignorePatterns: [...(this.options.scanPatterns?.() ?? [])],
+          templateExcludePatterns: [...(this.options.templatePatterns?.() ?? [])]
+        });
       },
       status: (message, busy): void => this.report?.status(message, busy),
       update: async (model, signal): Promise<void> => this.report?.update(model, signal)

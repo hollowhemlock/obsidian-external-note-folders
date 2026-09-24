@@ -23,6 +23,7 @@ import {
   parseUuidNamedExnfMarkerFile
 } from '../core/marker.ts';
 import { registerUuidBinding } from '../core/scanResult.ts';
+import { buildTemplateExclusionMatcher } from '../core/templateExclusions.ts';
 
 export type { AuditScan } from '../core/auditTypes.ts';
 
@@ -32,6 +33,7 @@ export interface AuditScanOptions {
   ignorePatterns?: readonly string[];
   onProgress?: (counts: { directories: number; markers: number; notes: number }) => void;
   signal?: AbortSignal;
+  templateExcludePatterns?: readonly string[];
 }
 
 export async function scanAdoptionAudit(vaultRoot: string, externalRoot: string, options: AuditScanOptions = {}): Promise<AuditScan> {
@@ -66,12 +68,32 @@ export async function scanAdoptionAudit(vaultRoot: string, externalRoot: string,
     throw new Error('Invalid status ignore patterns.');
   }
   scan.external.ignorePatterns = matcher.patterns;
-  await walk(scan.vaultRoot, 'vault', scan, options, matcher);
-  await walk(scan.externalRoot, 'external', scan, options, matcher);
+  const templates = buildTemplateExclusionMatcher(options.templateExcludePatterns);
+  scan.templateExclusions = { paths: [], patterns: templates.patterns };
+  await walk(scan.vaultRoot, 'vault', scan, options, matcher, templates);
+  await walk(scan.externalRoot, 'external', scan, options, matcher, templates);
   options.signal?.throwIfAborted();
   scan.external.directories = scan.folders;
   scan.finishedAt = new Date().toISOString();
   return scan;
+}
+
+function excludeTemplatePath(
+  scope: 'external' | 'vault',
+  entryPath: string,
+  directory: boolean,
+  scan: AuditScan,
+  templates: ReturnType<typeof buildTemplateExclusionMatcher>
+): boolean {
+  if (scope !== 'vault') {
+    return false;
+  }
+  const relativePath = path.relative(scan.vaultRoot, entryPath).split(path.sep).join('/');
+  const excluded = directory ? templates.ignoresRelativeDirectoryPath(relativePath) : templates.ignoresRelativeFilePath(relativePath);
+  if (excluded) {
+    scan.templateExclusions?.paths.push(relativePath + (directory ? '/' : ''));
+  }
+  return excluded;
 }
 
 function recordUnchecked(
@@ -192,7 +214,8 @@ async function walk(
   scope: 'external' | 'vault',
   scan: AuditScan,
   options: AuditScanOptions,
-  matcher: ReturnType<typeof buildExternalRootIgnoreMatcher>
+  matcher: ReturnType<typeof buildExternalRootIgnoreMatcher>,
+  templates: ReturnType<typeof buildTemplateExclusionMatcher>
 ): Promise<void> {
   try {
     options.signal?.throwIfAborted();
@@ -215,13 +238,16 @@ async function walk(
     for (const entry of entries) {
       options.signal?.throwIfAborted();
       const entryPath = path.join(directory, entry.name);
+      if (excludeTemplatePath(scope, entryPath, entry.isDirectory(), scan, templates)) {
+        continue;
+      }
       if (entry.isSymbolicLink()) {
         recordUnchecked(entryPath, 'Symbolic link or junction was not followed.', scope, scan, 'link');
       } else if (entry.isDirectory()) {
         if (scope === 'external') {
           scan.folders.push(entryPath);
         }
-        await walk(entryPath, scope, scan, options, matcher);
+        await walk(entryPath, scope, scan, options, matcher, templates);
       } else if (entry.isFile()) {
         if (scope === 'vault' && entry.name.toLowerCase().endsWith('.md')) {
           await scanNote(entryPath, scan);

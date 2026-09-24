@@ -96,6 +96,12 @@ References:
 The vault is the source of truth for note identity. External folders reflect vault identity; they do
 not define it.
 
+Users may explicitly declare template sources outside the binding scope with
+vault-relative exclusion patterns. Excluded files cannot own bindings, including
+when they contain `exnf`; eligible vault notes remain authoritative. Reports
+disclose this scope, and scans and mutation preflights apply it consistently.
+See [ADR-0033](../adr/0033-explicit-template-exclusions.md).
+
 External state may be incomplete, unavailable, stale, or reorganized outside Obsidian. That state is
 not used to automatically rewrite vault identity. One exact-path imported marker identity may be
 restored only through the explicit confirmation and uniqueness proof defined by ADR-0031.

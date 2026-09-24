@@ -71,6 +71,28 @@ async function snapshot(root: string): Promise<Record<string, string>> {
 }
 
 describe('standalone adoption audit', () => {
+  it('excludes declared templates while retaining ordinary malformed-note restrictions', async () => {
+    const { external, vault } = await fixture();
+    const malformed = '---\nvalue: [\n---\n';
+    await put(vault, 'Draft.tpl.md', malformed);
+    await put(vault, 'nested/Draft.tpl.md', malformed);
+    await put(vault, 'settings/templates/note.md', malformed);
+    await put(vault, 'settings/templates.archive/note.md', note());
+    await put(vault, 'nested/settings/templates/note.md', malformed);
+    await put(vault, 'ordinary.md', malformed);
+    await put(external, `settings/templates/${UUID}.exnf`);
+    const scan = await scanAdoptionAudit(vault, external, {
+      templateExcludePatterns: ['*.tpl.md', '/settings/templates/', '/settings/templates.archive/']
+    });
+    expect(scan.notes.map((entry) => entry.relativePath).sort()).toEqual(['nested/settings/templates/note.md', 'ordinary.md']);
+    expect(scan.issues.filter((issue) => issue.unchecked)).toHaveLength(2);
+    expect(scan.vault.bindings.size).toBe(0);
+    expect(scan.markers).toHaveLength(1);
+    expect(buildAuditReports(scan).summary).toContain('Template exclusions');
+    // Standalone scans remain exhaustive unless exclusions are explicitly supplied.
+    expect((await scanAdoptionAudit(vault, external)).notes).toHaveLength(6);
+  });
+
   it('optionally excludes command-specific branches while still scanning all vault notes', async () => {
     const { external, vault } = await fixture();
     await put(vault, 'node_modules/Note.md', note());

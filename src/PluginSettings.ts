@@ -4,6 +4,7 @@ export interface PluginSettings {
   externalRootPath: string;
   statusIgnorePatterns?: string[];
   statusSkipIgnored?: boolean;
+  templateExcludePatterns?: string[];
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -11,5 +12,6 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   externalRootIgnorePatterns: [],
   externalRootPath: '',
   statusIgnorePatterns: ['.git/', 'node_modules/', 'build/', 'dist/', '.cache/', '__pycache__/', '.venv/'],
-  statusSkipIgnored: false
+  statusSkipIgnored: false,
+  templateExcludePatterns: []
 };

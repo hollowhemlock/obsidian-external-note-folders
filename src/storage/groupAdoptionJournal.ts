@@ -194,6 +194,9 @@ function isGroupPlan(value: unknown): value is GroupAdoptionPlan {
   if (value['aliases'] !== null && !isStringArray(value['aliases'])) {
     return false;
   }
+  if (value['templateExcludePatterns'] !== undefined && !isStringArray(value['templateExcludePatterns'])) {
+    return false;
+  }
   return typeof value['mutationSequence'] === 'number' && ['ignorePatterns', 'descendants', 'warnings'].every((key) => isStringArray(value[key]));
 }
 

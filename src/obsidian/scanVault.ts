@@ -4,13 +4,18 @@ import type { VaultScanResult } from '../core/verify.ts';
 
 import { getExnfFrontmatterValue } from '../core/frontmatter.ts';
 import { registerUuidBinding } from '../core/scanResult.ts';
+import { buildTemplateExclusionMatcher } from '../core/templateExclusions.ts';
 
-export function scanVault(app: App): VaultScanResult {
+export function scanVault(app: App, templateExcludePatterns: readonly string[] = []): VaultScanResult {
+  const templates = buildTemplateExclusionMatcher(templateExcludePatterns);
   const bindings = new Map<string, string>();
   const duplicatePaths = new Map<string, string[]>();
   const invalidFrontmatter: VaultScanResult['invalidFrontmatter'] = [];
 
   for (const file of app.vault.getMarkdownFiles()) {
+    if (templates.ignoresRelativeFilePath(file.path)) {
+      continue;
+    }
     const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter as
       | Record<string, unknown>
       | undefined;

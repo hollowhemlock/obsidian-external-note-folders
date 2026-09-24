@@ -230,6 +230,41 @@ with the [`ignore`](https://github.com/kaelzhang/node-ignore) package. See also
 the [Git gitignore documentation](https://git-scm.com/docs/gitignore) and
 [ADR-0026](docs/dev/adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md).
 
+## Template Exclusion Patterns
+
+Use **Template exclusion patterns** for template source files whose frontmatter
+is intentionally incomplete. Enter one vault-relative `.gitignore`-style pattern
+per line. The setting is empty by default; nothing is excluded automatically.
+
+```gitignore
+*.tpl.md
+/settings/templates/
+/settings/templates.archive/
+```
+
+`*.tpl.md` matches filenames at any depth. A leading `/` anchors a pattern to the
+vault root, and a trailing `/` matches a directory and its descendants. The two
+directory patterns above do not match `nested/settings/templates/`. Either style
+works independently, and they can be combined. Backslashes are normalized to `/`;
+blank lines and `#` comments are ignored. Negation, Windows drive paths, and UNC
+paths are rejected. Case matching follows the external-root pattern conventions.
+
+Matching files are outside the plugin's binding scope: they cannot own bindings,
+receive identifiers, be adopted, or be destinations for note creation or moves.
+Their frontmatter is not inspected, including any existing `exnf` property. Use
+these patterns only for files that should never own external folders. Generated
+notes outside the excluded paths are checked normally. External markers are
+still inspected; excluding their owner does not hide or delete the markers.
+
+This setting applies to all plugin note scans and mutation preflights, separately
+from external-folder ignore settings. Refresh **External folder status** after
+changing it. Scan details and exports disclose the configured patterns and count
+of excluded files or directory subtrees; coverage refers to eligible notes only.
+Ordinary unreadable or malformed notes still restrict adoption. Changing the
+patterns invalidates previews; pending group-adoption recovery requires restoring
+its original patterns. Removing a pattern restores normal checks for those notes.
+Standalone audit commands continue to scan all notes by default.
+
 ## Safety Model
 
 - The vault is the source of truth for note identity.
@@ -562,7 +597,7 @@ Settings under **External folder status — this command only** are independent
 of normal external-root ignore settings. **Ignored folder patterns** defaults to
 `.git/`, `node_modules/`, `build/`, `dist/`, `.cache/`, `__pycache__/`, and `.venv/`.
 **Skip scanning ignored folders** is off by default. Enabling it skips matching
-external branches on the next refresh; vault notes are still fully scanned.
+external branches on the next refresh; eligible vault notes are still fully scanned.
 Turn it off to search for unexpectedly misplaced markers in those branches.
 Excluded branches remain labeled placeholders. Incomplete coverage makes
 uniqueness and absence provisional. Standalone audits continue to scan fully.
@@ -644,10 +679,11 @@ historical snapshot, with a stale warning until **Refresh**. Standalone HTML has
 no adoption controls. Single-folder writes avoid creating unwanted notes, but
 safety checks can still require full-root scans.
 
-The tab labels its scope **Physical audit — command-specific exclusions are disclosed below**.
+The tab labels its scope **Physical audit — scan and template exclusions are disclosed below**.
 It scans all folders by default. Only this command's **Skip scanning ignored
 folders** setting enables its configured external-directory exclusions; those
-settings never exclude vault notes. Normal external-root ignore settings do not
+settings never exclude vault notes. The separate **Template exclusion patterns**
+setting declares which vault paths cannot own bindings. Normal external-root ignore settings do not
 apply to the report scan. Excluded paths and other coverage gaps remain visible.
 This audit explicitly permits raw, read-only filesystem reads of the active vault;
 it does not use cached frontmatter. Vault adapters without an absolute filesystem

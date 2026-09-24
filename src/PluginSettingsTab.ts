@@ -63,6 +63,24 @@ export class PluginSettingsTab extends PluginSettingTab {
           });
       });
 
+    const templateValidation = containerEl.createEl('p', { cls: 'setting-item-description' });
+    new Setting(containerEl)
+      .setName('Template exclusion patterns')
+      .setDesc(
+        'One .gitignore-style pattern per line, relative to the vault root. Matching files cannot own external-folder bindings and are excluded from all note identity checks. Leave empty to include every note. Changes apply on refresh; negation is not supported.'
+      )
+      .addTextArea((text) => {
+        text.setPlaceholder('*.tpl.md\n/settings/templates/\n/settings/templates.archive/')
+          .setValue((this.plugin.settings.templateExcludePatterns ?? []).join('\n'))
+          .onChange(async (value) => {
+            const patterns = value.split(/\r?\n/u).map((pattern) => pattern.trim().replaceAll('\\', '/')).filter(Boolean);
+            const validation = normalizeExternalRootIgnorePatterns(patterns, 'vault root');
+            templateValidation.setText(validation.errors.map((error) => `${error.pattern}: ${error.message}`).join('; '));
+            this.plugin.settings.templateExcludePatterns = patterns;
+            await this.plugin.saveSettings();
+          });
+      });
+
     new Setting(containerEl).setName('External folder status — this command only').setHeading();
     const statusValidation = containerEl.createEl('p');
     new Setting(containerEl).setName('Ignored folder patterns')

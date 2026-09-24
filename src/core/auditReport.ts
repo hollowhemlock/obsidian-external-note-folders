@@ -20,6 +20,7 @@ import {
   deriveExternalFolderPath,
   normalizePathForIdentity
 } from './pathPolicy.ts';
+import { templateExclusionSummary } from './templateExclusions.ts';
 
 export interface AuditReports {
   complete: boolean;
@@ -130,6 +131,7 @@ export function* buildAuditReportSteps(scan: AuditScan, includeInventories = tru
     '',
     `Scan coverage: **${complete ? 'complete' : 'incomplete; conclusions are provisional'}**.`,
     '',
+    templateExclusionSummary(scan.templateExclusions),
     'Filesystem inventory only; no implicit exclusions. Links and junctions are not followed.',
     'This is a live scan, not an atomic snapshot. Files changed during the scan may require another run.',
     'Correctly adopted describes current unambiguous UUID bindings, not their creation history.',
