@@ -23,6 +23,7 @@
     "vault:open": "jiti scripts/open-vault.ts",
     "docs:adr:index": "jiti scripts/update-adr-index.ts",
     "release:check-assets": "jiti scripts/check-release-assets.ts",
+    "release:check-metadata": "node scripts/check-release-metadata.ts",
     "release:check-versions": "jiti scripts/update-versions-json.ts --check",
     "release:update-versions": "jiti scripts/update-versions-json.ts",
     "prepare": "husky"
