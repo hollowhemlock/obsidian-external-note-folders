@@ -13,7 +13,8 @@ This procedure defines how releases are generated, reviewed, and published in th
   - generated `CHANGELOG.md`
 - `release-versions` runs on Release Please PR branches and commits generated
   `versions.json` updates before release publication.
-- Release PR CI runs `npm run release:check-versions` as a guardrail after the
+- Release PR CI runs `npm run release:check-versions` and
+  `npm run release:check-metadata` as guardrails after the
   generated metadata commit.
 - Opening or updating the release PR requires repository Actions workflow
   permissions with read/write access and GitHub Actions pull request creation
@@ -29,6 +30,22 @@ This procedure defines how releases are generated, reviewed, and published in th
   back to the same release tag.
 - `versions.json` is updated in the release PR before release publication; it is
   not committed by the post-release asset workflow.
+- After successful asset upload, `publish-obsidian-assets` calls `release-sync`
+  with the exact uploaded tag. An older retry never selects a newer release.
+  Synchronization checks the latest stable tag, main ancestry, required assets,
+  and the packaged manifest against the tagged source before opening a PR.
+- `release-sync` also runs when `dev` advances and can be dispatched manually
+  from `main` for recovery. A blank tag selects latest stable and performs the
+  same asset verification. Failed or incomplete publication blocks recovery.
+- Synchronization uses a `release-sync/<version>` helper branch, starting at the
+  release commit, and merges `dev` into it without force pushes. Its PR targets
+  `dev` and requests merge-commit auto-merge only after checking protections.
+  Duplicate runs reuse the owned PR. Older owned PRs close only after a verified
+  replacement has been opened and auto-merge enabled; branches are retained.
+- Privileged synchronization runs trusted scripts from `main` with no dependency
+  installation or candidate-code execution. `RELEASE_PLEASE_TOKEN` needs access
+  to contents (including workflow changes), pull requests, branch-protection
+  reads, and auto-merge. Its writes must trigger the required PR checks.
 - `publish-beta` is a manual prerelease workflow for BRAT testing. It accepts an
   explicit source ref and semantic prerelease version, runs tests and linting,
   builds that ref, and publishes `main.js`, `styles.css`, and a release-only
@@ -57,10 +74,39 @@ This procedure defines how releases are generated, reviewed, and published in th
 6. Confirm the GitHub release was created and release assets are attached.
 7. Confirm the `publish-obsidian-assets` workflow completed successfully.
 8. Verify `versions.json` contains the released version on `main`.
+9. Confirm the synchronization PR merges into `dev` after required checks pass.
+   Routine synchronization requires no approving review. Inspect Actions and
+   the PR when synchronization is blocked; no tracking issue is created.
+
+## Synchronization Setup and Bootstrap
+
+1. Land tooling through a feature PR into `dev`, then integrate into `main`.
+2. Enable repository auto-merge and merge commits. Protect `dev` with strict
+   (up-to-date) required checks `validate` and `conventional-commits`, required
+   PRs with zero approvals, resolved threads, and enforcement for administrators.
+   Disallow force pushes and deletion. Do not require linear history on `dev`;
+   synchronization must preserve release ancestry. Retain existing `main` rules.
+3. Create a one-time checked catch-up PR from current `main` into `dev`, using a
+   helper branch if updating it is necessary. This includes both stable release
+   metadata and the new tooling; syncing only an older release tag is insufficient.
+4. Before enabling auto-merge on that PR, verify that pending required checks
+   prevent merging. After checks pass and it merges, verify the stable commit
+   is an ancestor of `dev` and run both metadata checks there. Verify the token
+   can create/update a helper PR and request auto-merge without bypassing rules.
+5. Dispatch `release-sync` from `main`; an already synchronized branch is a
+   successful no-op. Verify `dev` has the beta validation scripts before using
+   the stricter beta workflow. Do not retag or republish existing releases.
+
+Do not treat the rollout as complete until these live checks pass. Repository
+configuration is a one-time maintainer action; the workflow fails closed when
+required protections or permissions are unavailable.
 
 ## Beta Workflow
 
 1. Make the candidate commit available on a remote branch, normally `dev`.
+   It must contain the latest stable release commit and agree across all tracked
+   version files. Its baseline cannot be older than latest stable. Merge the
+   release synchronization PR first if either condition fails.
 2. From the `publish-beta` workflow on `main`, choose **Run workflow**.
 3. Enter the exact source branch, tag, or commit and a new semantic prerelease
    version such as `2.0.1-beta.2`.
@@ -68,6 +114,18 @@ This procedure defines how releases are generated, reviewed, and published in th
 5. Confirm the prerelease tag points to the resolved source commit and includes
    `main.js`, `styles.css`, and `manifest.json`.
 6. Install or pin that prerelease in BRAT and test it in the real vault.
+
+The requested version must be a valid semantic prerelease newer than latest
+stable. Builds have read-only permissions; publication runs in a fresh job,
+revalidates packaged metadata, and checks latest stable immediately before
+creating the release. A stable release arriving after that final check is
+handled by the next synchronization run; this is not an atomic lock across
+stable and beta publication. Failure to resolve latest stable blocks publishing.
+
+Beta artifacts change only the copied manifest. Release notes record source SHA,
+source baseline, and artifact version. Tag creation is atomic and refuses an
+existing tag. If uploading fails after tag creation, inspect the incomplete
+release and use a new beta version; the workflow never overwrites existing tags.
 
 Do not reuse a beta version or move its tag. Publish a new increment when the
 candidate changes. Stable releases continue through Release Please.
@@ -94,6 +152,17 @@ candidate changes. Stable releases continue through Release Please.
 
 ## Failure and Recovery
 
+- If synchronization fails or conflicts: inspect the `release-sync/<version>`
+  PR and Actions summary. Resolve the conflict on that helper branch through a
+  normal commit, or repair failed checks/permissions, then dispatch `release-sync`
+  from `main` with the stable tag. Do not force-push or bypass protections.
+- If a synchronization PR was closed without merging, inspect and reopen it
+  before retrying. Unrecognized branches or PRs are not adopted automatically.
+- If a newer stable release appears while synchronization runs, rerun for that
+  release after its asset publication succeeds. An older callback never advances
+  a newer incomplete release. If `dev` advances, the push trigger refreshes the PR.
+- If all tracked versions agree but are older than latest stable, merge the
+  synchronization PR. Metadata agreement alone does not prove freshness.
 - If Release Please updates its release branch but cannot open a pull request:
   enable read/write workflow permissions and GitHub Actions pull request
   creation, then re-run the workflow; alternatively, manually open a PR from the
