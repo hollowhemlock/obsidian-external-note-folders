@@ -34,6 +34,9 @@ jobs:
       - name: Verify release versions metadata
         run: npm run release:check-versions
 
+      - name: Verify release metadata agreement
+        run: npm run release:check-metadata
+
       - name: Build
         run: npm run build
 

@@ -380,6 +380,7 @@ and run `npm run docs:adr:index` rather than editing the index by hand.
 - `npm run test:watch`
 - `npm run release:update-versions`
 - `npm run release:check-versions`
+- `npm run release:check-metadata`
 - `npm run release:check-assets`
 - `npm run fixtures:new-sandbox`
 
@@ -768,6 +769,11 @@ Local enforcement uses Husky `commit-msg` hook (installed by `npm install` via `
 
 ### Release process
 
+Develop changes through checked feature PRs targeting `dev`. Integrate `dev`
+into `main` when ready. `dev` requires up-to-date PRs, passing `validate` and
+`conventional-commits` checks, and resolved review threads; no approving review
+is required. Force pushes and branch deletion are blocked.
+
 Feature and fix PRs should not manually update `package.json`, `manifest.json`,
 `CHANGELOG.md`, or `versions.json` for versioning. Merge normal work into
 `main` using conventional commit messages, conventional PR and merge titles, and
@@ -776,7 +782,9 @@ Release Please opens or updates a separate release PR with the package and
 manifest version bump plus changelog.
 
 Release PRs must also keep `versions.json` current. CI runs
-`npm run release:check-versions`; the `release-versions` workflow updates and
+`npm run release:check-versions` and `npm run release:check-metadata`; the latter
+checks agreement across the package, lockfile, plugin, and Release Please
+versions. The `release-versions` workflow updates and
 commits `versions.json` automatically on Release Please PR branches.
 
 Release intent files are review and recovery evidence for release-relevant
@@ -791,6 +799,13 @@ version, and uploads `main.js`, `styles.css`, and `manifest.json` to the
 release. The same workflow can be run manually for an existing tag if release
 asset publishing needs to be retried.
 
+After verified stable asset publication, `release-sync` opens or updates a PR
+carrying that exact release into `dev`. Only these synchronization PRs request
+automatic merging, using a merge commit after required checks pass. Stable
+release PRs still require an explicit decision to publish. Conflicts and failed
+checks remain visible in Actions and the synchronization PR. See the
+[release procedure](docs/dev/procedures/release.md) for setup and recovery.
+
 For real-vault testing before a stable release, run the `publish-beta` workflow
 from `main`. Supply the exact branch, tag, or commit to build and a new semantic
 prerelease version such as `2.0.1-beta.2`. The workflow tests, lints, and builds
@@ -798,6 +813,13 @@ that ref, creates a prerelease whose tag points to the resolved commit, and
 uploads BRAT-compatible assets. It changes the copied release manifest only;
 tracked version files remain owned by Release Please. Prerelease tags are
 immutable inputs to this workflow and are never overwritten.
+
+Beta publication requires the source to contain the latest stable release
+commit and consistent metadata at least as recent as that release. It rechecks
+these conditions immediately before publication. Merge the synchronization PR
+before retrying a stale candidate. Release notes distinguish the source's
+stable baseline from the beta artifact version; tracked files intentionally do
+not take on beta versions.
 
 Release automation requires a `RELEASE_PLEASE_TOKEN` repository secret backed by
 a maintainer-owned PAT or GitHub App token. The token must be able to write

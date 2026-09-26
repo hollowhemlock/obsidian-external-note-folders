@@ -18,17 +18,29 @@ jobs:
   build-and-upload:
     if: github.event_name != 'release' || !github.event.release.prerelease
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
     steps:
+      - name: Check out trusted release validation
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          path: release-tools
+          persist-credentials: false
       - name: Resolve release tag
         id: release
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
 
-          if [[ "${{ github.event_name }}" == "release" ]]; then
-            TAG="${{ github.event.release.tag_name }}"
+          if [[ "$EVENT_NAME" == "release" ]]; then
+            TAG="$EVENT_TAG"
           else
-            TAG="${{ inputs.tag }}"
+            TAG="$INPUT_TAG"
           fi
 
           if [[ -z "$TAG" ]]; then
@@ -42,19 +54,28 @@ jobs:
         with:
           ref: ${{ steps.release.outputs.tag }}
           fetch-depth: 0
+          path: candidate
+          persist-credentials: false
 
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: candidate/package-lock.json
+
+      - name: Verify source release metadata
+        run: node release-tools/scripts/check-release-metadata.ts candidate
 
       - name: Install dependencies
+        working-directory: candidate
         run: npm ci
 
       - name: Build plugin
+        working-directory: candidate
         run: npm run build
 
       - name: Collect release artifacts
+        working-directory: candidate
         shell: bash
         run: |
           mkdir -p release-assets
@@ -77,10 +98,12 @@ jobs:
           pick_file manifest.json manifest.json dist/build/manifest.json
 
       - name: Validate release tag and build metadata
+        working-directory: candidate
         shell: bash
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
         run: |
           set -euo pipefail
-          TAG="${{ steps.release.outputs.tag }}"
           if [[ "$TAG" =~ ([0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?)$ ]]; then
             EXPECTED_VERSION="${BASH_REMATCH[1]}"
           else
@@ -108,6 +131,14 @@ jobs:
           fail_on_unmatched_files: true
           overwrite_files: true
           files: |
-            release-assets/main.js
-            release-assets/styles.css
-            release-assets/manifest.json
+            candidate/release-assets/main.js
+            candidate/release-assets/styles.css
+            candidate/release-assets/manifest.json
+
+  synchronize-dev:
+    needs: build-and-upload
+    uses: ./.github/workflows/release-sync.yml
+    with:
+      tag: ${{ needs.build-and-upload.outputs.tag }}
+    secrets:
+      RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
