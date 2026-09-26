@@ -13,6 +13,7 @@ import type {
 import { synchronizeRelease } from './release-sync.ts';
 
 function harness(options: {
+  actorLogin?: string;
   assetsMissing?: boolean;
   changedDev?: boolean;
   changedRelease?: boolean;
@@ -20,7 +21,9 @@ function harness(options: {
   conflict?: boolean;
   existing?: boolean;
   foreign?: boolean;
+  foreignAuthor?: boolean;
   graphqlError?: boolean;
+  identityError?: boolean;
   manifestMismatch?: boolean;
   older?: boolean;
   synced?: boolean;
@@ -43,7 +46,7 @@ function harness(options: {
     node_id: 'PR_42',
     number: 42,
     state: 'open',
-    user: { login: 'bot' }
+    user: { login: options.foreignAuthor ? 'another-author' : options.actorLogin ?? 'bot' }
   };
   if (options.clean) {
     Object.assign(pr, { mergeable_state: 'clean' });
@@ -71,8 +74,10 @@ function harness(options: {
       } else if (route === 'GET /repos/{repo}/git/ref/heads/dev') {
         devReads++;
         result = { object: { sha: options.changedDev && devReads > 1 ? 'newdev' : 'dev' } };
-      } else if (route === 'GET /user') {
-        result = { login: 'bot' };
+      } else if (route === 'POST /graphql' && body?.['query'] === 'query ReleaseSyncActor { viewer { login } }') {
+        result = options.identityError
+          ? { errors: [{ message: 'Cannot resolve identity' }] }
+          : { data: { viewer: { login: options.actorLogin ?? 'bot' } } };
       } else if (route.includes('pulls?state=all')) {
         result = options.existing ? [pr] : [];
       } else if (route.includes('matching-refs')) {
@@ -115,11 +120,33 @@ function harness(options: {
 }
 
 describe('release synchronization', () => {
+  it.each(['release-maintainer', 'release-app[bot]'])('uses authenticated identity %s to create and maintain owned PRs', async (actorLogin) => {
+    for (const existing of [false, true]) {
+      const { api, calls } = harness({ actorLogin, existing });
+      expect(await synchronizeRelease(api, 'owner/repo')).toContain('Auto-merge requested');
+      expect(calls.some((call) => call.route === 'GET /user')).toBe(false);
+      expect(calls.some(isAutoMergeCall)).toBe(true);
+    }
+  });
+
+  it.each(['release-maintainer', 'release-app[bot]'])('rejects another PR author when authenticated as %s', async (actorLogin) => {
+    const { api, calls } = harness({ actorLogin, existing: true, foreignAuthor: true });
+    await expect(synchronizeRelease(api, 'owner/repo')).rejects.toThrow('not owned');
+    expect(calls.some((call) => call.route === 'POST /repos/{repo}/merges')).toBe(false);
+    expect(calls.some(isAutoMergeCall)).toBe(false);
+  });
+
+  it('does not write repository state when the authenticated identity cannot be verified', async () => {
+    const { api, calls } = harness({ identityError: true });
+    await expect(synchronizeRelease(api, 'owner/repo')).rejects.toThrow('authenticated');
+    expect(calls.some((call) => !call.route.startsWith('GET') && call.body?.['query'] !== 'query ReleaseSyncActor { viewer { login } }')).toBe(false);
+  });
+
   it('merges an already passing PR using its exact head and normal protections', async () => {
     const { api, calls } = harness({ clean: true });
     await synchronizeRelease(api, 'owner/repo');
     expect(calls.find((call) => call.route === 'PUT /repos/{repo}/pulls/42/merge')?.body).toEqual({ merge_method: 'merge', sha: 'merged' });
-    expect(calls.some((call) => call.route === 'POST /graphql')).toBe(false);
+    expect(calls.some(isAutoMergeCall)).toBe(false);
   });
 
   it('closes only older owned PRs after enabling the replacement', async () => {
@@ -127,14 +154,14 @@ describe('release synchronization', () => {
     await synchronizeRelease(api, 'owner/repo');
     const closed = calls.filter((call) => call.route.startsWith('PATCH'));
     expect(closed.map((call) => call.route)).toEqual(['PATCH /repos/{repo}/pulls/41']);
-    expect(calls.indexOf(closed[0]!)).toBeGreaterThan(calls.findIndex((call) => call.route === 'POST /graphql'));
+    expect(calls.indexOf(closed[0]!)).toBeGreaterThan(calls.findIndex(isAutoMergeCall));
   });
 
   it('opens a merge-based PR only after verifying assets and enforcing protection', async () => {
     const { api, calls } = harness();
     expect(await synchronizeRelease(api, 'owner/repo', 'external-note-folders-2.1.0')).toContain('Auto-merge requested');
     expect(calls.find((call) => call.route.endsWith('/git/refs'))?.body).toEqual({ ref: 'refs/heads/release-sync/2.1.0', sha: 'stable' });
-    expect(calls.find((call) => call.route === 'POST /graphql')?.body?.['query']).toContain('mergeMethod:MERGE');
+    expect(calls.find(isAutoMergeCall)?.body?.['query']).toContain('mergeMethod:MERGE');
     expect(calls.some((call) => call.route.includes('DELETE'))).toBe(false);
   });
 
@@ -167,7 +194,7 @@ describe('release synchronization', () => {
   ])('blocks auto-merge on unsafe or incomplete state %j', async (options) => {
     const { api, calls } = harness(options);
     await expect(synchronizeRelease(api, 'owner/repo')).rejects.toThrow();
-    expect(calls.some((call) => call.route === 'POST /graphql')).toBe(false);
+    expect(calls.some(isAutoMergeCall)).toBe(false);
   });
 
   it('surfaces permission and GraphQL failures instead of claiming success', async () => {
@@ -176,4 +203,8 @@ describe('release synchronization', () => {
     await expect(synchronizeRelease({ request: () => Promise.reject(new Error('HTTP 403')) }, 'owner/repo')).rejects.toThrow('403');
   });
 });
+
+function isAutoMergeCall(call: { body?: Record<string, unknown>; route: string }): boolean {
+  return call.route === 'POST /graphql' && String(call.body?.['query']).includes('enablePullRequestAutoMerge');
+}
 /* eslint-enable camelcase -- End of GitHub API fixtures. */

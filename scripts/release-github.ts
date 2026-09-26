@@ -13,6 +13,21 @@ export interface Release {
   tag_name: string;
 }
 
+export async function authenticatedActor(api: GitHub): Promise<{ login: string }> {
+  // Unlike REST /user, GraphQL viewer also resolves GitHub App installation identities.
+  const result = await api.request<
+    {
+      data?: { viewer?: { login?: unknown } | null } | null;
+      errors?: unknown[];
+    } | null
+  >('POST /graphql', { query: 'query ReleaseSyncActor { viewer { login } }' });
+  const login = result?.data?.viewer?.login;
+  if (result?.errors?.length || typeof login !== 'string' || login.trim() === '' || login !== login.trim()) {
+    throw new Error('Could not verify the authenticated GitHub user or App bot. Check token permissions and rerun synchronization.');
+  }
+  return { login };
+}
+
 export function githubClient(): GitHub {
   const token = process.env['GH_TOKEN'];
   const repository = process.env['GITHUB_REPOSITORY'];
