@@ -5,6 +5,7 @@ import type {
 } from './release-github.ts';
 
 import {
+  authenticatedActor,
   latestStable,
   releaseCommit,
   releaseVersion
@@ -48,7 +49,7 @@ export async function synchronizeRelease(api: GitHub, repository: string, reques
     return `dev already contains ${release.tag_name} (${sha}).`;
   }
 
-  const actor = await api.request<{ login: string }>('GET /user');
+  const actor = await authenticatedActor(api);
   const branch = `release-sync/${version}`;
   const owner = repository.split('/')[0] ?? '';
   const pulls = await api.request<PullRequest[]>(`GET /repos/{repo}/pulls?state=all&base=dev&head=${owner}:${branch}&per_page=100`);
