@@ -40,6 +40,10 @@ export function* folderAvailabilitySteps(
   return result;
 }
 
+export function isAdoptableLeaf(node: LeafTreeNode | undefined, availability: FolderAvailability | undefined): boolean {
+  return node?.evidence?.physicalLeaf === true && availability?.adoptable === true;
+}
+
 /** Preserve captured evidence while disclosing session-dependent export membership. */
 export function statusExportNode(node: LeafTreeNode, availability: FolderAvailability | undefined, stale: boolean): LeafTreeNode {
   if (!node.evidence || (!stale && !availability?.operation)) {

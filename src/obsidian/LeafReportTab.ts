@@ -32,10 +32,12 @@ export interface LeafReportTabOptions {
   adopt?: (folder: string) => void;
   externalRoot: () => string;
   mutationState: () => AuditMutationState;
+  openTemplateSettings?: () => void;
   pending?: () => Promise<number>;
   repair?: (folder: string, direction: 'external' | 'note') => Promise<void>;
   resume?: () => Promise<void>;
   scanPatterns?: () => string[];
+  templatePatterns?: () => string[];
 }
 
 export class LeafReportTab extends ItemView {
@@ -76,6 +78,7 @@ export class LeafReportTab extends ItemView {
       ...(this.options.adopt ? { adopt: this.options.adopt } : {}),
       ...(this.options.resume ? { resume: this.options.resume } : {}),
       ...(this.options.repair ? { repair: this.options.repair } : {}),
+      ...(this.options.openTemplateSettings ? { openTemplateSettings: this.options.openTemplateSettings } : {}),
       cancel: () => this.session?.cancel(),
       copy: async (text) => navigator.clipboard.writeText(text),
       exportLeaves: async (rows, filtered) => this.exportRows(rows, filtered),
@@ -115,7 +118,11 @@ export class LeafReportTab extends ItemView {
         const vaultRoot = adapter.getBasePath?.();
         const externalRoot = this.options.externalRoot();
         assertAuditRoots(vaultRoot, externalRoot);
-        return scanAdoptionAudit(vaultRoot, externalRoot, { ...control, ignorePatterns: [...(this.options.scanPatterns?.() ?? [])] });
+        return scanAdoptionAudit(vaultRoot, externalRoot, {
+          ...control,
+          ignorePatterns: [...(this.options.scanPatterns?.() ?? [])],
+          templateExcludePatterns: [...(this.options.templatePatterns?.() ?? [])]
+        });
       },
       status: (message, busy): void => this.report?.status(message, busy),
       update: async (model, signal): Promise<void> => this.report?.update(model, signal)

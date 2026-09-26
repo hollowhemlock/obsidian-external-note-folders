@@ -286,7 +286,7 @@ describe('shared leaf report integration', () => {
       button('Inspect external root').click();await wait();
       await v.report.update(model);
       const refreshEnds=!button('Back to selected folder',details());
-      const menu=Array.from(el.querySelectorAll('.leaf-toolbar>details')).find(d=>d.querySelector('summary').textContent==='View');
+      const menu=Array.from(el.querySelectorAll('.leaf-toolbar>details')).find(d=>d.querySelector('summary').textContent.startsWith('Advanced'));
       menu.querySelector('summary').click();menu.querySelector('select').focus();
       menu.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
       const escape=!menu.open && document.activeElement===menu.querySelector('summary');

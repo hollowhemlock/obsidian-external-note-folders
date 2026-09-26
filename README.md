@@ -4,7 +4,7 @@ This is a plugin for [Obsidian](https://obsidian.md/) that associates Obsidian v
 
 ## What It Does
 
-External Note Folders links a markdown note to an external folder by storing a canonical UUID in the note's `exnf` frontmatter field and creating an empty `<uuid>.exnf` marker file in the external folder. The canonical filename is the marker's complete identity; its contents are never read. Legacy fixed `.exnf` markers are read during the 2.0.0 migration window and should be migrated with the explicit migration command.
+External Note Folders links a markdown note to an external folder by storing a canonical UUID in the note's `exnf` frontmatter field and creating an empty `<uuid>.exnf` marker file in the external folder. The canonical filename is the marker's complete identity; its contents are never read. Legacy fixed `.exnf` markers remain readable for migration and should be migrated with the explicit migration command.
 
 External folder paths normally mirror the vault-relative note path without `.md`. Folder-note layouts collapse to the parent folder, so `Projects/Alpha/Alpha.md` uses `Projects/Alpha/` instead of `Projects/Alpha/Alpha/`.
 
@@ -230,6 +230,41 @@ with the [`ignore`](https://github.com/kaelzhang/node-ignore) package. See also
 the [Git gitignore documentation](https://git-scm.com/docs/gitignore) and
 [ADR-0026](docs/dev/adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md).
 
+## Template Exclusion Patterns
+
+Use **Template exclusion patterns** for template source files whose frontmatter
+is intentionally incomplete. Enter one vault-relative `.gitignore`-style pattern
+per line. The setting is empty by default; nothing is excluded automatically.
+
+```gitignore
+*.tpl.md
+/settings/templates/
+/settings/templates.archive/
+```
+
+`*.tpl.md` matches filenames at any depth. A leading `/` anchors a pattern to the
+vault root, and a trailing `/` matches a directory and its descendants. The two
+directory patterns above do not match `nested/settings/templates/`. Either style
+works independently, and they can be combined. Backslashes are normalized to `/`;
+blank lines and `#` comments are ignored. Negation, Windows drive paths, and UNC
+paths are rejected. Case matching follows the external-root pattern conventions.
+
+Matching files are outside the plugin's binding scope: they cannot own bindings,
+receive identifiers, be adopted, or be destinations for note creation or moves.
+Their frontmatter is not inspected, including any existing `exnf` property. Use
+these patterns only for files that should never own external folders. Generated
+notes outside the excluded paths are checked normally. External markers are
+still inspected; excluding their owner does not hide or delete the markers.
+
+This setting applies to all plugin note scans and mutation preflights, separately
+from external-folder ignore settings. Refresh **External folder status** after
+changing it. Scan details and exports disclose the configured patterns and count
+of excluded files or directory subtrees; coverage refers to eligible notes only.
+Ordinary unreadable or malformed notes still restrict adoption. Changing the
+patterns invalidates previews; pending group-adoption recovery requires restoring
+its original patterns. Removing a pattern restores normal checks for those notes.
+Standalone audit commands continue to scan all notes by default.
+
 ## Safety Model
 
 - The vault is the source of truth for note identity.
@@ -284,18 +319,49 @@ reconciliation.
 - Bulk adoption is strict, partial, and leaf-first: it only adopts deepest exact derived-path matches whose individual target row is safe. Existing bindings and planned leaves are pruned from a compact residual-tree summary; malformed, duplicate, and skipped evidence remains visible as grouped warnings or blocked candidates, while configured ignores appear as notices. Residual directories are informational and are never modified.
 - `Report external folder drift` is read-only and can be used before reconcile to inspect missing, orphaned, unexpected, occupied, and likely moved folders without changing the vault or external root.
 - `Open external folder` does not assign note identity. Use `Set up external folder` for the one-command workflow or `Assign external folder identifier` when identity should exist before a folder.
-- ADR-0025 recovery scans are active-note scoped, not a substitute for full drift reporting. Long-running commands show a start/progress modal, but scan caps, cancellation, and cached indexes are intentionally out of scope until performance requires them.
+- ADR-0025 recovery scans are active-note scoped, not a substitute for full drift reporting. Their start/progress modal is separate from the status window's cancellable physical audit and scheduled analysis.
 - Concurrent UUID assignment across unsynced devices can create orphan external folders.
 - Sync tool conflicts in note frontmatter or external marker files are outside the plugin's repair scope; `Report external folder drift` surfaces the resulting state.
-- Fixed `.exnf` markers are deprecated legacy evidence during the 2.0.0 migration window. New writes create empty `<uuid>.exnf` files; run `Migrate legacy marker files` to rename old markers.
+- Fixed `.exnf` markers remain readable as deprecated legacy evidence. New writes create empty `<uuid>.exnf` files; run `Migrate legacy marker files` to rename old markers.
 - New UUID-named markers are empty because their canonical filename carries the folder identity. Existing UUID-named marker contents are opaque and ignored. Legacy fixed `.exnf` markers still carry their UUID in their content during the migration window.
 
 ## Contributor Guide
 
+### Documentation map
+
+Use this map for human and LLM-assisted maintenance. Current task instructions
+take precedence; repository documents do not independently authorize commits,
+publishing, or mutations. Check the current checkout before assuming a proposal
+has shipped or an earlier test result still applies.
+
+| Task | Start here | Status / purpose |
+| --- | --- | --- |
+| Understand commands and settings | [Commands](#commands), [External folder status](#external-folder-status) | Current user-facing behavior; not a roadmap. |
+| Change product behavior | [Product intent](docs/dev/product/intent.md), [ADR index](docs/dev/adr/README.md) | Product authority, then accepted architectural and safety decisions. Superseded ADRs are historical. |
+| Find implementation boundaries | [Project structure](#project-structure), [Agent guide](AGENTS.md) | Code navigation and task workflow; keep business rules in core. |
+| Decide task authority | [Autonomy policy](docs/dev/agent/autonomy-policy.md) | Scope and escalation rules; advisory observations do not authorize work. |
+| Add or verify coverage | [Testing guide](docs/dev/testing/README.md), [State matrix](docs/dev/testing/external-folder-state-matrix.md) | Current coverage expectations; the linked ledger distinguishes tested and planned scenarios. |
+| Run live Obsidian tests | [Integration guide](test/integration/README.md), [Fixture guide](test/fixtures/README.md) | Primary-checkout-only disposable sandbox; never substitute a real user vault. |
+| Review or release | [Review gate](docs/dev/procedures/commit-pull-request-merge-review-gate.md), [Release procedure](docs/dev/procedures/release.md) | Required evidence and publication workflow; local tests do not replace required CI. |
+| Investigate earlier designs | [MVP plan](docs/dev/plans/mvp.md), [Adoption plan](docs/dev/plans/external-folder-adoption.md), [Marker notes](docs/dev/plans/uuid-marker-filenames.md) | Historical implementation context, not a current backlog. |
+| Change active-note recovery UX | [Recovery spec](docs/dev/plans/open-external-folder-recovery.md) | Maintained supporting spec, subordinate to product intent and accepted ADRs. |
+
+`.release-intent/` records describe the intent and validation of their original
+changes. They are not the installed-version source or fresh test evidence.
+Release Please owns version metadata and the changelog; use the exact release
+tag to inspect a published version. `CLAUDE.md` delegates to `AGENTS.md` so agent
+guidance has one entry point. The ADR index is generated; update its source ADRs
+and run `npm run docs:adr:index` rather than editing the index by hand.
+
 ### Project structure
 
-- `src/`: plugin source (entrypoint `main.ts`, core plugin classes, UI samples, editor extensions, styles)
-- `scripts/`: local development helpers
+- `src/main.ts`, `src/Plugin.ts`: plugin entry point, commands, mutation lock, and adapter wiring
+- `src/core/`: pure identity, path, report, and planning logic; no filesystem IO or Obsidian imports
+- `src/storage/`: filesystem/process adapters, journals, physical audit scanning, and report output
+- `src/obsidian/`: vault API adapters, status tab, and single-folder adoption controller/dialog
+- `src/ui/`: shared browser-safe report UI, session state, navigation, and presentation
+- Root `src/*Modal.ts` and `src/PluginSettingsTab.ts`: Obsidian-specific dialogs and settings UI
+- `scripts/`: standalone audit/HTML entry points, performance checks, sandbox helpers, and release tooling
 - `test/fixtures/`: committed fixture data and disposable sandbox data
 - `docs/dev/adr/`: architecture decision records
 - `docs/dev/procedures/`: development and release procedures
@@ -430,9 +496,19 @@ counts and explain why adopting the entire parent would create a nested binding.
 The parent can remain an ordinary container; its local `marker` tag stays absent.
 The adoption restrictions list names the affected paths and offers navigation.
 
-Search and Refresh stay visible. **View** contains sorting and display filters;
-**Export** contains downloads. Escape closes either disclosure and returns focus.
-Active filters are summarized beside **Clear filters**. Display choices last only
+**Refresh** and **Export** sit beside the page title, with the last completed scan
+time below. **All folders**, **Adoptable leaves**, and **Needs review** are quick
+views. Choosing one preserves search, status, and category filters and resets the
+advanced folder scope to all scanned folders. Adoptable leaves includes only
+physical leaves with no known adoption blocker; context ancestors remain visible.
+**Status**, **Category**, and **Sort** are always labeled and visible. **Advanced**
+contains unmarked-leaf scope, generated/internal paths, expected paths, and adoption
+recovery. It shows an indicator when an advanced filter is active. **Export**
+contains downloads. Escape closes either disclosure and returns focus.
+**Search within results** sits above removable filter chips and the legends,
+narrowing the current view without rescanning. Each chip removes only its own
+filter; **Clear filters** resets every filter while preserving sort order. Empty
+results offer the same clear-filter action. Display choices last only
 for the current tab; reopening starts with all folders and natural name sorting.
 **Scan details** lists exclusions, skipped links, and read failures in pages.
 
@@ -442,6 +518,11 @@ sort, including collapsed branches and rows beyond the rendered page. Navigation
 does not wrap or change filters; unavailable directions are disabled. Context-only
 ancestors and temporary reveals are not issues. The position indicator counts
 issues in the current filters, whether Needs review is on or off.
+These controls sit above the details pane, alongside **Next adoptable leaf**.
+That action selects the next physical leaf with no known adoption blocker within
+the current search and filters, including collapsed branches and later pages.
+It does not adopt, wrap, or change filters. Stale snapshots and pending operations
+are respected; a fresh adoption preview still checks the selected note and mode.
 
 Exact-path evidence uses discovered vault paths independently of external scan
 gaps. An unreadable note still has a usable path, but its YAML identity is
@@ -451,16 +532,21 @@ provisional when scan gaps could conceal duplicate UUIDs.
 
 The details panel leads with the relationship and available actions. Adoption
 stays visible but disabled for known restrictions, naming local, ancestor, or
-descendant markers and excluded, linked, or unreadable paths. Pending operations
-offer recovery; stale results offer Refresh. **Choose a note to check adoption**
+descendant markers and excluded, linked, or unreadable paths. When note restrictions
+could come from intentional template frontmatter, **Open template exclusion settings** opens
+and focuses the plugin's pattern setting. Configure deliberate exclusions and
+refresh; the shortcut does not exclude anything itself. Offline reports show the
+settings path instead. Pending operations offer recovery; stale results offer
+Refresh. **Choose a note to check adoption**
 means no blocker is established by the snapshot; the adoption preview and fresh
 execution checks remain authoritative. Associated notes, same-name suggestions,
 other marked ancestors, and technical/scan details start expanded; each section
 can be collapsed. Same-name suggestions remain separate from confirmed associations.
-Scan details and the View/Export controls outside the selected-folder panel
+Scan details and the Advanced/Export controls outside the selected-folder panel
 continue to start closed.
 
-A compact sticky header keeps the selected folder, status, and navigation visible.
+A compact sticky header keeps the selected folder, status, and path actions visible.
+The relative path scrolls with the details, leaving more room for restrictions.
 Binding relationships and actions precede note suggestions and technical records.
 Actual/expected paths have labeled copy controls. Sorting, filtering, and refresh
 preserve the same folder's section expansion, scroll position, and keyboard focus;
@@ -474,8 +560,10 @@ remembered only for the current tab/page session and returns when widened.
 
 Compact 28px rows align folder names, physical leaf quantities, descriptors, and
 evidence in separate columns. Indentation affects only the name column. Leaf
-quantities show matching/known totals when filters hide leaves. Column headings
-stay visible while scrolling; narrow panes scroll horizontally to retain the
+quantities show **Adoptable / total** physical leaves within the current search
+and filters. Tooltips retain the whole branch's adoptable and total leaf counts.
+Adoptable means no known blocker in this snapshot, not approval to adopt. Column
+headings stay visible while scrolling; narrow panes scroll horizontally to retain the
 columns. Details text can be selected and copied normally, alongside the existing
 Copy path buttons.
 
@@ -532,7 +620,7 @@ Settings under **External folder status — this command only** are independent
 of normal external-root ignore settings. **Ignored folder patterns** defaults to
 `.git/`, `node_modules/`, `build/`, `dist/`, `.cache/`, `__pycache__/`, and `.venv/`.
 **Skip scanning ignored folders** is off by default. Enabling it skips matching
-external branches on the next refresh; vault notes are still fully scanned.
+external branches on the next refresh; eligible vault notes are still fully scanned.
 Turn it off to search for unexpectedly misplaced markers in those branches.
 Excluded branches remain labeled placeholders. Incomplete coverage makes
 uniqueness and absence provisional. Standalone audits continue to scan fully.
@@ -614,7 +702,12 @@ historical snapshot, with a stale warning until **Refresh**. Standalone HTML has
 no adoption controls. Single-folder writes avoid creating unwanted notes, but
 safety checks can still require full-root scans.
 
-The tab labels its scope **Full physical audit — ignore patterns not applied**.
+The tab labels its scope **Physical audit — scan and template exclusions are disclosed below**.
+It scans all folders by default. Only this command's **Skip scanning ignored
+folders** setting enables its configured external-directory exclusions; those
+settings never exclude vault notes. The separate **Template exclusion patterns**
+setting declares which vault paths cannot own bindings. Normal external-root ignore settings do not
+apply to the report scan. Excluded paths and other coverage gaps remain visible.
 This audit explicitly permits raw, read-only filesystem reads of the active vault;
 it does not use cached frontmatter. Vault adapters without an absolute filesystem
 root are unsupported. Existing commands keep their vault adapters, ignore rules,

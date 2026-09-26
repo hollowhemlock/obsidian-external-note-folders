@@ -45,6 +45,17 @@ describe('audit export summaries', () => {
     expect(summary).not.toContain('Unscanned areas');
   });
 
+  it('discloses the declared template scope even when eligible-note coverage is complete', () => {
+    const snapshot = auditFixture();
+    snapshot.templateExclusions = { paths: ['Draft.tpl.md'], patterns: ['*.tpl.md'] };
+    const model = buildLeafReport(snapshot);
+    const summary = buildAuditExportSummary(model, 'folder-status.csv', 0);
+    expect(summary).toContain('Template exclusions: 1');
+    expect(summary).toContain('*.tpl.md');
+    expect(summary).toContain('coverage describes eligible notes only');
+    expect(model.uncheckedCount).toBe(0);
+  });
+
   it('omits warnings for a complete scan without mutation overlap', () => {
     const summary = buildAuditExportSummary(buildLeafReport(auditFixture()), 'unmarked-leaf-folders.csv', 0);
     expect(summary).toContain('Coverage: **complete**. Unchecked items: 0.');

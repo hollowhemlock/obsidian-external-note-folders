@@ -9,6 +9,7 @@ export function buildAuditExportSummary(model: LeafReportModel, filename: string
     `Scan: ${model.startedAt} – ${model.finishedAt}`,
     '',
     `Coverage: **${model.uncheckedCount > 0 ? 'incomplete' : 'complete'}**. Unchecked items: ${String(model.uncheckedCount)}.`,
+    ...(model.templateExclusionSummary ? [model.templateExclusionSummary] : []),
     ...(model.uncheckedCount > 0
       ? ['Unscanned areas may contain additional results. Identity and absence conclusions are provisional; locally unchecked leaf paths are excluded.']
       : []),

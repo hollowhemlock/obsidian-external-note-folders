@@ -66,6 +66,7 @@ interface SetupFixture {
   file: TFile;
   frontmatter: Record<string, unknown>;
   markerPath: string;
+  plugin: Plugin;
   root: string;
   targetPath: string;
   writeNote: ReturnType<typeof vi.fn<(note: TFile, update: (value: Record<string, unknown>) => void) => Promise<void>>>;
@@ -77,6 +78,24 @@ describe('setup command safety', () => {
   afterEach(async () => {
     vi.clearAllMocks();
     await Promise.all(roots.splice(0).map((root) => rm(root, { force: true, recursive: true })));
+  });
+
+  it('rejects setup and recovery for notes excluded by template patterns', async () => {
+    const fixture = await createFixture();
+    const journal = await interruptBeforeNote(fixture);
+    fixture.plugin.settings.templateExcludePatterns = ['/Alpha.md'];
+    await expect(fixture.commands.buildSetupPlanForFile(fixture.file)).rejects.toThrow('excluded');
+    await expect(fixture.commands.runSetupResumeCommand(journal)).rejects.toThrow('excluded');
+    expect(fixture.writeNote).not.toHaveBeenCalled();
+    expect(await readSetupJournal(journal.journalPath)).toMatchObject({ stage: 'frontmatter-write' });
+  });
+
+  it('omits excluded templates from setup identity and descendant reservations', async () => {
+    const fixture = await createFixture();
+    fixture.addOwner('Alpha/Child.tpl.md');
+    expect((await fixture.commands.buildSetupPlanForFile(fixture.file)).action).toBe('block');
+    fixture.plugin.settings.templateExcludePatterns = ['*.tpl.md'];
+    expect((await fixture.commands.buildSetupPlanForFile(fixture.file)).action).toBe('confirm-unmarked-adoption');
   });
 
   it.each(['missing', 'replaced', 'competing'] as const)('does not write note identity when a resumed marker is %s', async (change) => {
@@ -331,6 +350,7 @@ describe('setup command safety', () => {
       file,
       frontmatter,
       markerPath: path.join(targetPath, `${UUID}.exnf`),
+      plugin,
       root,
       targetPath,
       writeNote

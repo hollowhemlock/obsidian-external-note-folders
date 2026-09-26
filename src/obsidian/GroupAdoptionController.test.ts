@@ -75,6 +75,34 @@ describe('folder adoption controller recovery', () => {
     expect(await f.controller.pending()).toEqual([]);
   });
 
+  it('adopts with malformed templates excluded but keeps ordinary malformed notes blocking', async () => {
+    const f = await fixture();
+    const malformed = '---\nvalue: [\n---\n';
+    await f.addNote('Draft.tpl.md', malformed);
+    f.templatePatterns.push('*.tpl.md');
+    const preview = await f.controller.preview(f.folder, null, false, new AbortController().signal);
+    await expect(f.controller.preview(f.folder, 'Draft.tpl.md', false, new AbortController().signal)).rejects.toThrow('excluded');
+    await f.addNote('Ordinary.md', malformed);
+    await expect(f.controller.execute(preview.plan, preview.content)).rejects.toThrow('Unchecked evidence');
+    expect(await readdir(f.folder)).toEqual([]);
+    await f.addNote('Ordinary.md', 'Ordinary note');
+    await f.controller.execute(preview.plan, preview.content);
+    expect(await readFile(f.absolute('Draft.tpl.md'), 'utf8')).toBe(malformed);
+    expect(await readdir(f.folder)).toContain(`${preview.plan.uuid}.exnf`);
+  });
+
+  it('rejects template-scope changes between preview, execution, and recovery', async () => {
+    const f = await fixture();
+    const { file, plan } = await f.prepare(null);
+    f.templatePatterns.push('*.tpl.md');
+    await expect(f.controller.execute(plan, null)).rejects.toThrow('Template exclusion settings changed');
+    await expect(f.controller.resume(file)).rejects.toThrow('Template exclusion settings changed');
+    expect(await readdir(f.folder)).toEqual([]);
+    f.templatePatterns.splice(0);
+    await f.controller.resume(file);
+    expect((await readGroupJournal(file)).stage).toBe('complete');
+  });
+
   it('distinguishes a rejected preflight from an interrupted journaled operation', async () => {
     const f = await fixture();
     const preview = await f.controller.preview(f.folder, null, false, new AbortController().signal);
@@ -288,6 +316,7 @@ function createFixture(root: string): {
   prepare: (source: null | string) => Promise<{ file: string; plan: GroupAdoptionPlan }>;
   processFrontMatter: ReturnType<typeof vi.fn<(file: TFile, update: (metadata: Record<string, unknown>) => void) => Promise<void>>>;
   renameFile: ReturnType<typeof vi.fn<(file: TFile, destination: string) => Promise<void>>>;
+  templatePatterns: string[];
   writeFrontmatter: (file: TFile, update: (metadata: Record<string, unknown>) => void) => Promise<void>;
 } {
   const vaultRoot = path.join(root, 'vault');
@@ -331,18 +360,23 @@ function createFixture(root: string): {
       read: async (file: TFile): Promise<string> => readFile(absolute(file.path), 'utf8')
     }
   } as unknown as App;
+  const templatePatterns: string[] = [];
   const controller = new GroupAdoptionController(app, 'review', {
     changed: vi.fn<() => void>(),
     mutate: async (operation): Promise<void> => operation(),
     sequence: (): number => 0,
-    settings: (): { externalRootIgnorePatterns: string[]; externalRootPath: string } => ({ externalRootIgnorePatterns: [], externalRootPath: externalRoot })
+    settings: (): { externalRootIgnorePatterns: string[]; externalRootPath: string; templateExcludePatterns: string[] } => ({
+      externalRootIgnorePatterns: [],
+      externalRootPath: externalRoot,
+      templateExcludePatterns: templatePatterns
+    })
   });
   async function prepare(source: null | string): Promise<{ file: string; plan: GroupAdoptionPlan }> {
     const preview = await controller.preview(folder, source, false, new AbortController().signal);
     const file = await createGroupJournal(path.join(root, 'journals'), preview.plan, preview.content);
     return { file, plan: preview.plan };
   }
-  return { absolute, addNote, controller, create, folder, prepare, processFrontMatter, renameFile, writeFrontmatter };
+  return { absolute, addNote, controller, create, folder, prepare, processFrontMatter, renameFile, templatePatterns, writeFrontmatter };
 }
 
 function noteFile(relative: string): TFile {

@@ -1,6 +1,15 @@
 # Procedure: MVP Implementation Workflow
 
-This procedure turns `docs/dev/plans/mvp.md` into an implementation sequence. Use it before coding any MVP item, before starting Phase 0.5 reconciliation-report work, and before starting Phase 1 reconcile execution work.
+Status: Historical phase-specific procedure.
+
+Use this only when investigating the original MVP rollout. For current work,
+start with the [documentation map](../../../README.md#documentation-map), current
+task scope, and [testing guide](../testing/README.md). The old phases and unchecked
+MVP items do not establish new implementation requirements.
+
+This procedure originally turned `docs/dev/plans/mvp.md` into an implementation
+sequence for MVP items, Phase 0.5 reconciliation reporting, and Phase 1 reconcile
+execution. The following sections preserve that phase-specific workflow.
 
 ## Purpose
 

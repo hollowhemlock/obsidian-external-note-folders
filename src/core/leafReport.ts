@@ -21,6 +21,7 @@ import {
   deriveExternalFolderPath,
   normalizePathForIdentity
 } from './pathPolicy.ts';
+import { templateExclusionSummary } from './templateExclusions.ts';
 
 export function buildLeafReport(snapshot: AuditSnapshot): LeafReportModel {
   return finishAuditSteps(buildLeafReportSteps(snapshot));
@@ -75,6 +76,7 @@ export function* buildLeafReportSteps(snapshot: AuditSnapshot): Generator<void, 
     rows: sorted,
     ...(rootFolder ? { rootFolder } : {}),
     startedAt: snapshot.startedAt,
+    templateExclusionSummary: templateExclusionSummary(snapshot.templateExclusions),
     tree,
     uncheckedCount: snapshot.issues.filter((issue) => issue.unchecked).length,
     vaultRoot: snapshot.vaultRoot

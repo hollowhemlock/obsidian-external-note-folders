@@ -35,10 +35,27 @@ export const LEAF_REPORT_CSS = `
 .exnf-leaf-report .leaf-status{min-height:24px;font-size:13px}
 .exnf-leaf-report a{color:var(--text-accent,#245f9e)}
 .exnf-leaf-report .leaf-layout{display:grid;grid-template-columns:minmax(320px,var(--leaf-tree-width,60%)) 8px minmax(320px,1fr);gap:8px}
+.exnf-leaf-report .leaf-heading-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.exnf-leaf-report .leaf-heading-row h1{margin:0}
+.exnf-leaf-report .leaf-quick-views{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 10px}
+.exnf-leaf-report .leaf-root-info{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0}
+.exnf-leaf-report .leaf-root-info h2{flex:1;min-width:180px}
+.exnf-leaf-report .leaf-filter-field{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;min-width:140px}
+.exnf-leaf-report .leaf-filter-field select{font-size:14px;font-weight:400;max-width:100%}
+.exnf-leaf-report .leaf-toolbar:has(>.leaf-filter-field){align-items:flex-end;margin:10px 0}
+.exnf-leaf-report .leaf-filter-chips{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.exnf-leaf-report .leaf-filter-chips button{border-radius:16px;padding:3px 10px;font-size:12px;overflow-wrap:anywhere;text-align:left}
+.exnf-leaf-report .leaf-empty{border:1px solid var(--background-modifier-border,#bdc8d7);border-radius:6px;padding:18px;margin-bottom:8px}
+.exnf-leaf-report .leaf-search-field{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;margin:12px 0 8px}
+.exnf-leaf-report .leaf-search-field input{width:100%;font-weight:400}
+.exnf-leaf-report .leaf-details-pane{min-width:0;max-height:60vh;display:flex;flex-direction:column}
+.exnf-leaf-report .leaf-details-pane .leaf-details{flex:1;min-height:0}
+.exnf-leaf-report .leaf-details-pane .leaf-issue-controls{margin:0 0 8px;gap:6px;font-size:12px}
+.exnf-leaf-report .leaf-details button.leaf-settings-link{display:inline-block;padding:0;margin-left:6px;border:0;background:transparent;color:var(--text-accent,var(--leaf-optional));text-decoration:underline;cursor:pointer}
 .exnf-leaf-report .leaf-tree{height:60vh;min-height:260px;overflow:auto;position:relative;border:1px solid var(--background-modifier-border,#bdc8d7);border-radius:6px;background:var(--background-secondary,#fff)}
-.exnf-leaf-report .leaf-tree-space{position:relative;min-width:620px}
-.exnf-leaf-report .leaf-tree-columns,.exnf-leaf-report .leaf-tree-item{display:grid;grid-template-columns:minmax(180px,1fr) 70px minmax(170px,.8fr) repeat(3,60px);align-items:center;gap:0;height:28px;line-height:28px;padding-right:8px}
-.exnf-leaf-report .leaf-tree-columns{position:sticky;top:0;z-index:1;min-width:620px;background:var(--leaf-surface);font-size:12px;font-weight:600;border-bottom:1px solid var(--background-modifier-border,#bdc8d7)}
+.exnf-leaf-report .leaf-tree-space{position:relative;min-width:670px}
+.exnf-leaf-report .leaf-tree-columns,.exnf-leaf-report .leaf-tree-item{display:grid;grid-template-columns:minmax(180px,1fr) 130px minmax(170px,.8fr) repeat(3,60px);align-items:center;gap:0;height:28px;line-height:28px;padding-right:8px}
+.exnf-leaf-report .leaf-tree-columns{position:sticky;top:0;z-index:1;min-width:670px;background:var(--leaf-surface);font-size:12px;font-weight:600;border-bottom:1px solid var(--background-modifier-border,#bdc8d7)}
 .exnf-leaf-report .leaf-tree-columns>span{padding:0 8px}
 .exnf-leaf-report .leaf-tree-columns>span:nth-child(2){text-align:right}
 .exnf-leaf-report .leaf-tree-columns>span:nth-child(n+4){text-align:center}
@@ -72,6 +89,11 @@ export const LEAF_REPORT_CSS = `
 .exnf-leaf-report button[aria-pressed=true]{background:var(--background-modifier-hover,#e5edf9);box-shadow:inset 0 0 0 2px var(--text-accent,#245f9e)}
 .exnf-leaf-report .leaf-details-header{position:sticky;top:-12px;z-index:1;background:var(--background-primary,#f6f8fb);padding:8px 0;border-bottom:1px solid var(--background-modifier-border,#bdc8d7)}
 .exnf-leaf-report .leaf-details-header .leaf-toolbar{margin:6px 0;gap:6px}
+.exnf-leaf-report .leaf-details-header{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 8px;align-items:center}
+.exnf-leaf-report .leaf-details-header h2{margin:0}
+.exnf-leaf-report .leaf-details-header>.leaf-toolbar{grid-column:2;grid-row:1;margin:0}
+.exnf-leaf-report .leaf-details-summary{grid-column:1/-1;display:flex;gap:6px 12px;flex-wrap:wrap;font-size:12px;align-items:center}
+.exnf-leaf-report .leaf-details-summary .leaf-tags{margin:0}
 .exnf-leaf-report .leaf-relative-path{max-height:3em;overflow:auto}
 .exnf-leaf-report .leaf-path-field{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 8px;margin:12px 0;padding:8px;background:var(--background-secondary,#fff);border-radius:4px}
 .exnf-leaf-report .leaf-path-field strong{grid-column:1/-1}
@@ -81,6 +103,7 @@ export const LEAF_REPORT_CSS = `
 .exnf-leaf-report .leaf-legend{font-size:12px;color:var(--text-muted,#58677b)}
 @media(prefers-color-scheme:dark){.exnf-leaf-report{color:var(--text-normal,#e2e8f0);background:var(--background-primary,#20252c);--leaf-surface:var(--background-secondary,#282f39)}.exnf-leaf-report .leaf-path-field,.exnf-leaf-report .leaf-stats,.exnf-leaf-report .leaf-warning,.exnf-leaf-report .leaf-note,.exnf-leaf-report .leaf-tree,.exnf-leaf-report button,.exnf-leaf-report input,.exnf-leaf-report select{background:var(--background-secondary,#282f39)}.exnf-leaf-report .leaf-context,.exnf-leaf-report .leaf-tags,.exnf-leaf-report .leaf-legend{color:var(--text-muted,#b6c2d2)}}
 @container(max-width:800px){.exnf-leaf-report .leaf-layout{grid-template-columns:minmax(0,1fr)}.exnf-leaf-report .leaf-details{max-height:none}.exnf-leaf-report .leaf-splitter,.exnf-leaf-report .leaf-reset-split{display:none}.exnf-leaf-report .leaf-details-header{position:static}}
+@container(max-width:800px){.exnf-leaf-report .leaf-details-pane{max-height:none}}
 @container(max-width:800px){.exnf-leaf-report .leaf-toolbar:has(>.leaf-disclosure){position:relative}.exnf-leaf-report .leaf-toolbar>.leaf-disclosure{position:static}.exnf-leaf-report .leaf-toolbar>.leaf-disclosure>.leaf-toolbar{left:0;right:0;width:100%}}
 @media(prefers-color-scheme:dark){.exnf-leaf-report .leaf-evidence-absent,.exnf-leaf-report .leaf-evidence-unchecked,.exnf-leaf-report .leaf-inherited{color:var(--text-muted,#b6c2d2)}.exnf-leaf-report .leaf-evidence-invalid{color:var(--leaf-review)}.exnf-leaf-report .leaf-toolbar>.leaf-disclosure>.leaf-toolbar{background:var(--background-primary,#20252c)}}
 @media(prefers-color-scheme:dark){.exnf-leaf-report .leaf-details-header{background:var(--background-primary,#20252c)}}

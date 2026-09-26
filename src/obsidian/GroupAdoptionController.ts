@@ -23,6 +23,10 @@ import {
 import { getExnfFrontmatterValue } from '../core/frontmatter.ts';
 import { buildGroupAdoptionPlan } from '../core/groupAdoption.ts';
 import { normalizePathForIdentity } from '../core/pathPolicy.ts';
+import {
+  assertBindingNoteAllowed,
+  buildTemplateExclusionMatcher
+} from '../core/templateExclusions.ts';
 import { generateUnusedCanonicalUuid } from '../core/uuid.ts';
 import { assertAuditRoots } from '../storage/auditPaths.ts';
 import { scanAdoptionAudit } from '../storage/auditScan.ts';
@@ -44,7 +48,7 @@ export interface GroupAdoptionHost {
   changed: (folder: string, note: null | string) => void;
   mutate: (operation: () => Promise<void>) => Promise<void>;
   sequence: () => number;
-  settings: () => { externalRootIgnorePatterns: string[]; externalRootPath: string };
+  settings: () => { externalRootIgnorePatterns: string[]; externalRootPath: string; templateExcludePatterns?: string[] };
 }
 
 const FRONTMATTER_PATTERN = /^\uFEFF?---\r?\n(?<yaml>(?:[^\n]*\n)*?)---[ \t]*(?:\r?\n|$)/u;
@@ -66,7 +70,8 @@ export class GroupAdoptionController {
   private readonly notices = new Set<Notice>();
   public constructor(private readonly app: App, private readonly pluginId: string, private readonly host: GroupAdoptionHost) {}
   public choices(): AdoptionNoteChoice[] {
-    return this.app.vault.getMarkdownFiles().map((file) => ({
+    const templates = buildTemplateExclusionMatcher(this.host.settings().templateExcludePatterns);
+    return this.app.vault.getMarkdownFiles().filter((file) => !templates.ignoresRelativeFilePath(file.path)).map((file) => ({
       aliases: this.app.metadataCache.getFileCache(file)?.frontmatter?.['aliases'] as unknown,
       path: file.path
     }));
@@ -97,6 +102,7 @@ export class GroupAdoptionController {
       if (this.disposed || plan.mutationSequence !== this.host.sequence()) {
         throw new Error('Plan is stale. Preview again.');
       }
+      this.assertTemplateScope(plan);
       const snapshot = await this.scan();
       if (plan.sourcePath && await this.readNote(plan.sourcePath) !== content) {
         throw new Error('Note changed. Preview again.');
@@ -187,6 +193,9 @@ export class GroupAdoptionController {
     move: boolean,
     signal: AbortSignal
   ): Promise<{ content: null | string; plan: GroupAdoptionPlan }> {
+    if (source) {
+      assertBindingNoteAllowed(source, this.host.settings().templateExcludePatterns);
+    }
     const snapshot = await this.scan(signal);
     const content = source ? await this.readNote(source) : null;
     const plan = buildGroupAdoptionPlan({
@@ -415,12 +424,24 @@ export class GroupAdoptionController {
   }
 
   private async assertDestination(plan: GroupAdoptionPlan): Promise<void> {
+    this.assertTemplateScope(plan);
     if (plan.notePath.split('/').some((part) => part.startsWith('.'))) {
       throw new Error('Obsidian cannot manage a note in a hidden path. Choose an existing visible note and bind without moving.');
     }
     await assertSafeNotePath(plan.vaultRoot, plan.notePath);
     if (plan.sourcePath !== plan.notePath && await this.app.vault.adapter.exists(plan.notePath)) {
       throw new Error(`Destination exists: ${plan.notePath}`);
+    }
+  }
+
+  private assertTemplateScope(plan: GroupAdoptionPlan): void {
+    const patterns = buildTemplateExclusionMatcher(this.host.settings().templateExcludePatterns).patterns;
+    if (JSON.stringify(patterns) !== JSON.stringify(plan.templateExcludePatterns ?? [])) {
+      throw new Error('Template exclusion settings changed. Preview again, or restore the original settings before resuming.');
+    }
+    assertBindingNoteAllowed(plan.notePath, patterns);
+    if (plan.sourcePath) {
+      assertBindingNoteAllowed(plan.sourcePath, patterns);
     }
   }
 
@@ -436,11 +457,13 @@ export class GroupAdoptionController {
       }
       await runGroupJournal(journal, {
         marker: async () => {
+          this.assertTemplateScope(plan);
           if (!await inspectGroupMarker(plan.externalRoot, plan.folderPath, plan.uuid)) {
             await writeMarkerToExistingUnmarkedFolder({ externalRootPath: plan.externalRoot, folderPath: plan.folderPath, uuid: plan.uuid });
           }
         },
         move: async (interrupted) => {
+          this.assertTemplateScope(plan);
           if (!plan.sourcePath || plan.sourcePath === plan.notePath) {
             return;
           }
@@ -459,6 +482,7 @@ export class GroupAdoptionController {
           await this.app.fileManager.renameFile(source, plan.notePath);
         },
         note: async () => {
+          this.assertTemplateScope(plan);
           if (!await inspectGroupMarker(plan.externalRoot, plan.folderPath, plan.uuid)) {
             throw new Error('Marker disappeared before the note write.');
           }
@@ -541,6 +565,7 @@ export class GroupAdoptionController {
 
   private async preflightResume(journal: GroupAdoptionJournal, acknowledgedDescendants: readonly string[] = []): Promise<void> {
     const plan = journal.plan;
+    this.assertTemplateScope(plan);
     const roots = this.roots();
     if (
       normalizePathForIdentity(roots.vault) !== normalizePathForIdentity(plan.vaultRoot)
@@ -612,7 +637,10 @@ export class GroupAdoptionController {
 
   private async scan(signal?: AbortSignal): Promise<Awaited<ReturnType<typeof scanAdoptionAudit>>> {
     const roots = this.roots();
-    return scanAdoptionAudit(roots.vault, roots.external, signal ? { signal } : {});
+    return scanAdoptionAudit(roots.vault, roots.external, {
+      ...(signal ? { signal } : {}),
+      templateExcludePatterns: [...(this.host.settings().templateExcludePatterns ?? [])]
+    });
   }
 }
 

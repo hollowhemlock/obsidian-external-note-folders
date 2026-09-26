@@ -9,6 +9,7 @@ import {
   deriveExternalFolderPath,
   normalizePathForIdentity
 } from './pathPolicy.ts';
+import { assertBindingNoteAllowed } from './templateExclusions.ts';
 
 export interface AdoptionNoteChoice {
   aliases: unknown;
@@ -25,6 +26,7 @@ export interface GroupAdoptionPlan {
   notePath: string;
   repair?: boolean;
   sourcePath: null | string;
+  templateExcludePatterns?: string[];
   uuid: string;
   vaultRoot: string;
   warnings: string[];
@@ -61,6 +63,7 @@ export function buildGroupAdoptionPlan(input: {
     throw new Error('Ignored target or invalid ignore settings. Change plugin settings before adoption.');
   }
   const notePath = !note || input.move ? matchingNotePath(scan.externalRoot, folderPath) : note.path;
+  const templateScope = validateTemplateScope(scan, notePath, note);
   const expectedFolder = deriveExternalFolderPath(notePath, scan.externalRoot);
   if ((!note || input.move) && normalizePathForIdentity(expectedFolder) !== normalizePathForIdentity(folderPath)) {
     throw new Error('Proposed note does not map back to this folder. Select an existing note and bind without moving.');
@@ -91,6 +94,7 @@ export function buildGroupAdoptionPlan(input: {
     mutationSequence: input.mutationSequence,
     notePath,
     sourcePath: note?.path ?? null,
+    ...templateScope,
     uuid,
     vaultRoot: scan.vaultRoot,
     warnings
@@ -187,4 +191,13 @@ function validateReservedTargets(
     }
   }
   return descendants;
+}
+
+function validateTemplateScope(scan: AuditSnapshot, notePath: string, note: AdoptionNoteChoice | null): Pick<GroupAdoptionPlan, 'templateExcludePatterns'> {
+  const patterns = scan.templateExclusions?.patterns ?? [];
+  assertBindingNoteAllowed(notePath, patterns);
+  if (note) {
+    assertBindingNoteAllowed(note.path, patterns);
+  }
+  return patterns.length ? { templateExcludePatterns: [...patterns] } : {};
 }

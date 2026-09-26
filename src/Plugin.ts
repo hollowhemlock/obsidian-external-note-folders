@@ -53,6 +53,10 @@ import {
   validateSetupMarkerUniqueness,
   validateSetupRestoration
 } from './core/setupPlan.ts';
+import {
+  assertBindingNoteAllowed,
+  buildTemplateExclusionMatcher
+} from './core/templateExclusions.ts';
 import { generateUnusedCanonicalUuid } from './core/uuid.ts';
 import { buildVerifyReport } from './core/verify.ts';
 import { DriftReportModal } from './DriftReportModal.ts';
@@ -64,6 +68,7 @@ import {
   LEAF_REPORT_VIEW_TYPE,
   LeafReportTab
 } from './obsidian/LeafReportTab.ts';
+import { openPluginSettings } from './obsidian/openPluginSettings.ts';
 import { scanVault } from './obsidian/scanVault.ts';
 import {
   assertNoteUuidMatches,
@@ -139,8 +144,10 @@ export class Plugin extends ObsidianPlugin {
 
   private groupAdoption: GroupAdoptionController | undefined;
   private isMutationInProgress = false;
+  private lastTemplatePatterns = '[]';
   private mutationActivitySequence = 0;
   private mutationSequence = 0;
+  private settingsTab: PluginSettingsTab | undefined;
 
   public override async onload(): Promise<void> {
     await this.loadSettings();
@@ -180,10 +187,15 @@ export class Plugin extends ObsidianPlugin {
           activity: this.mutationActivitySequence,
           sequence: this.mutationSequence
         }),
+        openTemplateSettings: (): void => {
+          openPluginSettings(this.app, this.manifest.id);
+          this.settingsTab?.focusTemplatePatterns();
+        },
         pending: async (): Promise<number> => (await this.groupAdoption?.pending())?.length ?? 0,
         repair: async (folder, direction): Promise<void> => this.groupAdoption?.repair(folder, direction),
         resume: async (): Promise<void> => this.groupAdoption?.showRecovery(),
-        scanPatterns: (): string[] => this.settings.statusSkipIgnored ? [...(this.settings.statusIgnorePatterns ?? [])] : []
+        scanPatterns: (): string[] => this.settings.statusSkipIgnored ? [...(this.settings.statusIgnorePatterns ?? [])] : [],
+        templatePatterns: (): string[] => [...(this.settings.templateExcludePatterns ?? [])]
       }));
     this.register(() => {
       for (const leaf of this.app.workspace.getLeavesOfType(LEAF_REPORT_VIEW_TYPE)) {
@@ -203,7 +215,8 @@ export class Plugin extends ObsidianPlugin {
       name: 'External folder status'
     });
 
-    this.addSettingTab(new PluginSettingsTab(this.app, this));
+    this.settingsTab = new PluginSettingsTab(this.app, this);
+    this.addSettingTab(this.settingsTab);
 
     this.addCommand({
       callback: () => {
@@ -287,16 +300,22 @@ export class Plugin extends ObsidianPlugin {
   }
 
   public async saveSettings(): Promise<void> {
+    const templatePatterns = JSON.stringify(this.settings.templateExcludePatterns ?? []);
+    if (templatePatterns !== this.lastTemplatePatterns) {
+      this.mutationSequence++;
+      this.lastTemplatePatterns = templatePatterns;
+    }
     await this.saveData(this.settings);
   }
 
   private async assertSetupJournalTargetSafe(journal: SetupJournal): Promise<void> {
+    assertBindingNoteAllowed(journal.notePath, this.settings.templateExcludePatterns);
     const inspection = await inspectSetupTarget({
       externalRootPath: journal.externalRootPath,
       ignorePatterns: this.settings.externalRootIgnorePatterns,
       notePath: journal.notePath
     });
-    if (!isSetupResumeTargetSafe(inspection, journal, scanVault(this.app))) {
+    if (!isSetupResumeTargetSafe(inspection, journal, scanVault(this.app, this.settings.templateExcludePatterns))) {
       throw new Error('Expected folder topology, marker identity, or vault UUID ownership changed before setup could continue.');
     }
   }
@@ -314,6 +333,7 @@ export class Plugin extends ObsidianPlugin {
         await assertNoteUuidMatches(this.app, this.getMarkdownFileByPath(row.notePath), uuid);
       },
       writeMarker: async (row, uuid): Promise<void> => {
+        assertBindingNoteAllowed(row.notePath, this.settings.templateExcludePatterns);
         await writeExpectedMarkerIfMissingOrMatching({
           externalRootPath,
           notePath: row.notePath,
@@ -361,6 +381,7 @@ export class Plugin extends ObsidianPlugin {
         await assertNoteUuidMatches(this.app, this.getMarkdownFileByPath(journal.notePath), journal.uuid);
       },
       createFolder: async (journal, resume): Promise<void> => {
+        assertBindingNoteAllowed(journal.notePath, this.settings.templateExcludePatterns);
         await createSetupTargetExclusively(journal.externalRootPath, journal.targetPath, resume);
       },
       writeMarker: async (journal): Promise<void> => {
@@ -392,7 +413,7 @@ export class Plugin extends ObsidianPlugin {
         mutationSequence: this.mutationSequence,
         notePath: activeFile.path,
         notePaths: this.getMarkdownNotePaths(),
-        vaultScan: scanVault(this.app)
+        vaultScan: scanVault(this.app, this.settings.templateExcludePatterns)
       });
     }
 
@@ -407,7 +428,7 @@ export class Plugin extends ObsidianPlugin {
       mutationSequence: this.mutationSequence,
       notePath: activeFile.path,
       notePaths: this.getMarkdownNotePaths(),
-      vaultScan: scanVault(this.app)
+      vaultScan: scanVault(this.app, this.settings.templateExcludePatterns)
     });
     if (plan.action === 'confirm-marker-restore') {
       const externalScan = await this.withProgressModal(
@@ -418,13 +439,13 @@ export class Plugin extends ObsidianPlugin {
             ignorePatterns: this.settings.externalRootIgnorePatterns
           })
       );
-      plan = validateSetupRestoration(plan, externalScan, scanVault(this.app));
+      plan = validateSetupRestoration(plan, externalScan, scanVault(this.app, this.settings.templateExcludePatterns));
     }
     return plan;
   }
 
   private async collectScanContext(): Promise<ScanContext> {
-    const vaultScan = scanVault(this.app);
+    const vaultScan = scanVault(this.app, this.settings.templateExcludePatterns);
     const externalScan = await scanExternalRoot(this.settings.externalRootPath, {
       ignorePatterns: this.settings.externalRootIgnorePatterns
     });
@@ -439,12 +460,13 @@ export class Plugin extends ObsidianPlugin {
   }
 
   private generateUnusedVaultUuid(): string {
-    const vaultScan = scanVault(this.app);
+    const vaultScan = scanVault(this.app, this.settings.templateExcludePatterns);
     const existingUuids = new Set([...vaultScan.bindings.keys(), ...vaultScan.duplicatePaths.keys()]);
     return generateUnusedCanonicalUuid(existingUuids);
   }
 
   private getActiveFileUuidValue(activeFile: TFile): ExnfFrontmatterValue {
+    assertBindingNoteAllowed(activeFile.path, this.settings.templateExcludePatterns);
     const frontmatter = this.app.metadataCache.getFileCache(activeFile)?.frontmatter as
       | Record<string, unknown>
       | undefined;
@@ -477,6 +499,7 @@ export class Plugin extends ObsidianPlugin {
   }
 
   private getMarkdownFileByPath(notePath: string): TFile {
+    assertBindingNoteAllowed(notePath, this.settings.templateExcludePatterns);
     const file = this.app.vault.getAbstractFileByPath(notePath);
     if (!(file instanceof TFile) || file.extension !== 'md') {
       throw new Error(`Markdown note not found: ${notePath}`);
@@ -486,8 +509,10 @@ export class Plugin extends ObsidianPlugin {
   }
 
   private getMarkdownNotePaths(): string[] {
+    const templates = buildTemplateExclusionMatcher(this.settings.templateExcludePatterns);
     return this.app.vault.getMarkdownFiles()
       .map((file) => file.path)
+      .filter((notePath) => !templates.ignoresRelativeFilePath(notePath))
       .sort();
   }
 
@@ -532,8 +557,12 @@ export class Plugin extends ObsidianPlugin {
     this.settings = {
       ...DEFAULT_SETTINGS,
       ...loadedData,
-      externalRootIgnorePatterns
+      externalRootIgnorePatterns,
+      templateExcludePatterns: Array.isArray(loadedData?.templateExcludePatterns)
+        ? loadedData.templateExcludePatterns.filter((pattern): pattern is string => typeof pattern === 'string')
+        : []
     };
+    this.lastTemplatePatterns = JSON.stringify(this.settings.templateExcludePatterns ?? []);
   }
 
   private logError(message: string, error: unknown, details?: Record<string, unknown>): void {
@@ -618,6 +647,7 @@ export class Plugin extends ObsidianPlugin {
       },
       onAdoptExpected: async (): Promise<void> => {
         await this.runMutatingCommand('adopt the expected external folder', async () => {
+          assertBindingNoteAllowed(plan.notePath, this.settings.templateExcludePatterns);
           const result = await writeExpectedMarkerIfUnmarked({
             externalRootPath: plan.externalRootPath,
             notePath: plan.notePath,
@@ -634,6 +664,7 @@ export class Plugin extends ObsidianPlugin {
       },
       onCreateExpected: async (): Promise<void> => {
         await this.runMutatingCommand('create the expected external folder', async () => {
+          assertBindingNoteAllowed(plan.notePath, this.settings.templateExcludePatterns);
           const folderResult = await ensureExpectedBoundExternalFolder({
             createIfMissing: true,
             externalRootPath: plan.externalRootPath,
@@ -834,7 +865,7 @@ export class Plugin extends ObsidianPlugin {
 
     await this.runMutatingCommand('assign an external folder UUID', async () => {
       try {
-        const vaultScan = scanVault(this.app);
+        const vaultScan = scanVault(this.app, this.settings.templateExcludePatterns);
         const existingUuids = new Set([
           ...vaultScan.bindings.keys(),
           ...vaultScan.duplicatePaths.keys()
@@ -1065,7 +1096,7 @@ export class Plugin extends ObsidianPlugin {
           'Searching for the external folder',
           `${describeRecoveryReason(initialAction.expectedState)} ${RECOVERY_SEARCH_DESCRIPTION}`,
           async () => {
-            const vaultScan = scanVault(this.app);
+            const vaultScan = scanVault(this.app, this.settings.templateExcludePatterns);
             const externalScan = await scanExternalRoot(externalRootPath, {
               ignorePatterns: this.settings.externalRootIgnorePatterns
             });
@@ -1307,7 +1338,7 @@ export class Plugin extends ObsidianPlugin {
         new Notice('Cannot resume setup because the note identity changed. Inspect the setup journal.');
         return false;
       }
-      const vaultScan = scanVault(this.app);
+      const vaultScan = scanVault(this.app, this.settings.templateExcludePatterns);
       const ownerPath = vaultScan.bindings.get(journal.uuid);
       if (vaultScan.duplicatePaths.has(journal.uuid) || (ownerPath && ownerPath !== journal.notePath)) {
         new Notice('Cannot resume setup because its UUID now belongs to another vault note.');

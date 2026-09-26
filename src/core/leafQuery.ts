@@ -39,6 +39,7 @@ export interface LeafReportModel {
   rows: LeafRow[];
   stale?: boolean;
   startedAt: string;
+  templateExclusionSummary?: string;
   tree?: LeafTreeNode[];
   uncheckedCount: number;
   vaultRoot: string;

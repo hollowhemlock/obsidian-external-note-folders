@@ -11,7 +11,7 @@ governs autonomy boundaries only; it does not define product behavior.
 
 Use this order when deciding whether an agent may act autonomously:
 
-1. Current user, system, and developer instructions for the task.
+1. Current system, developer, and user instructions for the task, in that precedence order.
 2. [Product Intent](../product/intent.md) for high-level product direction.
 3. Accepted ADRs for architectural and safety decisions.
 4. Repository procedures, including this policy and the review gate.

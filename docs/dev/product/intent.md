@@ -79,8 +79,9 @@ The main workflow is active-note driven:
    existing one.
 3. Ordinary missing-folder setup uses targeted checks and opens immediately after a journaled bind.
 4. Imported marker restoration uses explicit confirmation and complete UUID uniqueness evidence.
-5. Root-wide diagnosis and repair remain explicit commands: drift report, adoption, reconcile, and
-   migration.
+5. Root-wide diagnosis and repair remain explicit commands: External folder status, drift report,
+   adoption, reconcile, and migration. The status window also supports previewed single-folder
+   adoption and selected binding repairs; it does not perform automatic synchronization.
 
 References:
 
@@ -94,6 +95,12 @@ References:
 
 The vault is the source of truth for note identity. External folders reflect vault identity; they do
 not define it.
+
+Users may explicitly declare template sources outside the binding scope with
+vault-relative exclusion patterns. Excluded files cannot own bindings, including
+when they contain `exnf`; eligible vault notes remain authoritative. Reports
+disclose this scope, and scans and mutation preflights apply it consistently.
+See [ADR-0033](../adr/0033-explicit-template-exclusions.md).
 
 External state may be incomplete, unavailable, stale, or reorganized outside Obsidian. That state is
 not used to automatically rewrite vault identity. One exact-path imported marker identity may be
@@ -220,6 +227,8 @@ References:
 | Adopt exact-path external folders | Bind deepest exact safe note/folder matches in mixed roots without creating nested bindings. | Whole-plan confirmation, marker first, frontmatter second, journaled, row-local safe. | [ADR-0026](../adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md) |
 | Suggest moved external folder matches | Surface equivalently named unassigned notes and unmarked folders whose relative paths diverged without treating a name as identity. | Read-only; unique among checked eligible paths; never adopts, writes, or moves. | [ADR-0030](../adr/0030-read-only-moved-folder-name-suggestions.md) |
 | Report external folder drift | Explain current vault/external-root mismatch without mutation. | Read-only. | [ADR-0009](../adr/0009-status-model.md), [ADR-0028](../adr/0028-core-fixture-semantics-with-cli-smoke.md) |
+| External folder status | Inspect physical folders, note/marker evidence, scan coverage, and optional expected paths in a shared tree. | Scanning and HTML are read-only; Obsidian adoption and selected repairs require fresh checks and explicit confirmation. Command-specific exclusions apply only to this report scan. | [Status window](../../../README.md#external-folder-status), [ADR-0008](../adr/0008-no-reverse-reconciliation.md), [ADR-0032](../adr/0032-explicit-folder-group-adoption.md) |
+| Resume folder adoption… | Keep pending single-folder operations reachable independently of report rows. | Revalidates journal evidence; never blindly repeats an uncertain note rename. | [ADR-0032](../adr/0032-explicit-folder-group-adoption.md) |
 | Reconcile external folders | Move existing bound folders to current note-derived paths. | Dry-run first, explicit confirmation, journaled, no delete, no overwrite. | [ADR-0006](../adr/0006-reconcile-is-explicit.md), [ADR-0011](../adr/0011-reconcile-execution-safety-model.md), [ADR-0022](../adr/0022-reconcile-planner-and-execution-contract.md) |
 | Migrate legacy marker files | Move users from fixed `.exnf` markers to `<uuid>.exnf` markers. | Dry-run first, explicit confirmation, journaled, no overwrite. | [ADR-0027](../adr/0027-uuid-named-marker-files.md) |
 
