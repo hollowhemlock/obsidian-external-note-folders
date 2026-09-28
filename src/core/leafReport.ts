@@ -67,7 +67,9 @@ export function* buildLeafReportSteps(snapshot: AuditSnapshot): Generator<void, 
   // Status analysis may add virtual expected paths.
   const tree = allNodes.filter((node) => node !== rootFolder);
   const coverage = yield* folderInspectionSteps(snapshot, allNodes, rootFolder);
+  const statusCoverage = yield* statusCoverageSteps(snapshot, allNodes);
   return {
+    ...statusCoverage,
     caseSensitivePaths: normalizePathForIdentity('A') !== normalizePathForIdentity('a'),
     coverage,
     externalRoot: snapshot.externalRoot,
@@ -81,4 +83,31 @@ export function* buildLeafReportSteps(snapshot: AuditSnapshot): Generator<void, 
     uncheckedCount: snapshot.issues.filter((issue) => issue.unchecked).length,
     vaultRoot: snapshot.vaultRoot
   };
+}
+
+function* statusCoverageSteps(snapshot: AuditSnapshot, allNodes: import('./leafTree.ts').LeafTreeNode[]): Generator<void, Partial<LeafReportModel>> {
+  const uncheckedBindings: string[] = [];
+  if (snapshot.statusScanMode) {
+    for (const node of allNodes) {
+      yield;
+      if (node.unchecked || node.kind === 'excluded' || node.kind === 'link') {
+        node.hiddenByCoverage = true;
+        for (const note of node.notes) {
+          if (note.status === 'valid' || note.status === 'duplicate-uuid') {
+            const boundary = snapshot.issues.find((issue) =>
+              issue.scope === 'external' && issue.unchecked && (node.folderPath === issue.location || node.folderPath.startsWith(issue.location + path.sep))
+            );
+            uncheckedBindings.push(`${note.notePath} → ${node.folderPath}: ${boundary?.reason ?? node.evidence?.status ?? 'Unchecked'}`);
+          }
+        }
+      }
+    }
+  }
+  const excludedCount = snapshot.external.ignoredDirectories.length;
+  const linkCount = snapshot.issues.filter((issue) => issue.scope === 'external' && issue.kind === 'link').length;
+  const unreadableCount = snapshot.issues.filter((issue) => issue.scope === 'external' && issue.kind === 'directory' && !issue.exclusionSource).length;
+  const scanSummary = `${snapshot.statusScanMode === 'filtered' ? 'Filtered' : 'Unfiltered'} external scan · ${String(excludedCount)} excluded branches · ${
+    String(unreadableCount)
+  } unreadable directories · ${String(linkCount)} skipped links`;
+  return snapshot.statusScanMode ? { scanSummary, statusScanMode: snapshot.statusScanMode, uncheckedBindings } : {};
 }

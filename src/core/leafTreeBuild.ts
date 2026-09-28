@@ -120,9 +120,11 @@ function* attachEvidence(snapshot: AuditSnapshot, nodes: Map<string, LeafTreeNod
       continue;
     }
     let node = nodes.get(normalizePathForIdentity(issue.location));
-    if (issue.kind === 'link') {
+    if (issue.kind === 'link' || issue.kind === 'directory') {
       node = ensure(issue.location);
-      node.kind = 'link';
+      if (issue.kind === 'link') {
+        node.kind = 'link';
+      }
     }
     node ??= nodes.get(normalizePathForIdentity(path.dirname(issue.location)));
     if (node) {

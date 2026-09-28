@@ -49,7 +49,7 @@ export class PluginSettingsTab extends PluginSettingTab {
       .setName('External root ignore patterns')
       .setDesc(
         // eslint-disable-next-line obsidianmd/ui/sentence-case -- Exact command name.
-        'Newline-separated .gitignore-style patterns relative to the external root. Applies to setup, adoption, recovery, and reconcile scans; External folder status has separate settings. Negation patterns are not supported.'
+        'Newline-separated .gitignore-style patterns relative to the external root. Applies to setup, adoption, recovery, reconcile, and filtered External folder status scans. Negation is not supported in this setting. Status additionally follows repository and global Git ignore files with full Git syntax.'
       )
       .addTextArea((textArea) => {
         textArea
@@ -82,31 +82,6 @@ export class PluginSettingsTab extends PluginSettingTab {
           });
       });
 
-    new Setting(containerEl).setName('External folder status — this command only').setHeading();
-    const statusValidation = containerEl.createEl('p');
-    new Setting(containerEl).setName('Ignored folder patterns')
-      // eslint-disable-next-line obsidianmd/ui/sentence-case -- Exact command name.
-      .setDesc('Only for External folder status. Directory patterns match at any depth; one per line. Does not affect other commands.')
-      .addTextArea((text) =>
-        text.setValue((this.plugin.settings.statusIgnorePatterns ?? []).join('\n')).onChange(async (value) => {
-          const patterns = value.split(/\r?\n/u).map((item) => item.trim()).filter(Boolean);
-          const validation = normalizeExternalRootIgnorePatterns(patterns);
-          statusValidation.setText(validation.errors.map((error) => error.message).join('; '));
-          this.plugin.settings.statusIgnorePatterns = patterns;
-          await this.plugin.saveSettings();
-        })
-      );
-    new Setting(containerEl).setName('Skip scanning ignored folders')
-      .setDesc(
-        // eslint-disable-next-line obsidianmd/ui/sentence-case -- Exact command name.
-        'Skip matching folders to reduce scan time. Turn this off to scan them for .exnf markers that may have ended up there unexpectedly. Applies only to External folder status. Changes apply on refresh.'
-      )
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.statusSkipIgnored ?? false).onChange(async (value) => {
-          this.plugin.settings.statusSkipIgnored = value;
-          await this.plugin.saveSettings();
-        })
-      );
     new Setting(containerEl)
       .setName('Dry-run reconcile by default')
       .setDesc('Show a reconcile plan before any external folders can be moved.')

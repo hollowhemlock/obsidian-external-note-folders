@@ -142,6 +142,8 @@ Maintenance guidance lives in [Testing Strategy](README.md).
 | R27 | Imported marker UUID also occurs elsewhere in the checked root | Restoration blocker |
 | R28 | Restoration scan has skipped or inaccessible evidence | Uniqueness cannot be proven; block |
 | R29 | Restoration scan excludes configured ignored directories | Intentional blind spot disclosed in confirmation |
+| R30 | Status scan excludes directories using Git rules and shared patterns | Hidden branches retain coverage, binding warnings, and adoption restrictions |
+| R31 | Git filtering fails or is unavailable | Filtered scan fails; previous snapshot retained; explicit unfiltered scan remains available |
 
 ### Journal And Execution State
 

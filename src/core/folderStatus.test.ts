@@ -29,6 +29,30 @@ function fixture(notePath = 'Elsewhere.md'): { folder: string; scan: ReturnType<
   return { folder, scan };
 }
 describe('folder status evidence', () => {
+  it('hides unreadable boundaries without hiding marker warnings or relaxing parent restrictions', () => {
+    const { scan } = fixture('Folder.md');
+    scan.statusScanMode = 'filtered';
+    const boundary = path.join(scan.externalRoot, 'Parent/Unreadable');
+    scan.folders.push(path.join(scan.externalRoot, 'Parent'), boundary);
+    scan.issues.push({ kind: 'directory', location: boundary, reason: 'Directory could not be fully read.', scope: 'external', unchecked: true });
+    scan.issues.push({
+      kind: 'marker',
+      location: path.join(scan.externalRoot, 'Folder/.exnf'),
+      reason: 'Unreadable marker',
+      scope: 'external',
+      unchecked: true
+    });
+    const model = buildLeafReport(scan);
+    const parent = model.tree?.find((node) => node.relativePath === 'Parent');
+    const unreadable = model.tree?.find((node) => node.folderPath === boundary);
+    const marked = model.tree?.find((node) => node.relativePath === 'Folder');
+    expect(parent?.blocked).toBe(true);
+    expect(parent?.evidence?.physicalLeaf).toBe(false);
+    expect(unreadable?.hiddenByCoverage).toBe(true);
+    expect(marked?.hiddenByCoverage).not.toBe(true);
+    expect(queryTree(model, DEFAULT_TREE_QUERY).visible.has(marked!.id)).toBe(true);
+  });
+
   it.each([
     ['valid', true, false, 'Contains bound subfolders'],
     ['valid', false, false, 'Contains descendant markers'],

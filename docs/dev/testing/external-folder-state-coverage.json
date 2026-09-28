@@ -436,6 +436,19 @@
         "J12"
       ],
       "notes": "Covers marker migration execution writing a journal and stopping with failure entries when live marker state invalidates the plan."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "status",
+      "scenario": "repository-ignore-coverage",
+      "testPath": "src/storage/gitStatusIgnore.test.ts",
+      "stateIds": [
+        "R30",
+        "R31",
+        "R12",
+        "V14"
+      ],
+      "notes": "ADR-0034: real Git rules, tracked descendants, repository boundaries, hidden coverage, and fatal failures. Protocol cleanup and snapshot retention also have co-located unit tests."
     }
   ],
   "plannedCoverage": [

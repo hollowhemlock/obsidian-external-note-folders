@@ -194,7 +194,7 @@ export class Plugin extends ObsidianPlugin {
         pending: async (): Promise<number> => (await this.groupAdoption?.pending())?.length ?? 0,
         repair: async (folder, direction): Promise<void> => this.groupAdoption?.repair(folder, direction),
         resume: async (): Promise<void> => this.groupAdoption?.showRecovery(),
-        scanPatterns: (): string[] => this.settings.statusSkipIgnored ? [...(this.settings.statusIgnorePatterns ?? [])] : [],
+        scanPatterns: (): string[] => [...this.settings.externalRootIgnorePatterns],
         templatePatterns: (): string[] => [...(this.settings.templateExcludePatterns ?? [])]
       }));
     this.register(() => {
@@ -556,8 +556,9 @@ export class Plugin extends ObsidianPlugin {
       : DEFAULT_SETTINGS.externalRootIgnorePatterns;
     this.settings = {
       ...DEFAULT_SETTINGS,
-      ...loadedData,
+      dryRunByDefault: loadedData?.dryRunByDefault ?? DEFAULT_SETTINGS.dryRunByDefault,
       externalRootIgnorePatterns,
+      externalRootPath: loadedData?.externalRootPath ?? DEFAULT_SETTINGS.externalRootPath,
       templateExcludePatterns: Array.isArray(loadedData?.templateExcludePatterns)
         ? loadedData.templateExcludePatterns.filter((pattern): pattern is string => typeof pattern === 'string')
         : []

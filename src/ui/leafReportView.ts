@@ -69,6 +69,7 @@ export interface LeafReportHost {
   openTemplateSettings?: () => void;
   refresh?: () => Promise<void>;
   repair?: (folder: string, direction: 'external' | 'note') => Promise<void>;
+  rescanUnfiltered?: () => Promise<void>;
   resume?: () => Promise<void>;
 }
 export interface LeafReportView {
@@ -206,7 +207,16 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     jump = undefined;
     await refilter();
   });
-  const refresh = host.refresh ? action('Refresh', topActions, host.refresh) : undefined;
+  const refresh = host.refresh ? action('Rescan excluding ignored folders', topActions, host.refresh) : undefined;
+  const unfiltered = unfilteredButton();
+  function unfilteredButton(): HTMLButtonElement | undefined {
+    if (!host.rescanUnfiltered) {
+      return undefined;
+    }
+    const button = action('Rescan entire external directory without filters', topActions, host.rescanUnfiltered);
+    button.title = 'Bypass external scan exclusions. Template exclusions and filesystem restrictions still apply.';
+    return button;
+  }
   const cancel = host.cancel ? action('Cancel', topActions, host.cancel) : undefined;
   if (cancel) {
     cancel.hidden = true;
@@ -312,6 +322,9 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     status.textContent = message;
     if (refresh) {
       refresh.disabled = busy;
+    }
+    if (unfiltered) {
+      unfiltered.disabled = busy;
     }
     if (cancel) {
       cancel.hidden = !busy;
@@ -424,7 +437,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     }
   }
   async function jumpTo(node: LeafTreeNode): Promise<void> {
-    if (!result) {
+    if (!result || node.hiddenByCoverage) {
       return;
     }
     jump = { navigation: jump?.navigation ?? tree.capture(), targetId: node.id };
@@ -698,7 +711,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       statusFilter.value = query.status ?? '';
       rootLabel.textContent = next.externalRoot;
       const completedAt = new Date(next.finishedAt);
-      scanTimestamp.textContent = `Physical audit · Last scanned: ${Number.isNaN(completedAt.getTime()) ? next.finishedAt : completedAt.toLocaleString()}`;
+      scanTimestamp.textContent = `${scanLabel(next)} · Last scanned: ${Number.isNaN(completedAt.getTime()) ? next.finishedAt : completedAt.toLocaleString()}`;
       adoptions.clear();
       for (const [folder, note] of retained) {
         adoptions.set(folder, note);
@@ -706,20 +719,28 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       context.textContent = `Vault: ${next.vaultRoot}\nExternal root: ${next.externalRoot}\nScanned: ${next.startedAt} – ${next.finishedAt}\nCoverage: ${
         next.uncheckedCount > 0 ? 'incomplete' : 'complete'
       }`;
-      context.textContent += next.templateExclusionSummary ? `\n${next.templateExclusionSummary}` : '';
+      context.textContent += extraScanContext(next);
       scanIssues.replaceChildren();
       paged(scanIssues, next.coverage?.issues ?? [], (issue) => {
         element('p', `${issue.scope} · ${issue.kind}\n${issue.location}\n${issue.reason}`, scanIssues, 'leaf-context');
       });
       warning.textContent = [
+        ...(next.uncheckedBindings ?? []),
         next.stale ? 'This snapshot predates mutations. Refresh to update results and counts.' : '',
         next.mutationWarning ? 'Results may not reflect in-progress mutations.' : '',
         next.uncheckedCount > 0
-          ? `${next.uncheckedCount.toLocaleString()} unchecked items. Unchecked locations remain visible; unscanned areas may contain additional folders.`
+          ? `${next.uncheckedCount.toLocaleString()} unchecked items. See Scan details for unchecked locations; unscanned areas may contain additional folders.`
           : ''
       ].filter(Boolean).join(' ');
       warning.hidden = warning.textContent.length === 0;
       await applyResult(filtered, order, adoptable, reset);
     }
   };
+}
+
+function extraScanContext(model: LeafReportModel): string {
+  return [model.scanSummary, model.templateExclusionSummary].filter((text): text is string => typeof text === 'string').map((text) => `\n${text}`).join('');
+}
+function scanLabel(model: LeafReportModel): string {
+  return model.scanSummary ?? 'Physical audit';
 }

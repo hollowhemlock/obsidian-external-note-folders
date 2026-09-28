@@ -29,6 +29,23 @@ function fixture() {
 }
 
 describe('audit tab session', () => {
+  it('defaults to filtered scans, preserves successful mode on failure, and discloses an empty first failure', async () => {
+    const { host, session, snapshot } = fixture();
+    host.scan.mockRejectedValueOnce(new Error('Git filtering failed'));
+    await session.refresh();
+    expect(host.status).toHaveBeenLastCalledWith(expect.stringContaining('No completed scan.'), false);
+    expect(host.scan).toHaveBeenLastCalledWith(expect.objectContaining({ statusScanMode: 'filtered' }));
+    snapshot.statusScanMode = 'unfiltered';
+    await session.refresh('unfiltered');
+    expect(host.scan).toHaveBeenLastCalledWith(expect.objectContaining({ statusScanMode: 'unfiltered' }));
+    const previous = session.snapshot;
+    host.scan.mockRejectedValueOnce(new Error('Git filtering failed after partial scanning'));
+    await session.refresh();
+    expect(session.snapshot).toBe(previous);
+    expect(session.snapshot?.statusScanMode).toBe('unfiltered');
+    expect(host.update).toHaveBeenCalledTimes(1);
+  });
+
   it('retains the completed snapshot on failed, cancelled and unreadable-root refresh', async () => {
     const { host, session, snapshot } = fixture();
 

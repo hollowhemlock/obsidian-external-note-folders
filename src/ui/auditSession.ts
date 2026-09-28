@@ -35,7 +35,7 @@ export class AuditSession {
     this.cancel();
   }
 
-  public async refresh(): Promise<void> {
+  public async refresh(statusScanMode: import('../core/auditTypes.ts').StatusScanMode = 'filtered'): Promise<void> {
     if (this.controller || this.isDisposed()) {
       return;
     }
@@ -56,7 +56,8 @@ export class AuditSession {
             true
           );
         },
-        signal: controller.signal
+        signal: controller.signal,
+        statusScanMode
       });
       controller.signal.throwIfAborted();
       if (snapshot.issues.some((issue) => issue.unchecked && (issue.location === snapshot.vaultRoot || issue.location === snapshot.externalRoot))) {
@@ -78,8 +79,8 @@ export class AuditSession {
       if (!this.isDisposed()) {
         this.host.status(
           controller.signal.aborted
-            ? 'Scan cancelled. Previous results retained.'
-            : `Scan failed. Previous results retained. ${error instanceof Error ? error.message : ''}`,
+            ? `Scan cancelled. ${this.snapshot ? 'Previous results retained.' : 'No completed scan.'}`
+            : `Scan failed. ${this.snapshot ? 'Previous results retained.' : 'No completed scan.'} ${error instanceof Error ? error.message : ''}`,
           false
         );
       }

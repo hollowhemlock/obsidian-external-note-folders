@@ -15,6 +15,7 @@ import type {
   AuditNote,
   AuditScan
 } from '../core/auditTypes.ts';
+import type { GitIgnoreRepository } from './gitStatusIgnore.ts';
 
 import { buildExternalRootIgnoreMatcher } from '../core/externalRootIgnore.ts';
 import { getExnfFrontmatterValue } from '../core/frontmatter.ts';
@@ -24,6 +25,10 @@ import {
 } from '../core/marker.ts';
 import { registerUuidBinding } from '../core/scanResult.ts';
 import { buildTemplateExclusionMatcher } from '../core/templateExclusions.ts';
+import {
+  GitFilteringError,
+  GitStatusIgnore
+} from './gitStatusIgnore.ts';
 
 export type { AuditScan } from '../core/auditTypes.ts';
 
@@ -33,11 +38,13 @@ export interface AuditScanOptions {
   ignorePatterns?: readonly string[];
   onProgress?: (counts: { directories: number; markers: number; notes: number }) => void;
   signal?: AbortSignal;
+  statusScanMode?: import('../core/auditTypes.ts').StatusScanMode;
   templateExcludePatterns?: readonly string[];
 }
 
 export async function scanAdoptionAudit(vaultRoot: string, externalRoot: string, options: AuditScanOptions = {}): Promise<AuditScan> {
   const scan: AuditScan = {
+    ...(options.statusScanMode ? { statusScanMode: options.statusScanMode } : {}),
     external: {
       accessErrors: [],
       bindings: new Map(),
@@ -62,7 +69,7 @@ export async function scanAdoptionAudit(vaultRoot: string, externalRoot: string,
     vault: { bindings: new Map(), duplicatePaths: new Map(), invalidFrontmatter: [] },
     vaultRoot: path.resolve(vaultRoot)
   };
-  const matcher = buildExternalRootIgnoreMatcher(scan.externalRoot, options.ignorePatterns ?? []);
+  const matcher = buildExternalRootIgnoreMatcher(scan.externalRoot, options.statusScanMode === 'unfiltered' ? [] : options.ignorePatterns ?? []);
   if (matcher.errors.length) {
     // Reject configuration before scanning either root.
     throw new Error('Invalid status ignore patterns.');
@@ -70,8 +77,15 @@ export async function scanAdoptionAudit(vaultRoot: string, externalRoot: string,
   scan.external.ignorePatterns = matcher.patterns;
   const templates = buildTemplateExclusionMatcher(options.templateExcludePatterns);
   scan.templateExclusions = { paths: [], patterns: templates.patterns };
-  await walk(scan.vaultRoot, 'vault', scan, options, matcher, templates);
-  await walk(scan.externalRoot, 'external', scan, options, matcher, templates);
+  const git = options.statusScanMode === 'filtered' ? new GitStatusIgnore(options.signal) : undefined;
+  try {
+    const repository = await git?.initialize(scan.externalRoot) ?? null;
+    await walk(scan.vaultRoot, 'vault', scan, options, matcher, templates);
+    await walk(scan.externalRoot, 'external', scan, options, matcher, templates, git, repository);
+    await git?.finish();
+  } finally {
+    git?.dispose();
+  }
   options.signal?.throwIfAborted();
   scan.external.directories = scan.folders;
   scan.finishedAt = new Date().toISOString();
@@ -101,9 +115,10 @@ function recordUnchecked(
   reason: string,
   scope: 'external' | 'vault',
   scan: AuditScan,
-  kind: 'directory' | 'link' | 'marker' = 'directory'
+  kind: 'directory' | 'link' | 'marker' = 'directory',
+  exclusionSource?: 'git' | 'metadata' | 'settings'
 ): void {
-  scan.issues.push({ kind, location, reason, scope, unchecked: true });
+  scan.issues.push({ kind, location, reason, scope, unchecked: true, ...(exclusionSource ? { exclusionSource } : {}) });
   if (scope === 'external') {
     const issues = location === scan.externalRoot ? scan.external.accessErrors : scan.external.skippedDirectories;
     issues.push({ location, message: reason });
@@ -215,7 +230,9 @@ async function walk(
   scan: AuditScan,
   options: AuditScanOptions,
   matcher: ReturnType<typeof buildExternalRootIgnoreMatcher>,
-  templates: ReturnType<typeof buildTemplateExclusionMatcher>
+  templates: ReturnType<typeof buildTemplateExclusionMatcher>,
+  git?: GitStatusIgnore,
+  repository: GitIgnoreRepository | null = null
 ): Promise<void> {
   try {
     options.signal?.throwIfAborted();
@@ -225,7 +242,12 @@ async function walk(
       && matcher.ignoresAbsoluteDirectoryPath(directory)
     ) {
       scan.external.ignoredDirectories.push({ folderPath: directory, relativePath: path.relative(scan.externalRoot, directory) });
-      recordUnchecked(directory, 'Excluded from scan by command-specific patterns.', scope, scan);
+      recordUnchecked(directory, 'Excluded from scan by shared external-folder patterns.', scope, scan, 'directory', 'settings');
+      return;
+    }
+    if (git && directory !== scan.externalRoot && path.basename(directory) === '.git') {
+      scan.external.ignoredDirectories.push({ folderPath: directory, relativePath: path.relative(scan.externalRoot, directory) });
+      recordUnchecked(directory, 'Git metadata excluded from filtered status scans.', scope, scan, 'directory', 'metadata');
       return;
     }
     const info = await lstat(directory);
@@ -233,31 +255,59 @@ async function walk(
       recordUnchecked(directory, 'Symbolic link or junction was not followed.', scope, scan, 'link');
       return;
     }
-    const entries = await readdir(directory, { withFileTypes: true });
-    entries.sort((a, b) => a.name.localeCompare(b.name));
-    for (const entry of entries) {
-      options.signal?.throwIfAborted();
-      const entryPath = path.join(directory, entry.name);
-      if (excludeTemplatePath(scope, entryPath, entry.isDirectory(), scan, templates)) {
-        continue;
+    if (git) {
+      const reason = directory === scan.externalRoot ? null : await repository?.ignores(directory);
+      if (reason) {
+        scan.external.ignoredDirectories.push({ folderPath: directory, relativePath: path.relative(scan.externalRoot, directory) });
+        recordUnchecked(directory, reason, scope, scan, 'directory', 'git');
+        return;
       }
-      if (entry.isSymbolicLink()) {
-        recordUnchecked(entryPath, 'Symbolic link or junction was not followed.', scope, scan, 'link');
-      } else if (entry.isDirectory()) {
-        if (scope === 'external') {
-          scan.folders.push(entryPath);
-        }
-        await walk(entryPath, scope, scan, options, matcher, templates);
-      } else if (entry.isFile()) {
-        if (scope === 'vault' && entry.name.toLowerCase().endsWith('.md')) {
-          await scanNote(entryPath, scan);
-        } else if (scope === 'external' && entry.name.toLowerCase().endsWith('.exnf')) {
-          await scanMarker(entryPath, scan);
-        }
+      repository = await git.context(directory, repository);
+    }
+    await walkEntries(directory, scope, scan, options, matcher, templates, git, repository);
+    if (repository?.root === directory) {
+      await repository.finish();
+    }
+  } catch (error: unknown) {
+    options.signal?.throwIfAborted();
+    if (error instanceof GitFilteringError) {
+      throw error;
+    }
+    recordUnchecked(directory, 'Directory could not be fully read.', scope, scan);
+  }
+}
+
+async function walkEntries(
+  directory: string,
+  scope: 'external' | 'vault',
+  scan: AuditScan,
+  options: AuditScanOptions,
+  matcher: ReturnType<typeof buildExternalRootIgnoreMatcher>,
+  templates: ReturnType<typeof buildTemplateExclusionMatcher>,
+  git?: GitStatusIgnore,
+  repository: GitIgnoreRepository | null = null
+): Promise<void> {
+  const entries = await readdir(directory, { withFileTypes: true });
+  entries.sort((a, b) => a.name.localeCompare(b.name));
+  for (const entry of entries) {
+    options.signal?.throwIfAborted();
+    const entryPath = path.join(directory, entry.name);
+    if (excludeTemplatePath(scope, entryPath, entry.isDirectory(), scan, templates)) {
+      continue;
+    }
+    if (entry.isSymbolicLink()) {
+      recordUnchecked(entryPath, 'Symbolic link or junction was not followed.', scope, scan, 'link');
+    } else if (entry.isDirectory()) {
+      if (scope === 'external') {
+        scan.folders.push(entryPath);
+      }
+      await walk(entryPath, scope, scan, options, matcher, templates, git, repository);
+    } else if (entry.isFile()) {
+      if (scope === 'vault' && entry.name.toLowerCase().endsWith('.md')) {
+        await scanNote(entryPath, scan);
+      } else if (scope === 'external' && entry.name.toLowerCase().endsWith('.exnf')) {
+        await scanMarker(entryPath, scan);
       }
     }
-  } catch {
-    options.signal?.throwIfAborted();
-    recordUnchecked(directory, 'Directory could not be fully read.', scope, scan);
   }
 }

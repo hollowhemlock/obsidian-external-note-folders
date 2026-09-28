@@ -30,7 +30,7 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 - `Adopt exact-path external folders`: Builds a leaf-first dry-run plan for exact derived-path matches from notes that do not already have `exnf` identity. When exact candidates overlap, only the deepest candidates are eligible, and targets overlapping an already-identified note or marked folder are blocked, so adoption never creates nested identities or bound folders. After confirmation, the command writes `<uuid>.exnf` markers first and note frontmatter second. The legacy command ID remains unchanged so existing hotkeys continue to work.
 - `Suggest moved external folder matches`: Builds a read-only report of unassigned notes and unmarked external folders with identical literal names but divergent relative paths. Only names that are unique among checked eligible paths are suggested; ambiguous names are summarized, and ignored or skipped subtrees are explicitly unchecked. This command never assigns UUIDs, writes markers, moves folders, or adopts a suggestion.
 - `Report external folder drift`: Read-only report that compares current note-derived external folder paths against existing external folders, highlights integrity errors, missing/orphaned/unexpected/occupied paths, and suggests likely matches.
-- `External folder status`: Opens or focuses the shared status tree for the active vault and external root. Defaults to scanning and showing all folders. Command-specific settings optionally exclude branches from scanning. Inspect exact-path, YAML, and marker evidence; preview adoption or a selected binding repair before confirming. Refresh explicitly to rescan; Cancel retains the previous result. The existing command ID and hotkeys remain unchanged.
+- `External folder status`: Opens or focuses the shared status tree for the active vault and external root. Defaults to filtering external folders using shared exclusions and repository Git ignore rules. Use the explicit unfiltered rescan for exhaustive external discovery. Inspect exact-path, YAML, and marker evidence; preview adoption or a selected binding repair before confirming. Refresh explicitly to rescan; Cancel retains the previous result. The existing command ID and hotkeys remain unchanged.
 - `Resume folder adoption…`: Lists pending single-folder operations, even when their markers hide them from the unmarked report. Revalidates before resuming. An uncertain rename requires manual inspection of note locations and links before verifying completion.
 - `Reconcile external folders`: Builds a dry-run move plan and, only after explicit confirmation, moves existing bound external folders to their current note-derived paths. It never deletes folders or marker files and stops on first failure.
 - `Migrate legacy marker files`: Builds a dry-run plan that renames legacy fixed `.exnf` markers to `<uuid>.exnf` and executes only after explicit confirmation.
@@ -496,8 +496,9 @@ counts and explain why adopting the entire parent would create a nested binding.
 The parent can remain an ordinary container; its local `marker` tag stays absent.
 The adoption restrictions list names the affected paths and offers navigation.
 
-**Refresh** and **Export** sit beside the page title, with the last completed scan
-time below. **All folders**, **Adoptable leaves**, and **Needs review** are quick
+**Rescan excluding ignored folders**, **Rescan entire external directory without filters**,
+and **Export** sit beside the page title. The completed scan mode, time, excluded
+branch count, unreadable directories, and skipped links appear below. **All folders**, **Adoptable leaves**, and **Needs review** are quick
 views. Choosing one preserves search, status, and category filters and resets the
 advanced folder scope to all scanned folders. Adoptable leaves includes only
 physical leaves with no known adoption blocker; context ancestors remain visible.
@@ -616,14 +617,28 @@ These are informational: they cannot be adopted or opened as existing folders.
 A partial external root can intentionally omit them. A UUID found elsewhere is
 reported as drift, while excluded or unreadable locations remain unchecked.
 
-Settings under **External folder status — this command only** are independent
-of normal external-root ignore settings. **Ignored folder patterns** defaults to
-`.git/`, `node_modules/`, `build/`, `dist/`, `.cache/`, `__pycache__/`, and `.venv/`.
-**Skip scanning ignored folders** is off by default. Enabling it skips matching
-external branches on the next refresh; eligible vault notes are still fully scanned.
-Turn it off to search for unexpectedly misplaced markers in those branches.
-Excluded branches remain labeled placeholders. Incomplete coverage makes
-uniqueness and absence provisional. Standalone audits continue to scan fully.
+Filtered status scans use **External root ignore patterns** plus Git's repository
+and nested `.gitignore` files, `.git/info/exclude`, and configured global ignore
+file. Git interprets the full file syntax, including negation, escaping, and `**`.
+Rules apply within their repository, including worktrees and submodules. Tracked
+files protect their containing directories from Git pruning; explicit plugin
+exclusions still take precedence. Git metadata is excluded automatically.
+Generated directories such as `dist/` have no additional hard-coded exclusion.
+
+Git must be installed and available to Obsidian. A Git failure stops the filtered
+scan and preserves the previous completed results; there is no approximate
+fallback. **Rescan entire external directory without filters** works without Git
+and bypasses external scan exclusions. It still respects template exclusions,
+read failures, and the prohibition on following links. Every included folder is
+checked for all `.exnf` markers, regardless of file-level Git ignore rules.
+
+Ignored, unreadable, and linked branches are hidden from the normal tree, with
+counts and reasons retained in **Scan details**. Git exclusions name the source
+file, line, and rule. Identified notes pointing into unchecked branches remain
+visible in a warning summary. Excluded topology still restricts adoption and
+physical-leaf counts. Incomplete coverage makes uniqueness and absence
+provisional. Display filters never rescan, and each new scan reloads Git rules.
+Standalone audits and mutation preflights retain their existing scan behavior.
 
 **Export filtered status** and **Export all status** write `filtered-folder-status.csv`
 and `folder-status.csv`, including evidence, confidence, note paths, and explanations.
@@ -703,11 +718,11 @@ no adoption controls. Single-folder writes avoid creating unwanted notes, but
 safety checks can still require full-root scans.
 
 The tab labels its scope **Physical audit — scan and template exclusions are disclosed below**.
-It scans all folders by default. Only this command's **Skip scanning ignored
-folders** setting enables its configured external-directory exclusions; those
-settings never exclude vault notes. The separate **Template exclusion patterns**
-setting declares which vault paths cannot own bindings. Normal external-root ignore settings do not
-apply to the report scan. Excluded paths and other coverage gaps remain visible.
+It defaults to filtered external scanning; eligible vault notes are still fully
+scanned. The separate **Template exclusion patterns** setting declares which
+vault paths cannot own bindings. Completed snapshots and exports disclose their
+scan mode and coverage. Cancelled or failed rescans retain the prior snapshot's
+mode and timestamp. Reopening the tab starts with filtered scanning.
 This audit explicitly permits raw, read-only filesystem reads of the active vault;
 it does not use cached frontmatter. Vault adapters without an absolute filesystem
 root are unsupported. Existing commands keep their vault adapters, ignore rules,

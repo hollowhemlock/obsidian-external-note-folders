@@ -2,6 +2,9 @@ import type { TreeResult } from './leafTree.ts';
 
 /** A navigation reveal never changes matches, counts, or export rows. */
 export function revealTreePath(result: TreeResult, id: string, sort: 'count' | 'name' = 'name'): TreeResult {
+  if (result.nodes.get(id)?.hiddenByCoverage) {
+    return result;
+  }
   const visible = new Set(result.visible);
   const children = new Map(result.children);
   let node = result.nodes.get(id);

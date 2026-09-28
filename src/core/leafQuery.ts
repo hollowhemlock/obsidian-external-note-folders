@@ -37,10 +37,13 @@ export interface LeafReportModel {
   mutationWarning: boolean;
   rootFolder?: LeafTreeNode;
   rows: LeafRow[];
+  scanSummary?: string;
   stale?: boolean;
   startedAt: string;
+  statusScanMode?: import('./auditTypes.ts').StatusScanMode;
   templateExclusionSummary?: string;
   tree?: LeafTreeNode[];
+  uncheckedBindings?: string[];
   uncheckedCount: number;
   vaultRoot: string;
 }

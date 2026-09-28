@@ -4,6 +4,7 @@ import type {
 } from './verify.ts';
 
 export interface AuditIssue {
+  exclusionSource?: 'git' | 'metadata' | 'settings';
   kind?: 'directory' | 'link' | 'marker' | 'note';
   location: string;
   reason: string;
@@ -39,7 +40,10 @@ export interface AuditSnapshot {
   markers: AuditMarker[];
   notes: AuditNote[];
   startedAt: string;
+  statusScanMode?: StatusScanMode;
   templateExclusions?: import('./templateExclusions.ts').TemplateExclusions;
   vault: VaultScanResult;
   vaultRoot: string;
 }
+
+export type StatusScanMode = 'filtered' | 'unfiltered';

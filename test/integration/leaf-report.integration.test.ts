@@ -46,6 +46,39 @@ describe('shared leaf report integration', () => {
     await closeSandboxModals();
     evaluate(`app.workspace.detachLeavesOfType('${VIEW_TYPE}')`);
   });
+  it('exposes both scan modes and retains the completed snapshot after a Git failure', async () => {
+    const pluginId = await readSandboxPluginId();
+    runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
+    await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR);
+    const state = evaluate(`(async()=>{
+      const v=app.workspace.getLeavesOfType('${VIEW_TYPE}')[0].view;
+      const buttons=Array.from(v.contentEl.querySelectorAll('button'));
+      const filtered=buttons.find(b=>b.textContent==='Rescan excluding ignored folders');
+      const full=buttons.find(b=>b.textContent==='Rescan entire external directory without filters');
+      const initial=v.session.snapshot.statusScanMode;
+      const scan=v.session.host.scan;
+      let requested;
+      let rejectScan;
+      v.session.host.scan=options=>{requested=options.statusScanMode;return new Promise((_,reject)=>{rejectScan=reject;});};
+      const before=v.session.snapshot;
+      full.click();
+      const busy=filtered.disabled && full.disabled;
+      rejectScan(new Error('Git filtering failed for fixture'));
+      for(let i=0;i<100 && full.disabled;i++)await new Promise(r=>setTimeout(r,20));
+      const retained=v.session.snapshot===before;
+      const message=v.contentEl.textContent.includes('Previous results retained');
+      v.session.host.scan=scan;
+      await v.session.refresh('unfiltered');
+      return JSON.stringify({initial,requested,busy,retained,message,mode:v.session.snapshot.statusScanMode});
+    })()`);
+    expect(state).toContain('"initial":"filtered"');
+    expect(state).toContain('"requested":"unfiltered"');
+    expect(state).toContain('"busy":true');
+    expect(state).toContain('"retained":true');
+    expect(state).toContain('"message":true');
+    expect(state).toContain('"mode":"unfiltered"');
+  }, 60_000);
+
   it('reuses one tab, preserves refresh results, exports and disposes', async () => {
     const pluginId = await readSandboxPluginId();
 
@@ -55,7 +88,12 @@ describe('shared leaf report integration', () => {
 
     runSandboxCli(['command', `id=${command}`]);
 
-    expect((await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR)).stdout).toContain('Physical audit');
+    expect((await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR)).stdout).toContain('Filtered external scan');
+    // The sandbox sits under a Git-ignored fixture directory. Inspect its full physical fixture explicitly.
+    evaluate(
+      `Array.from(document.querySelectorAll('${REPORT_SELECTOR} button')).find(b=>b.textContent==='Rescan entire external directory without filters').click()`
+    );
+    await waitForSandboxModalText('Unfiltered external scan', REPORT_SELECTOR);
     evaluate(`document.querySelector('${REPORT_SELECTOR} .leaf-tree-item')?.click()`);
     await waitForSandboxModalText('Adopt this folder', REPORT_SELECTOR);
 

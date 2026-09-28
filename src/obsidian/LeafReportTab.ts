@@ -108,7 +108,8 @@ export class LeafReportTab extends ItemView {
         }
         await this.app.workspace.getLeaf('tab').openFile(file);
       },
-      refresh: async () => this.session?.refresh()
+      refresh: async () => this.session?.refresh(),
+      rescanUnfiltered: async () => this.session?.refresh('unfiltered')
     });
     this.session = new AuditSession({
       analyze: async (snapshot, signal): Promise<import('../core/leafQuery.ts').LeafReportModel> => runAuditSteps(buildLeafReportSteps(snapshot), { signal }),

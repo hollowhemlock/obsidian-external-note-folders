@@ -62,4 +62,19 @@ describe('audit export summaries', () => {
     expect(summary).not.toContain('Results may not reflect');
     expect(summary).not.toContain('conclusions are provisional');
   });
+  it('preserves scan mode and exclusion provenance in exports', () => {
+    const snapshot = auditFixture();
+    snapshot.statusScanMode = 'filtered';
+    snapshot.issues.push({
+      exclusionSource: 'git',
+      kind: 'directory',
+      location: `${snapshot.externalRoot}/ignored`,
+      reason: 'Git rule .gitignore:1: ignored/',
+      scope: 'external',
+      unchecked: true
+    });
+    const summary = buildAuditExportSummary(buildLeafReport(snapshot), 'folder-status.csv', 0);
+    expect(summary).toContain('Filtered external scan');
+    expect(summary).toContain('Git rule .gitignore:1: ignored/');
+  });
 });
