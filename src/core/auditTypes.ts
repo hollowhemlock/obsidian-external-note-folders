@@ -4,6 +4,7 @@ import type {
 } from './verify.ts';
 
 export interface AuditIssue {
+  code?: 'git-repository-unavailable';
   exclusionSource?: 'git' | 'metadata' | 'settings';
   kind?: 'directory' | 'link' | 'marker' | 'note';
   location: string;

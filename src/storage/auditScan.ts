@@ -27,6 +27,7 @@ import { registerUuidBinding } from '../core/scanResult.ts';
 import { buildTemplateExclusionMatcher } from '../core/templateExclusions.ts';
 import {
   GitFilteringError,
+  GitRepositoryValidationError,
   GitStatusIgnore
 } from './gitStatusIgnore.ts';
 
@@ -110,15 +111,51 @@ function excludeTemplatePath(
   return excluded;
 }
 
+/** False means the directory was excluded or recorded as unchecked before reading entries. */
+async function loadRepository(
+  directory: string,
+  scan: AuditScan,
+  options: AuditScanOptions,
+  git: GitStatusIgnore,
+  parent: GitIgnoreRepository | null
+): Promise<false | GitIgnoreRepository | null> {
+  // A failure querying the parent belongs to that live context, not child validation.
+  const reason = directory === scan.externalRoot ? null : await parent?.ignores(directory);
+  if (reason) {
+    scan.external.ignoredDirectories.push({ folderPath: directory, relativePath: path.relative(scan.externalRoot, directory) });
+    recordUnchecked(directory, reason, 'external', scan, 'directory', 'git');
+    return false;
+  }
+  try {
+    return await git.context(directory, parent);
+  } catch (error: unknown) {
+    options.signal?.throwIfAborted();
+    if (!(error instanceof GitRepositoryValidationError) || directory === scan.externalRoot) {
+      throw error;
+    }
+    recordUnchecked(
+      directory,
+      `Skipped repository: Git could not validate its metadata. ${error.message}`,
+      'external',
+      scan,
+      'directory',
+      undefined,
+      'git-repository-unavailable'
+    );
+    return false;
+  }
+}
+
 function recordUnchecked(
   location: string,
   reason: string,
   scope: 'external' | 'vault',
   scan: AuditScan,
   kind: 'directory' | 'link' | 'marker' = 'directory',
-  exclusionSource?: 'git' | 'metadata' | 'settings'
+  exclusionSource?: 'git' | 'metadata' | 'settings',
+  code?: import('../core/auditTypes.ts').AuditIssue['code']
 ): void {
-  scan.issues.push({ kind, location, reason, scope, unchecked: true, ...(exclusionSource ? { exclusionSource } : {}) });
+  scan.issues.push({ kind, location, reason, scope, unchecked: true, ...(exclusionSource ? { exclusionSource } : {}), ...(code ? { code } : {}) });
   if (scope === 'external') {
     const issues = location === scan.externalRoot ? scan.external.accessErrors : scan.external.skippedDirectories;
     issues.push({ location, message: reason });
@@ -256,13 +293,11 @@ async function walk(
       return;
     }
     if (git) {
-      const reason = directory === scan.externalRoot ? null : await repository?.ignores(directory);
-      if (reason) {
-        scan.external.ignoredDirectories.push({ folderPath: directory, relativePath: path.relative(scan.externalRoot, directory) });
-        recordUnchecked(directory, reason, scope, scan, 'directory', 'git');
+      const context = await loadRepository(directory, scan, options, git, repository);
+      if (context === false) {
         return;
       }
-      repository = await git.context(directory, repository);
+      repository = context;
     }
     await walkEntries(directory, scope, scan, options, matcher, templates, git, repository);
     if (repository?.root === directory) {

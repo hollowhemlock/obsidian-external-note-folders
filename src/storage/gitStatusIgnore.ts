@@ -11,9 +11,17 @@ const QUERY_TIMEOUT_MS = 30_000;
 const MAX_GIT_OUTPUT = 67_108_864;
 const RECORD_FIELDS = 4;
 
-/** Must never be converted into an ordinary skipped-directory warning. */
+interface GitCommandFailure {
+  code: null | number | string | undefined;
+  diagnostic: string;
+  killed: boolean | undefined;
+  signal: null | string | undefined;
+  stage: 'index' | 'repository' | 'version';
+}
+
+/** Fatal unless explicitly classified as pre-scan repository validation. */
 export class GitFilteringError extends Error {
-  public constructor(root: string, reason: string) {
+  public constructor(public readonly root: string, reason: string, public readonly command?: GitCommandFailure) {
     super(`Git filtering failed for ${root}: ${reason}`);
   }
 }
@@ -166,6 +174,12 @@ export class GitIgnoreRepository {
   }
 }
 
+export class GitRepositoryValidationError extends GitFilteringError {
+  public constructor(root: string, command: GitCommandFailure) {
+    super(root, command.diagnostic, command);
+  }
+}
+
 export class GitStatusIgnore {
   private readonly repositories = new Map<string, GitIgnoreRepository>();
   public constructor(private readonly signal?: AbortSignal) {}
@@ -190,7 +204,7 @@ export class GitStatusIgnore {
   }
 
   public async initialize(root: string): Promise<GitIgnoreRepository | null> {
-    await git(root, ['--version'], this.signal);
+    await git(root, ['--version'], 'version', this.signal);
     let current = root;
     for (;;) {
       if (await hasRepository(current)) {
@@ -210,15 +224,15 @@ export class GitStatusIgnore {
       return existing;
     }
     // Validate gitfiles and worktrees before starting an interactive query process.
-    await git(root, ['rev-parse', '--show-toplevel'], this.signal);
-    const tracked = await git(root, ['ls-files', '--cached', '-z'], this.signal);
+    await git(root, ['rev-parse', '--show-toplevel'], 'repository', this.signal);
+    const tracked = await git(root, ['ls-files', '--cached', '-z'], 'index', this.signal);
     const repository = new GitIgnoreRepository(root, tracked.split('\0'), this.signal);
     this.repositories.set(root, repository);
     return repository;
   }
 }
 
-async function git(root: string, args: string[], signal?: AbortSignal): Promise<string> {
+async function git(root: string, args: string[], stage: GitCommandFailure['stage'], signal?: AbortSignal): Promise<string> {
   try {
     const result = await run('git', ['-C', root, ...args], {
       env: gitEnvironment(),
@@ -228,12 +242,26 @@ async function git(root: string, args: string[], signal?: AbortSignal): Promise<
       windowsHide: true
     });
     if (result.stderr.trim()) {
-      throw new Error(result.stderr.trim());
+      throw new GitFilteringError(root, result.stderr.trim(), { code: 0, diagnostic: result.stderr.trim(), killed: false, signal: null, stage });
     }
     return result.stdout;
   } catch (error: unknown) {
     signal?.throwIfAborted();
-    throw new GitFilteringError(root, error instanceof Error ? error.message : String(error));
+    if (error instanceof GitFilteringError) {
+      throw error;
+    }
+    const details = error as null | Partial<GitCommandFailure>;
+    const command: GitCommandFailure = {
+      code: details?.code,
+      diagnostic: error instanceof Error ? error.message : String(error),
+      killed: details?.killed,
+      signal: details?.signal,
+      stage
+    };
+    if (stage !== 'version' && typeof command.code === 'number' && command.code > 0 && !command.killed && !command.signal) {
+      throw new GitRepositoryValidationError(root, command);
+    }
+    throw new GitFilteringError(root, command.diagnostic, command);
   }
 }
 

@@ -512,6 +512,13 @@ filter; **Clear filters** resets every filter while preserving sort order. Empty
 results offer the same clear-filter action. Display choices last only
 for the current tab; reopening starts with all folders and natural name sorting.
 **Scan details** lists exclusions, skipped links, and read failures in pages.
+Fatal scan failures open a separate **Latest scan attempt** section with the
+attempt's timestamp, scan mode, roots, affected path when available, and full
+diagnostic. Its text is selectable; **Copy error** copies the diagnostic and its
+context even before the first successful scan. The failed attempt stays separate
+from the last completed snapshot and remains available during a retry. A completed
+or cancelled retry clears it; another failure replaces it. Snapshot exports still
+describe the completed scan, not a later failed attempt.
 
 **Needs review** narrows the current filters to orange/red rows. **Previous issue**
 and **Next issue** visit those matches in tree order using the current sibling
@@ -625,9 +632,17 @@ files protect their containing directories from Git pruning; explicit plugin
 exclusions still take precedence. Git metadata is excluded automatically.
 Generated directories such as `dist/` have no additional hard-coded exclusion.
 
-Git must be installed and available to Obsidian. A Git failure stops the filtered
-scan and preserves the previous completed results; there is no approximate
-fallback. **Rescan entire external directory without filters** works without Git
+Git must be installed and available to Obsidian. Nested repositories that fail
+initial repository or index validation are skipped before their contents are
+scanned. The scan completes with warnings, and **Scan details** retains each
+skipped repository and its Git diagnostic. Skipped repositories have their own
+count and remain unchecked, with the same adoption restrictions as other
+unscanned branches. No worktree repair is performed automatically.
+
+Root or containing-repository validation failures, Git launch failures, timeouts,
+output-limit failures, and errors during ignore queries or process shutdown stop
+the filtered scan and preserve the previous completed results. There is no
+approximate fallback. **Rescan entire external directory without filters** works without Git
 and bypasses external scan exclusions. It still respects template exclusions,
 read failures, and the prohibition on following links. Every included folder is
 checked for all `.exnf` markers, regardless of file-level Git ignore rules.

@@ -10,6 +10,7 @@ import type {
   TreeResult
 } from '../core/leafTree.ts';
 import type { TreeNavigation } from './leafTreeView.ts';
+import type { ScanFailure } from './scanFailure.ts';
 
 import { runAuditSteps } from '../auditScheduler.ts';
 import { statusExportNode } from '../core/folderAvailability.ts';
@@ -45,6 +46,7 @@ import {
   reportDisclosure
 } from './reportDom.ts';
 import { installReportSplitter } from './reportSplitter.ts';
+import { formatScanFailure } from './scanFailure.ts';
 
 export const AUDIT_CSV_NAMES = [
   'folder-status.csv',
@@ -75,6 +77,7 @@ export interface LeafReportHost {
 export interface LeafReportView {
   adopted: (folder: string, note: null | string) => void;
   dispose: () => void;
+  scanFailure: (failure: null | ScanFailure) => void;
   status: (message: string, busy?: boolean) => void;
   update: (model: LeafReportModel, signal?: AbortSignal) => Promise<void>;
 }
@@ -127,6 +130,21 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   const topActions = element('div', '', heading, 'leaf-toolbar');
   const scanTimestamp = element('p', 'No completed scan yet.', root, 'leaf-context leaf-scan-timestamp');
   const scanDetails = reportDisclosure(root, 'Scan details');
+  const failedAttempt = element('section', '', scanDetails, 'leaf-failed-attempt');
+  failedAttempt.hidden = true;
+  element('h2', 'Latest scan attempt', failedAttempt);
+  const failureText = element('pre', '', failedAttempt, 'leaf-context leaf-scan-error');
+  failureText.tabIndex = 0;
+  const copyFeedback = element('span', '', failedAttempt);
+  copyFeedback.setAttribute('role', 'status');
+  action('Copy error', failedAttempt, async () => {
+    try {
+      await host.copy(failureText.textContent);
+      copyFeedback.textContent = 'Error copied.';
+    } catch {
+      copyFeedback.textContent = 'Could not copy. Select the error text to copy it manually.';
+    }
+  });
   const context = element('div', '', scanDetails, 'leaf-context');
   const scanIssues = element('div', '', scanDetails);
   const warning = element('div', '', root, 'leaf-warning');
@@ -680,6 +698,17 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       disposeSplitter();
       tree.dispose();
       root.remove();
+    },
+    scanFailure(failure): void {
+      if (disposed) {
+        return;
+      }
+      failureText.textContent = failure ? formatScanFailure(failure) : '';
+      copyFeedback.textContent = '';
+      failedAttempt.hidden = !failure;
+      if (failure) {
+        scanDetails.open = true;
+      }
     },
     status: setStatus,
     async update(next, signal): Promise<void> {

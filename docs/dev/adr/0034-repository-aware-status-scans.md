@@ -28,9 +28,27 @@ a repository inherits its repository's rules. The configured root itself is
 inspected; directory filtering governs descendants.
 
 Git runs read-only, without a shell, with bounded streaming queries. Processes
-and tracked-prefix caches belong to one scan. Git discovery, index, protocol,
-timeout, or ignore-reading failures are fatal, not skipped-directory warnings.
-Failed and cancelled scans preserve the previous completed snapshot and mode.
+and tracked-prefix caches belong to one scan. Normal nonzero exits during initial
+repository or index validation skip a nested repository before its contents are
+scanned. These boundaries remain unchecked and are reported separately from
+intentional exclusions and filesystem read failures. This permits healthy
+siblings to be inspected when, for example, a moved worktree retains a stale
+metadata reference.
+
+Recovery uses structured process outcomes, never Git diagnostic text. Root or
+containing-repository validation failures, launch errors, timeouts, output limits,
+signal termination, unexpected stderr from successful commands, and runtime
+ignore-query/protocol/shutdown failures remain fatal. Parent ignore queries are
+outside the nested repository validation recovery boundary. Failed and cancelled
+scans preserve the previous completed snapshot and mode; recovered scans publish
+new results with warnings. No approximate fallback or worktree repair is applied.
+
+Fatal failures retain copyable diagnostics for the latest failed attempt outside
+the completed snapshot. Scan details opens this separate section with attempted
+roots, mode, time, affected path when available, and the complete error message.
+It remains available during retries, including before any successful scan. A
+completed or cancelled retry clears it; a new failure replaces it. Snapshot
+coverage and exports continue to describe only the completed scan.
 
 Two top-level actions select filtered or unfiltered scanning. The unfiltered
 action bypasses Git and shared external exclusions, but not template exclusions,

@@ -17,6 +17,7 @@ import {
   vi
 } from 'vitest';
 
+import { buildAuditExportSummary } from '../core/auditExportSummary.ts';
 import { finishAuditSteps } from '../core/auditSteps.ts';
 import { issueOrderSteps } from '../core/issueNavigation.ts';
 import { buildLeafReport } from '../core/leafReport.ts';
@@ -26,16 +27,21 @@ import {
 } from '../core/leafTree.ts';
 import { revealTreePath } from '../core/leafTreeNavigation.ts';
 import { scanAdoptionAudit } from './auditScan.ts';
+import {
+  GitFilteringError,
+  GitIgnoreRepository
+} from './gitStatusIgnore.ts';
 
 const run = promisify(execFile);
 const roots: string[] = [];
 const UUID = '11111111-1111-4111-8111-111111111111';
 afterEach(async () => {
+  vi.restoreAllMocks();
   for (const root of roots.splice(0)) {
     if (path.dirname(root) !== tmpdir() || !path.basename(root).startsWith('exnf-git-status-')) {
       throw new Error('Unexpected cleanup path');
     }
-    await rm(root, { force: true, recursive: true });
+    await rm(root, { force: true, maxRetries: 3, recursive: true, retryDelay: 100 });
   }
 });
 async function fixture(): Promise<{ external: string; vault: string }> {
@@ -94,12 +100,69 @@ describe('repository-aware status scanning', () => {
     expect(model.uncheckedBindings?.[0]).toContain('Parent/ignored/deep/Bound.md');
   });
 
-  it('propagates repository failures instead of publishing partial coverage', async () => {
+  it('skips broken nested repositories while preserving coverage and healthy siblings', async () => {
     const { external, vault } = await fixture();
-    await put(external, 'a-readable/file.txt');
-    await put(external, 'z-broken/.git', 'gitdir: does-not-exist\n');
-    await expect(scanAdoptionAudit(vault, external, { statusScanMode: 'filtered' })).rejects.toThrow('Git filtering failed');
+    await put(external, 'Parent/broken/.git', 'gitdir: does-not-exist\n');
+    await put(external, `Parent/broken/deep/Bound/${UUID}.exnf`);
+    await put(vault, 'Parent/broken/deep/Bound.md', `---\nexnf: ${UUID}\n---\n`);
+    await put(external, 'second-broken/.git', 'gitdir: also-missing\n');
+    const healthy = path.join(external, 'z-healthy');
+    await mkdir(healthy);
+    await run('git', ['init', healthy]);
+    await put(healthy, `included/${UUID}.exnf`);
+    const scan = await scanAdoptionAudit(vault, external, { statusScanMode: 'filtered' });
+    expect(scan.markers.map((marker) => marker.folderPath)).toEqual([path.join(healthy, 'included')]);
+    expect(scan.issues.filter((issue) => issue.reason.startsWith('Skipped repository:'))).toHaveLength(2);
+    const model = buildLeafReport(scan);
+    const parent = model.tree?.find((node) => node.relativePath === 'Parent');
+    expect(parent?.evidence?.physicalLeaf).toBe(false);
+    expect(parent?.blocked).toBe(true);
+    const query = queryTree(model, { ...DEFAULT_TREE_QUERY, includeExpected: true });
+    for (const node of model.tree ?? []) {
+      if (node.relativePath.includes('broken')) {
+        expect(node.unchecked).toBe(true);
+        expect(query.visible.has(node.id)).toBe(false);
+      }
+    }
+    expect(model.uncheckedBindings?.[0]).toContain('Parent/broken/deep/Bound.md');
+    expect(model.scanSummary).toContain('2 skipped repositories');
+    expect(model.scanSummary).toContain('0 unreadable directories');
+    const summary = buildAuditExportSummary(model, 'status.csv', model.rows.length);
+    expect(summary).toContain('Skipped repository:');
+    expect(summary).toContain('Git filtering failed');
     await expect(scanAdoptionAudit(vault, external, { statusScanMode: 'unfiltered' })).resolves.toBeDefined();
+  });
+
+  it('keeps broken configured and containing repositories fatal', async () => {
+    const { external, vault } = await fixture();
+    const broken = path.join(external, 'broken');
+    await put(broken, '.git', 'gitdir: does-not-exist\n');
+    await mkdir(path.join(broken, 'slice'));
+    for (const root of [broken, path.join(broken, 'slice')]) {
+      await expect(scanAdoptionAudit(vault, root, { statusScanMode: 'filtered' })).rejects.toThrow('Git filtering failed');
+    }
+  });
+
+  it('skips an unreadable index before collecting repository markers', async () => {
+    const { external, vault } = await fixture();
+    const nested = path.join(external, 'bad-index');
+    await mkdir(nested);
+    await run('git', ['init', nested]);
+    await put(nested, '.git/index', 'invalid index');
+    await put(nested, `${UUID}.exnf`);
+    await put(external, `z-readable/${UUID}.exnf`);
+    const scan = await scanAdoptionAudit(vault, external, { statusScanMode: 'filtered' });
+    expect(scan.issues.filter((issue) => issue.code === 'git-repository-unavailable')).toHaveLength(1);
+    expect(scan.markers.map((marker) => marker.folderPath)).toEqual([path.join(external, 'z-readable')]);
+  });
+
+  it.each(['query', 'shutdown'])('keeps %s failures fatal after collecting evidence', async (stage) => {
+    const { external, vault } = await fixture();
+    await put(external, `${UUID}.exnf`);
+    await put(external, 'z-child/.git', 'gitdir: does-not-exist\n');
+    const method = stage === 'query' ? 'ignores' : 'finish';
+    vi.spyOn(GitIgnoreRepository.prototype, method).mockRejectedValue(new GitFilteringError(external, 'runtime failure'));
+    await expect(scanAdoptionAudit(vault, external, { statusScanMode: 'filtered' })).rejects.toThrow('runtime failure');
   });
   it('honors full Git syntax and reloads edited rules on each scan', async () => {
     const { external, vault } = await fixture();

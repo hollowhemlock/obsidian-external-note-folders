@@ -105,9 +105,11 @@ function* statusCoverageSteps(snapshot: AuditSnapshot, allNodes: import('./leafT
   }
   const excludedCount = snapshot.external.ignoredDirectories.length;
   const linkCount = snapshot.issues.filter((issue) => issue.scope === 'external' && issue.kind === 'link').length;
-  const unreadableCount = snapshot.issues.filter((issue) => issue.scope === 'external' && issue.kind === 'directory' && !issue.exclusionSource).length;
+  const repositoryCount = snapshot.issues.filter((issue) => issue.scope === 'external' && issue.code === 'git-repository-unavailable').length;
+  const unreadableCount =
+    snapshot.issues.filter((issue) => issue.scope === 'external' && issue.kind === 'directory' && !issue.exclusionSource && !issue.code).length;
   const scanSummary = `${snapshot.statusScanMode === 'filtered' ? 'Filtered' : 'Unfiltered'} external scan · ${String(excludedCount)} excluded branches · ${
     String(unreadableCount)
-  } unreadable directories · ${String(linkCount)} skipped links`;
+  } unreadable directories · ${String(linkCount)} skipped links · ${String(repositoryCount)} skipped repositories`;
   return snapshot.statusScanMode ? { scanSummary, statusScanMode: snapshot.statusScanMode, uncheckedBindings } : {};
 }

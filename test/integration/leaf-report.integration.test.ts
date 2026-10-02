@@ -46,6 +46,36 @@ describe('shared leaf report integration', () => {
     await closeSandboxModals();
     evaluate(`app.workspace.detachLeavesOfType('${VIEW_TYPE}')`);
   });
+  it('publishes skipped repository warnings with separate coverage counts', async () => {
+    const pluginId = await readSandboxPluginId();
+    runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
+    await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR);
+    const state = evaluate(`(async()=>{
+      const v=app.workspace.getLeavesOfType('${VIEW_TYPE}')[0].view;
+      const scan=v.session.host.scan;
+      const before=v.session.snapshot;
+      const next={...before,issues:[...before.issues,{
+        code:'git-repository-unavailable',kind:'directory',scope:'external',unchecked:true,
+        location:before.externalRoot+'/broken-repository',
+        reason:'Skipped repository: Git could not validate its metadata. Fixture diagnostic.'
+      }]};
+      try {
+        v.session.host.scan=async()=>next;
+        await v.session.refresh();
+        return JSON.stringify({
+          published:v.session.snapshot===next,
+          warning:v.contentEl.textContent.includes('Scan complete with warnings.'),
+          count:v.contentEl.textContent.includes('1 skipped repositories'),
+          diagnostic:v.contentEl.textContent.includes('Fixture diagnostic.')
+        });
+      } finally {v.session.host.scan=scan;}
+    })()`);
+    expect(state).toContain('"published":true');
+    expect(state).toContain('"warning":true');
+    expect(state).toContain('"count":true');
+    expect(state).toContain('"diagnostic":true');
+  }, 60_000);
+
   it('exposes both scan modes and retains the completed snapshot after a Git failure', async () => {
     const pluginId = await readSandboxPluginId();
     runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
@@ -67,9 +97,27 @@ describe('shared leaf report integration', () => {
       for(let i=0;i<100 && full.disabled;i++)await new Promise(r=>setTimeout(r,20));
       const retained=v.session.snapshot===before;
       const message=v.contentEl.textContent.includes('Previous results retained');
+      const errorText=v.contentEl.querySelector('.leaf-scan-error').textContent;
+      const details=v.contentEl.querySelector('.leaf-failed-attempt').closest('details').open;
+      let copied;
+      let manualCopy;
+      const write=navigator.clipboard.writeText;
+      try {
+        navigator.clipboard.writeText=async text=>{copied=text;};
+        buttons.find(b=>b.textContent==='Copy error').click();
+        for(let i=0;i<100 && !copied;i++)await new Promise(r=>setTimeout(r,20));
+        navigator.clipboard.writeText=async()=>{throw new Error('Clipboard unavailable');};
+        buttons.find(b=>b.textContent==='Copy error').click();
+        for(let i=0;i<100 && !v.contentEl.textContent.includes('Could not copy.');i++)await new Promise(r=>setTimeout(r,20));
+        manualCopy=v.contentEl.textContent.includes('Could not copy.')
+          && getComputedStyle(v.contentEl.querySelector('.leaf-scan-error')).userSelect==='text'
+          && v.contentEl.querySelector('.leaf-scan-error').textContent===errorText;
+      } finally {navigator.clipboard.writeText=write;}
       v.session.host.scan=scan;
       await v.session.refresh('unfiltered');
-      return JSON.stringify({initial,requested,busy,retained,message,mode:v.session.snapshot.statusScanMode});
+      const cleared=v.contentEl.querySelector('.leaf-failed-attempt').hidden;
+      return JSON.stringify({initial,requested,busy,retained,message,mode:v.session.snapshot.statusScanMode,
+        details,copyMatches:copied===errorText,manualCopy,hasError:errorText.includes('Git filtering failed for fixture'),cleared});
     })()`);
     expect(state).toContain('"initial":"filtered"');
     expect(state).toContain('"requested":"unfiltered"');
@@ -77,6 +125,11 @@ describe('shared leaf report integration', () => {
     expect(state).toContain('"retained":true');
     expect(state).toContain('"message":true');
     expect(state).toContain('"mode":"unfiltered"');
+    expect(state).toContain('"details":true');
+    expect(state).toContain('"copyMatches":true');
+    expect(state).toContain('"manualCopy":true');
+    expect(state).toContain('"hasError":true');
+    expect(state).toContain('"cleared":true');
   }, 60_000);
 
   it('reuses one tab, preserves refresh results, exports and disposes', async () => {

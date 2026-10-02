@@ -448,7 +448,7 @@
         "R12",
         "V14"
       ],
-      "notes": "ADR-0034: real Git rules, tracked descendants, repository boundaries, hidden coverage, and fatal failures. Protocol cleanup and snapshot retention also have co-located unit tests."
+      "notes": "ADR-0034: real Git rules, tracked descendants, repository boundaries, broken worktree and index recovery, hidden coverage, and fatal root/runtime failures. Structured validation classification, protocol cleanup, and snapshot retention also have co-located unit tests."
     }
   ],
   "plannedCoverage": [

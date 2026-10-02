@@ -19,6 +19,7 @@ export const LEAF_REPORT_CSS = `
 .exnf-leaf-report h2{font-size:17px;margin:8px 0;overflow-wrap:anywhere}
 .exnf-leaf-report p{margin:8px 0}
 .exnf-leaf-report .leaf-context{white-space:pre-wrap;font-size:12px;color:var(--text-muted,#58677b);overflow-wrap:anywhere}
+.exnf-leaf-report .leaf-scan-error{user-select:text;-webkit-user-select:text;max-height:320px;overflow:auto}
 .exnf-leaf-report .leaf-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:18px 0}
 .exnf-leaf-report input,.exnf-leaf-report select,.exnf-leaf-report button{font:inherit;padding:7px 10px;border:1px solid var(--background-modifier-border,#bdc8d7);border-radius:6px;background:var(--background-secondary,#fff);color:inherit;height:auto}
 .exnf-leaf-report input[type=search]{flex:1;min-width:220px}

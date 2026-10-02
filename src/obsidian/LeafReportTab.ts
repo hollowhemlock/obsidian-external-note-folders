@@ -125,6 +125,11 @@ export class LeafReportTab extends ItemView {
           templateExcludePatterns: [...(this.options.templatePatterns?.() ?? [])]
         });
       },
+      scanContext: (): import('../ui/scanFailure.ts').ScanContext => ({
+        externalRoot: this.options.externalRoot(),
+        vaultRoot: (this.app.vault.adapter as { getBasePath?: () => string }).getBasePath?.() ?? ''
+      }),
+      scanFailure: (failure): void => this.report?.scanFailure(failure),
       status: (message, busy): void => this.report?.status(message, busy),
       update: async (model, signal): Promise<void> => this.report?.update(model, signal)
     });
