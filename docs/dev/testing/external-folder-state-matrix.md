@@ -145,6 +145,12 @@ Maintenance guidance lives in [Testing Strategy](README.md).
 | R30 | Status scan excludes directories using Git rules and shared patterns | Hidden branches retain coverage, binding warnings, and adoption restrictions |
 | R31 | Git filtering fails or is unavailable | Nested repository/index validation exits skip that branch with explicit unchecked coverage; root validation, launch, timeout, output-limit, and runtime failures retain the previous snapshot; explicit unfiltered scan remains available |
 
+Status presentation checks for R30/R31 keep Scan totals and outcomes separate from
+Filter matches and action feedback. Cover unknown versus zero metrics, ignored
+branches versus unavailable repositories, collapsed matches, context ancestors,
+and temporary navigation reveals. Sandbox checks cover section and export
+placement, rescan controls, root inspection, and selectable passive text.
+
 ### Journal And Execution State
 
 | ID | State | Applies to |

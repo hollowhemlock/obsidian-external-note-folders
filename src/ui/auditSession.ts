@@ -16,6 +16,7 @@ export interface AuditMutationState {
   sequence: number;
 }
 export interface AuditSessionHost {
+  actionStatus?: (message: string, busy: boolean) => void;
   analyze: (snapshot: AuditSnapshot, signal: AbortSignal) => Promise<LeafReportModel>;
   mutationState: () => AuditMutationState;
   scan: (options: AuditScanOptions) => Promise<AuditSnapshot>;
@@ -116,22 +117,29 @@ export class AuditSession {
     }
     const controller = new AbortController();
     this.controller = controller;
-    this.host.status('Preparing export…', true);
+    this.exportStatus('Preparing export…', true);
     try {
       const directory = await operation(this.snapshot, this.model, controller.signal);
       controller.signal.throwIfAborted();
       if (!this.isDisposed()) {
-        this.host.status(directory ? `Exported to ${directory}` : 'Export cancelled.', false);
+        this.exportStatus(directory ? `Exported to ${directory}` : 'Export cancelled.', false);
       }
     } catch (error: unknown) {
       if (!this.isDisposed()) {
-        this.host.status(controller.signal.aborted ? 'Export cancelled.' : `Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`, false);
+        this.exportStatus(
+          controller.signal.aborted ? 'Export cancelled.' : `Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          false
+        );
       }
     } finally {
       if (this.controller === controller) {
         this.controller = undefined;
       }
     }
+  }
+
+  private exportStatus(message: string, busy: boolean): void {
+    (this.host.actionStatus ?? this.host.status)(message, busy);
   }
 
   private isDisposed(): boolean {

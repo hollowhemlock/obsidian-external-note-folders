@@ -65,7 +65,7 @@ describe('shared leaf report integration', () => {
         return JSON.stringify({
           published:v.session.snapshot===next,
           warning:v.contentEl.textContent.includes('Scan complete with warnings.'),
-          count:v.contentEl.textContent.includes('1 skipped repositories'),
+          count:v.contentEl.querySelector('[data-metric=skippedRepositories] dd').textContent==='1',
           diagnostic:v.contentEl.textContent.includes('Fixture diagnostic.')
         });
       } finally {v.session.host.scan=scan;}
@@ -74,6 +74,45 @@ describe('shared leaf report integration', () => {
     expect(state).toContain('"warning":true');
     expect(state).toContain('"count":true');
     expect(state).toContain('"diagnostic":true');
+  }, 60_000);
+
+  it('separates scan and filter controls, metrics, feedback, and selectable text', async () => {
+    const pluginId = await readSandboxPluginId();
+    runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
+    await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR);
+    const state = evaluate(`(async()=>{
+      const v=app.workspace.getLeavesOfType('${VIEW_TYPE}')[0].view;
+      const el=v.contentEl;
+      const root=el.querySelector('.exnf-leaf-report');
+      const scan=el.querySelector('.leaf-scan-section');
+      const filter=el.querySelector('.leaf-filter-section');
+      const children=Array.from(root.children);
+      const rootInfo=el.querySelector('.leaf-root-info');
+      const button=(parent,label)=>Array.from(parent.querySelectorAll('button')).find(b=>b.textContent===label);
+      const disclosure=(parent,label)=>Array.from(parent.querySelectorAll('details')).find(d=>d.querySelector('summary').textContent===label);
+      const metrics=scan.querySelector('.leaf-scan-metrics').textContent;
+      const outcome=scan.querySelector('.leaf-scan-status').textContent;
+      const search=filter.querySelector('input[type=search]');
+      search.value='no-such-fixture-folder';search.dispatchEvent(new Event('input'));
+      for(let i=0;i<100 && filter.querySelector('[data-metric=matchingFolders] dd').textContent!=='0';i++)await new Promise(r=>setTimeout(r,20));
+      v.report.status('Export cancelled.',false,'action');
+      const passive=['.leaf-root-path','.leaf-scan-status','.leaf-scan-metrics dd','.leaf-filter-metrics dt','.leaf-legend','.leaf-tree-columns span'];
+      const row=el.querySelector('.leaf-tree-item');
+      return JSON.stringify({
+        order:children.indexOf(rootInfo)<children.indexOf(scan) && children.indexOf(scan)<children.indexOf(filter),
+        headings:scan.querySelector('h2').textContent==='Scan' && filter.querySelector('h2').textContent==='Filter',
+        footer:scan.lastElementChild.classList.contains('leaf-scan-actions') && !!button(scan.lastElementChild,'Rescan excluding ignored folders'),
+        exports:!!button(disclosure(scan,'Export scan'),'Export all unmarked leaves') && !!button(disclosure(filter,'Export filtered results'),'Export filtered unmarked leaves'),
+        recovery:!!button(el.querySelector('.leaf-issue-controls'),'Resume folder adoption…') && !button(filter,'Resume folder adoption…'),
+        stable:scan.querySelector('.leaf-scan-metrics').textContent===metrics && scan.querySelector('.leaf-scan-status').textContent===outcome,
+        empty:filter.querySelector('[data-metric=matchingFolders] dd').textContent==='0',
+        selectable:passive.every(s=>getComputedStyle(el.querySelector(s)).userSelect==='text'),
+        interactive:getComputedStyle(button(rootInfo,'Inspect external root')).userSelect==='none' && (!row || getComputedStyle(row).userSelect==='none')
+      });
+    })()`);
+    for (const key of ['order', 'headings', 'footer', 'exports', 'recovery', 'stable', 'empty', 'selectable', 'interactive']) {
+      expect(state).toContain(`"${key}":true`);
+    }
   }, 60_000);
 
   it('exposes both scan modes and retains the completed snapshot after a Git failure', async () => {
@@ -92,6 +131,12 @@ describe('shared leaf report integration', () => {
       v.session.host.scan=options=>{requested=options.statusScanMode;return new Promise((_,reject)=>{rejectScan=reject;});};
       const before=v.session.snapshot;
       full.click();
+      // Report actions start asynchronously; wait until the mock owns the pending scan.
+      for(let i=0;i<100 && typeof rejectScan!=='function';i++)await new Promise(r=>setTimeout(r,20));
+      if(typeof rejectScan!=='function') {
+        v.session.host.scan=scan;
+        throw new Error('Unfiltered rescan did not reach the mocked scanner.');
+      }
       const busy=filtered.disabled && full.disabled;
       rejectScan(new Error('Git filtering failed for fixture'));
       for(let i=0;i<100 && full.disabled;i++)await new Promise(r=>setTimeout(r,20));
@@ -168,7 +213,7 @@ describe('shared leaf report integration', () => {
 
     const before = new Set(await readdir(destination));
 
-    evaluate(`Array.from(${view}.contentEl.querySelectorAll('button')).find(b=>b.textContent==='Export all leaves').click()`);
+    evaluate(`Array.from(${view}.contentEl.querySelectorAll('button')).find(b=>b.textContent==='Export all unmarked leaves').click()`);
 
     await waitForSandboxModalText('Absolute destination directory', EXPORT_SELECTOR);
 
@@ -254,10 +299,10 @@ describe('shared leaf report integration', () => {
       const hidden=el.querySelector('.leaf-details').textContent.includes('hidden by the current filters');
       search.value='';search.dispatchEvent(new Event('input'));await wait();
       const retained=el.querySelector('.leaf-details h2')?.textContent==='a-target';
-      const before=el.querySelector('.leaf-stats').textContent;
+      const before=el.querySelector('.leaf-filter-metrics').textContent;
       const abort=new AbortController();abort.abort();
       try{await v.report.update({...model,rows:[]},abort.signal)}catch{}
-      const cancelled=el.querySelector('.leaf-stats').textContent===before;
+      const cancelled=el.querySelector('.leaf-filter-metrics').textContent===before;
       await v.report.update({...model,rows:model.rows.filter(r=>!r.relativePath.includes('a-target')),tree:model.tree.filter(n=>n.relativePath!=='a-target')});
       const removed=el.querySelector('.leaf-details').textContent.includes('Select a folder');
       tree.focus();tree.dispatchEvent(new KeyboardEvent('keydown',{key:'Home',bubbles:true}));
@@ -355,10 +400,10 @@ describe('shared leaf report integration', () => {
       const neutralChild=row('Project'+String.fromCharCode(92)+'child').dataset.tone==='neutral';
       const search=el.querySelector('input[type=search]');
       search.value='Other';search.dispatchEvent(new Event('input'));await wait();
-      const stats=el.querySelector('.leaf-stats').textContent;
+      const stats=el.querySelector('.leaf-filter-metrics').textContent;
       const scroll=tree.scrollTop;
       button('Select marked ancestor',details()).click();await wait();
-      const revealed=!!row('Project') && details().querySelector('h2').textContent==='Project' && document.activeElement===row('Project') && el.querySelector('.leaf-stats').textContent===stats;
+      const revealed=!!row('Project') && details().querySelector('h2').textContent==='Project' && document.activeElement===row('Project') && el.querySelector('.leaf-filter-metrics').textContent===stats;
       const sort=el.querySelector('[aria-label="Sort siblings"]');sort.value='count';sort.dispatchEvent(new Event('change'));await wait();
       const sorted=!!button('Back to selected folder',details());
       const abort=new AbortController();abort.abort();try{await v.report.update(model,abort.signal)}catch{}
@@ -366,7 +411,7 @@ describe('shared leaf report integration', () => {
       button('Back to selected folder',details()).click();await wait();
       const back=details().querySelector('h2').textContent.endsWith('child') && details().textContent.includes('hidden by the current filters') && !row('Project') && tree.scrollTop===scroll;
       button('Inspect external root').click();await wait();
-      const root=details().querySelector('h2').textContent==='External root' && !button('Adopt this folder…',details()) && el.querySelector('.leaf-stats').textContent===stats;
+      const root=details().querySelector('h2').textContent==='External root' && !button('Adopt this folder…',details()) && el.querySelector('.leaf-filter-metrics').textContent===stats;
       button('Back to selected folder',details()).click();await wait();
       button('Select marked ancestor',details()).click();await wait();
       row('Other').click();await wait();
@@ -483,7 +528,7 @@ describe('shared leaf report integration', () => {
       root.style.width='';await wait();const restored=getComputedStyle(divider).display!=='none';
       sort.value='name';sort.dispatchEvent(new Event('change'));await wait();
       button('Needs review').click();await wait();
-      const filtered=el.querySelector('.leaf-stats').textContent.includes('2 displayed folders');
+      const filtered=el.querySelector('.leaf-filter-metrics').querySelector('[data-metric=matchingFolders] dd').textContent==='2';
       button('Next issue').click();await wait();
       const first=details().querySelector('h2').textContent==='folder-120' && button('Previous issue').disabled;
       button('Next issue').click();await wait();
@@ -574,7 +619,7 @@ describe('shared leaf report integration', () => {
         const search=el.querySelector('input[type=search]');
         search.value='group'; search.dispatchEvent(new Event('input'));
         await wait();
-        const broad=el.querySelector('.leaf-stats').textContent;
+        const broad=el.querySelector('[data-metric=matchingFolders] dd').textContent===(20100).toLocaleString();
         const domRows=el.querySelectorAll('.leaf-tree-item').length;
         const tree=el.querySelector('.leaf-tree');
         tree.scrollTop=tree.scrollHeight; tree.dispatchEvent(new Event('scroll'));
@@ -586,14 +631,14 @@ describe('shared leaf report integration', () => {
         search.value='folder-1'; search.dispatchEvent(new Event('input'));
         search.value='folder-19999'; search.dispatchEvent(new Event('input'));
         await wait();
-        const filtered=el.querySelector('.leaf-stats').textContent;
+        const filtered=el.querySelector('[data-metric=matchingFolders] dd').textContent==='1';
         const hiddenSelection=el.querySelector('.leaf-details').textContent.includes('hidden by the current filters');
         observer.disconnect();
         return JSON.stringify({totalMs:performance.now()-started,maxTask,domRows,finalRows,broad,filtered,selected,hiddenSelection});
       })()`
     );
-    expect(rendered).toContain('20100 displayed folders');
-    expect(rendered).toContain('1 displayed folders');
+    expect(rendered).toContain('"broad":true');
+    expect(rendered).toContain('"filtered":true');
     expect(rendered).toContain('"selected":true');
     expect(rendered).toContain('"hiddenSelection":true');
     const domRows = /"domRows":(?<count>\d+)/u.exec(rendered)?.groups?.['count'];

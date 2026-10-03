@@ -16,6 +16,7 @@ function fixture() {
   const state = { active: false, activity: 0, sequence: 0 };
 
   const host = {
+    actionStatus: vi.fn(),
     analyze: vi.fn(async () => buildLeafReport(snapshot)),
     mutationState: (): { active: boolean; activity: number; sequence: number } => ({ ...state }),
     scan: vi.fn(async () => snapshot),
@@ -238,6 +239,7 @@ describe('audit tab session', () => {
 
     expect(session.snapshot).toBe(snapshot);
 
-    expect(host.status).toHaveBeenLastCalledWith('Export cancelled.', false);
+    expect(host.actionStatus).toHaveBeenLastCalledWith('Export cancelled.', false);
+    expect(host.status).toHaveBeenLastCalledWith('Scan complete. Results describe the recorded scan time.', false);
   });
 });

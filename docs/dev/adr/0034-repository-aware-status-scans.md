@@ -50,7 +50,16 @@ It remains available during retries, including before any successful scan. A
 completed or cancelled retry clears it; a new failure replaces it. Snapshot
 coverage and exports continue to describe only the completed scan.
 
-Two top-level actions select filtered or unfiltered scanning. The unfiltered
+The status view separates Scan from Filter. Root context appears first. Scan owns
+snapshot metrics, progress, warnings, diagnostics, whole-snapshot exports, and
+the rescan actions at its end. Filter owns display controls, matching metrics,
+and filtered exports. Snapshot totals and scan outcomes remain stable through
+display queries and action feedback. Matching metrics exclude context ancestors
+and temporary navigation reveals, and include collapsed matches. Typed optional
+metrics preserve compatibility with older models without parsing summary text;
+unavailable totals are displayed as unknown. Passive report text is selectable.
+
+Two actions in Scan select filtered or unfiltered scanning. The unfiltered
 action bypasses Git and shared external exclusions, but not template exclusions,
 filesystem access restrictions, or link boundaries. Scan mode is not persisted.
 Legacy status settings are removed without migration; no deployed users depend

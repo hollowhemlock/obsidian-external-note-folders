@@ -600,7 +600,7 @@ export class Plugin extends ObsidianPlugin {
     notePath: string,
     uuid: string
   ): Promise<void> {
-    await openExternalFolderInFileManager(folderResult.folderPath);
+    await this.openExternalFolder(folderResult.folderPath);
     if (folderResult.created) {
       new Notice(`Created and opened external folder for ${notePath}.`);
       this.logInfo('created and opened external folder', {
@@ -617,6 +617,10 @@ export class Plugin extends ObsidianPlugin {
       notePath,
       uuid
     });
+  }
+
+  private async openExternalFolder(folderPath: string): Promise<void> {
+    await openExternalFolderInFileManager(folderPath);
   }
 
   private async openLeafReport(): Promise<void> {
@@ -637,7 +641,7 @@ export class Plugin extends ObsidianPlugin {
             folderPath: row.folderPath,
             uuid: plan.uuid
           });
-          await openExternalFolderInFileManager(result.folderPath);
+          await this.openExternalFolder(result.folderPath);
           new Notice(`Adopted and opened external folder for ${plan.notePath}.`);
           this.logInfo('adopted recovery candidate external folder', {
             folderPath: result.folderPath,
@@ -654,7 +658,7 @@ export class Plugin extends ObsidianPlugin {
             notePath: plan.notePath,
             uuid: plan.uuid
           });
-          await openExternalFolderInFileManager(result.folderPath);
+          await this.openExternalFolder(result.folderPath);
           new Notice(`Adopted and opened external folder for ${plan.notePath}.`);
           this.logInfo('adopted expected external folder marker', {
             folderPath: result.folderPath,
@@ -680,7 +684,7 @@ export class Plugin extends ObsidianPlugin {
         });
       },
       onOpenFolder: async (folderPath: string): Promise<void> => {
-        await openExternalFolderInFileManager(folderPath);
+        await this.openExternalFolder(folderPath);
         new Notice(`Opened external folder for ${plan.notePath}.`);
         this.logInfo('opened recovery external folder', {
           folderPath,
@@ -1122,7 +1126,7 @@ export class Plugin extends ObsidianPlugin {
 
         let openedFolderPath: null | string = null;
         if (plan.autoOpenFolderPath) {
-          await openExternalFolderInFileManager(plan.autoOpenFolderPath);
+          await this.openExternalFolder(plan.autoOpenFolderPath);
           openedFolderPath = plan.autoOpenFolderPath;
           new Notice(`Opened recovered external folder for ${activeFile.path}. Review the opened recovery details.`);
           this.logWarn('opened external folder from recovery scan', { plan });
@@ -1263,7 +1267,7 @@ export class Plugin extends ObsidianPlugin {
         return true;
       }
       try {
-        await openExternalFolderInFileManager(result.journal.targetPath);
+        await this.openExternalFolder(result.journal.targetPath);
         new Notice(`Set up and opened external folder for ${result.journal.notePath}.`);
       } catch (error: unknown) {
         new Notice(`External folder setup completed, but the folder could not be opened. Journal: ${result.journalPath}`);
@@ -1377,7 +1381,7 @@ export class Plugin extends ObsidianPlugin {
         return true;
       }
       try {
-        await openExternalFolderInFileManager(result.journal.targetPath);
+        await this.openExternalFolder(result.journal.targetPath);
         new Notice(`Resumed setup and opened external folder for ${result.journal.notePath}.`);
       } catch (error: unknown) {
         new Notice(`External folder setup completed, but the folder could not be opened. Journal: ${result.journalPath}`);

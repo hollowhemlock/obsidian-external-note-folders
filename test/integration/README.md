@@ -44,6 +44,30 @@ The primary Git checkout owns the integration sandbox and Obsidian runtime. Work
 headless validation, but integration fails before build, sandbox mutation, plugin installation, or
 Obsidian control.
 
+Integration runs are explicit; there is no integration watch command. Watch mode
+reused mutated fixtures and could run against an older installed plugin. Use
+`npm run test:watch` for rapid unit feedback, and prepare a fresh integration run
+after changing plugin code or exercising mutation scenarios.
+
+## File-manager launch coverage
+
+Routine integration tests do not need to open Explorer or another file manager.
+Setup tests temporarily replace the plugin's folder-opening adapter with a call
+recorder, assert the exact requested path and call count, and restore the adapter
+after each test, including failures. Commands, note and marker writes, and warning
+checks still run against the real Obsidian sandbox. Restoration preview asserts
+that no folder is opened before confirmation.
+
+For an optional manual operating-system smoke check after an integration run:
+
+1. Open `setup/fast/fast.md` in the sandbox vault.
+2. Run **Open external folder** once.
+3. Confirm the file manager shows the sandbox's `external-root/setup/fast` folder,
+   then close that window.
+
+This manual check covers the actual file-manager launch; it is not part of every
+automated test run.
+
 ## Safe CLI evaluation
 
 Use `runSandboxEval` from `obsidianCliHarness.ts` for multiline or long evaluation

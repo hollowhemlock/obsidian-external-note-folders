@@ -17,7 +17,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "npm run integration:prepare && vitest run --config vitest.integration.config.ts",
-    "test:integration:watch": "jiti scripts/check-obsidian-cli.ts && vitest --config vitest.integration.config.ts",
     "integration:prepare": "jiti scripts/assert-primary-checkout.ts && npm run build && jiti scripts/fixtures.ts --full && jiti scripts/install-plugin-to-sandbox.ts && jiti scripts/reload-sandbox.ts && jiti scripts/check-obsidian-cli.ts",
     "fixtures:new-sandbox": "jiti scripts/fixtures.ts --full && jiti scripts/reload-sandbox.ts && jiti scripts/check-obsidian-cli.ts",
     "vault:open": "jiti scripts/open-vault.ts",

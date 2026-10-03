@@ -7,6 +7,7 @@ import path from 'node:path';
 import {
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it
@@ -20,6 +21,7 @@ import {
   readSandboxPluginId,
   resolveRepoPath,
   runSandboxCli,
+  runSandboxEval,
   waitForPluginCommands,
   waitForSandboxModalText
 } from './obsidianCliHarness.ts';
@@ -34,10 +36,35 @@ describe('external folder setup integration', () => {
   beforeAll(async () => {
     pluginId = await readSandboxPluginId();
     await assertSandboxPluginInstalled(pluginId);
+    assertCliAvailable(await waitForPluginCommands(pluginId));
+  });
+
+  beforeEach(() => {
+    const result = runSandboxEval(`(() => {
+      const plugin=app.plugins.plugins[${JSON.stringify(pluginId)}];
+      const original=plugin.openExternalFolder;
+      if(typeof original!=='function')throw new Error('Folder opener is unavailable; rebuild and reload the sandbox plugin.');
+      const capture={paths:[],restore:()=>{plugin.openExternalFolder=original;}};
+      globalThis.exnfSetupFolderCapture=capture;
+      plugin.openExternalFolder=async folderPath=>{capture.paths.push(folderPath);};
+      return 'Folder capture installed';
+    })()`);
+    expect(result.status, formatCliResult(result)).toBe(0);
+    expect(result.stdout).toContain('Folder capture installed');
   });
 
   afterEach(async () => {
-    await closeSandboxModals();
+    try {
+      const result = runSandboxEval(`(() => {
+        globalThis.exnfSetupFolderCapture?.restore();
+        delete globalThis.exnfSetupFolderCapture;
+        return 'Folder capture restored';
+      })()`);
+      expect(result.status, formatCliResult(result)).toBe(0);
+      expect(result.stdout).toContain('Folder capture restored');
+    } finally {
+      await closeSandboxModals();
+    }
   });
 
   it('offers explicit restoration for one exact-path imported marker', async () => {
@@ -55,6 +82,7 @@ describe('external folder setup integration', () => {
     expect(modalResult.stdout).toContain('setup/imported/imported.md');
     expect(modalResult.stdout).toContain(IMPORTED_UUID);
     expect(modalResult.stdout).toContain('complete uniqueness scan');
+    await expectFolderLaunches([]);
   }, 30_000);
 
   it('creates a missing target despite unrelated malformed root evidence', async () => {
@@ -69,6 +97,7 @@ describe('external folder setup integration', () => {
     const uuid = await waitForAssignedUuid(notePath);
     await expect(access(path.join(folderPath, `${uuid}.exnf`))).resolves.toBeUndefined();
     expect(await readFile(path.join(folderPath, `${uuid}.exnf`), 'utf8')).toBe('');
+    await expectFolderLaunches([folderPath]);
   }, 30_000);
 
   it('opens a matching folder and warns about a delayed additional marker', async () => {
@@ -80,8 +109,17 @@ describe('external folder setup integration', () => {
     expect(noticeResult.status, formatCliResult(noticeResult)).toBe(0);
     expect(noticeResult.stdout).toContain('Report external folder drift');
     expect(await readdir(resolveRepoPath('test/fixtures/sandbox/external-root/setup/delayed'))).toHaveLength(2);
+    await expectFolderLaunches([resolveRepoPath('test/fixtures/sandbox/external-root/setup/delayed')]);
   }, 30_000);
 });
+
+async function expectFolderLaunches(paths: string[]): Promise<void> {
+  await expect.poll(() => {
+    const result = runSandboxEval('JSON.stringify(globalThis.exnfSetupFolderCapture.paths)');
+    expect(result.status, formatCliResult(result)).toBe(0);
+    return result.stdout;
+  }).toContain(JSON.stringify(paths.map((folderPath) => path.resolve(folderPath))));
+}
 
 async function waitForAssignedUuid(notePath: string): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt += 1) {

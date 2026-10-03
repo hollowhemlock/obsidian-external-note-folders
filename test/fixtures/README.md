@@ -102,11 +102,16 @@ Prepare and run Obsidian CLI integration tests:
 npm run test:integration
 ```
 
-Run only the integration tests (assumes sandbox and plugin artifacts are already prepared):
+Run a focused integration file once against an already prepared sandbox. Rebuild
+and prepare again after plugin changes or tests that mutate fixtures:
 
 ```powershell
-npm run test:integration:watch
+npx vitest run --config vitest.integration.config.ts test/integration/leaf-report.integration.test.ts
 ```
+
+Integration watch is intentionally not provided: it reused modified fixtures and
+did not rebuild or reload the installed plugin. Use `npm run test:watch` for unit
+test feedback and `npm run test:integration` for a fresh integration run.
 
 ## Notes
 

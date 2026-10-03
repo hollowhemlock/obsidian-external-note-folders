@@ -111,5 +111,15 @@ function* statusCoverageSteps(snapshot: AuditSnapshot, allNodes: import('./leafT
   const scanSummary = `${snapshot.statusScanMode === 'filtered' ? 'Filtered' : 'Unfiltered'} external scan · ${String(excludedCount)} excluded branches · ${
     String(unreadableCount)
   } unreadable directories · ${String(linkCount)} skipped links · ${String(repositoryCount)} skipped repositories`;
-  return snapshot.statusScanMode ? { scanSummary, statusScanMode: snapshot.statusScanMode, uncheckedBindings } : {};
+  return {
+    scanMetrics: {
+      excludedBranches: excludedCount,
+      physicalFolders: allNodes.filter((node) => node.folderPath !== snapshot.externalRoot && node.kind === 'directory').length,
+      physicalLeaves: allNodes.filter((node) => node.folderPath !== snapshot.externalRoot && node.evidence?.physicalLeaf === true).length,
+      skippedLinks: linkCount,
+      skippedRepositories: repositoryCount,
+      unreadableDirectories: unreadableCount
+    },
+    ...(snapshot.statusScanMode ? { scanSummary, statusScanMode: snapshot.statusScanMode, uncheckedBindings } : {})
+  };
 }

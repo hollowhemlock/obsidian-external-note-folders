@@ -496,21 +496,36 @@ counts and explain why adopting the entire parent would create a nested binding.
 The parent can remain an ordinary container; its local `marker` tag stays absent.
 The adoption restrictions list names the affected paths and offers navigation.
 
-**Rescan excluding ignored folders**, **Rescan entire external directory without filters**,
-and **Export** sit beside the page title. The completed scan mode, time, excluded
-branch count, unreadable directories, and skipped links appear below. **All folders**, **Adoptable leaves**, and **Needs review** are quick
+The external root path and **Inspect external root** sit directly below the title.
+**Scan** shows the completed scan mode, time, outcome, and separate metrics for
+physical folders, known physical leaves, excluded branches, unreadable directories,
+skipped links, and skipped repositories. These totals describe the captured scan
+and stay fixed while filtering or navigating. Unknown metrics show an em dash.
+**Scan details** contains diagnostics; **Export scan** contains all-status,
+all-unmarked-leaf, and audit CSV exports. **Rescan excluding ignored folders**,
+**Rescan entire external directory without filters**, and **Cancel** sit at the end
+of Scan. Cancelling or failing a rescan preserves the last completed snapshot.
+
+**Filter** starts with **Search within results** and contains separate counts of
+matching folders, physical leaves, and expected paths. **Export filtered results**
+contains matching-status and matching-unmarked-leaf exports. Filter counts include
+matches in collapsed branches and exclude context ancestors and navigation reveals.
+**All folders**, **Adoptable leaves**, and **Needs review** are quick
 views. Choosing one preserves search, status, and category filters and resets the
 advanced folder scope to all scanned folders. Adoptable leaves includes only
 physical leaves with no known adoption blocker; context ancestors remain visible.
 **Status**, **Category**, and **Sort** are always labeled and visible. **Advanced**
-contains unmarked-leaf scope, generated/internal paths, expected paths, and adoption
-recovery. It shows an indicator when an advanced filter is active. **Export**
-contains downloads. Escape closes either disclosure and returns focus.
-**Search within results** sits above removable filter chips and the legends,
-narrowing the current view without rescanning. Each chip removes only its own
+contains unmarked-leaf scope, generated/internal paths, and expected paths.
+It shows an indicator when an advanced filter is active. Adoption recovery sits
+with the result navigation controls. Escape closes Advanced or an export disclosure
+and returns focus. Search narrows the current view without rescanning.
+Removable filter chips sit below the controls. Each chip removes only its own
 filter; **Clear filters** resets every filter while preserving sort order. Empty
 results offer the same clear-filter action. Display choices last only
 for the current tab; reopening starts with all folders and natural name sorting.
+Scan progress and outcomes remain separate from filter and action feedback.
+Passive text, including paths, metrics, warnings, legends, and details, is selectable
+for copying. Interactive tree rows and controls retain their normal interactions.
 **Scan details** lists exclusions, skipped links, and read failures in pages.
 Fatal scan failures open a separate **Latest scan attempt** section with the
 attempt's timestamp, scan mode, roots, affected path when available, and full
@@ -550,7 +565,7 @@ means no blocker is established by the snapshot; the adoption preview and fresh
 execution checks remain authoritative. Associated notes, same-name suggestions,
 other marked ancestors, and technical/scan details start expanded; each section
 can be collapsed. Same-name suggestions remain separate from confirmed associations.
-Scan details and the Advanced/Export controls outside the selected-folder panel
+Scan details and the Advanced/export controls outside the selected-folder panel
 continue to start closed.
 
 A compact sticky header keeps the selected folder, status, and path actions visible.
@@ -659,7 +674,7 @@ Standalone audits and mutation preflights retain their existing scan behavior.
 and `folder-status.csv`, including evidence, confidence, note paths, and explanations.
 Filtered exports include matching folders in collapsed branches, but exclude
 contextual tree ancestors and temporary navigation reveals. Displayed-folder
-counts likewise count actual filter matches. All-status exports include virtual
+counts in Filter likewise count actual filter matches. All-status exports include virtual
 expected paths. Existing audit CSVs and unmarked-leaf exports retain their meanings.
 Status fields describe the captured scan. If session mutations affect filtering,
 status exports append that context to the existing explanation field; they do not
@@ -918,6 +933,10 @@ The plugin does not use `window.DEBUG`.
 - `npm run test:integration` builds the plugin, fully resets the sandbox, installs the plugin
   artifacts, reloads Obsidian, and runs the integration tests. The GitHub integration workflow is
   manual-only and requires an online self-hosted runner labeled `obsidian-cli`.
+- Integration watch is intentionally unavailable because reruns reused mutated fixtures and
+  stale plugin builds. Setup tests record folder-opening requests without launching Explorer;
+  the [integration guide](test/integration/README.md#file-manager-launch-coverage) describes an
+  optional manual file-manager check.
 - Formal semantic fixture scenarios live under
   `test/fixtures/fixture/{vault-plugin-external-note-folders-fixture,external-root}/<domain>/<scenario-slug>`
   with expected JSON under

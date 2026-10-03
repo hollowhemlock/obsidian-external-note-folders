@@ -7,7 +7,8 @@ const LIGHT_PALETTE =
 
 export const LEAF_REPORT_CSS = `
 .exnf-leaf-report{container-type:inline-size;font:14px/1.5 system-ui,sans-serif;color:var(--text-normal,#233042);background:var(--background-primary,#f6f8fb);padding:24px;min-height:100%;box-sizing:border-box}
-.exnf-leaf-report *{box-sizing:border-box}
+.exnf-leaf-report,.exnf-leaf-report *{-webkit-user-select:text;user-select:text;box-sizing:border-box}
+.exnf-leaf-report :is(button,select,summary,a,[role=treeitem],[role=separator]),.exnf-leaf-report :is(button,select,summary,a,[role=treeitem],[role=separator]) *{-webkit-user-select:none;user-select:none}
 .exnf-leaf-report{${LIGHT_PALETTE};--leaf-surface:var(--background-secondary,#fff)}
 .exnf-leaf-report [data-tone=neutral]{--leaf-attention:var(--leaf-neutral);--leaf-row-fill:var(--leaf-row-neutral);--leaf-row-hover:var(--leaf-hover-neutral)}
 .exnf-leaf-report [data-tone=healthy]{--leaf-attention:var(--leaf-healthy);--leaf-row-fill:var(--leaf-row-healthy);--leaf-row-hover:var(--leaf-hover-healthy)}
@@ -28,6 +29,10 @@ export const LEAF_REPORT_CSS = `
 .exnf-leaf-report button[aria-expanded=true]{background:var(--background-modifier-hover,#e5edf9)}
 .exnf-leaf-report :focus-visible{outline:3px solid #5b8fd6;outline-offset:2px}
 .exnf-leaf-report .leaf-stats{padding:14px 18px;border-left:4px solid #427abe;background:var(--background-secondary,#eaf0f8);border-radius:6px;font-size:16px}
+.exnf-leaf-report .leaf-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:12px 0}
+.exnf-leaf-report .leaf-stats dt{font-size:12px;color:var(--text-muted,#58677b)}
+.exnf-leaf-report .leaf-stats dd{margin:0;font-size:20px;font-variant-numeric:tabular-nums}
+.exnf-leaf-report .leaf-scan-section,.exnf-leaf-report .leaf-filter-section{padding:12px 0;border-top:1px solid var(--background-modifier-border,#bdc8d7)}
 .exnf-leaf-report .leaf-warning{background:var(--background-secondary,#fff2d4);border-left:4px solid var(--leaf-review);padding:10px 14px;margin:12px 0}
 .exnf-leaf-report .leaf-row{padding:12px 0;border-top:1px solid var(--background-modifier-border,#e1e7ef);overflow-wrap:anywhere}
 .exnf-leaf-report summary{cursor:pointer;font-weight:600}
@@ -40,7 +45,7 @@ export const LEAF_REPORT_CSS = `
 .exnf-leaf-report .leaf-heading-row h1{margin:0}
 .exnf-leaf-report .leaf-quick-views{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 10px}
 .exnf-leaf-report .leaf-root-info{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0}
-.exnf-leaf-report .leaf-root-info h2{flex:1;min-width:180px}
+.exnf-leaf-report .leaf-root-path{flex:1;min-width:180px;font-family:var(--font-monospace,monospace);overflow-wrap:anywhere}
 .exnf-leaf-report .leaf-filter-field{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;min-width:140px}
 .exnf-leaf-report .leaf-filter-field select{font-size:14px;font-weight:400;max-width:100%}
 .exnf-leaf-report .leaf-toolbar:has(>.leaf-filter-field){align-items:flex-end;margin:10px 0}
@@ -70,8 +75,6 @@ export const LEAF_REPORT_CSS = `
 .exnf-leaf-report .leaf-attention{border-left:8px solid var(--leaf-attention,var(--leaf-neutral));padding-left:8px}
 .exnf-leaf-report .leaf-attention-legend{display:flex;flex-wrap:wrap;gap:8px 16px}
 .exnf-leaf-report .leaf-details{min-width:0;overflow-wrap:anywhere;max-height:60vh;overflow:auto;padding:12px;border:1px solid var(--background-modifier-border,#bdc8d7);border-radius:6px}
-.exnf-leaf-report .leaf-details,.exnf-leaf-report .leaf-details *{-webkit-user-select:text;user-select:text}
-.exnf-leaf-report .leaf-details button{-webkit-user-select:none;user-select:none}
 .exnf-leaf-report .leaf-evidence{min-width:0;text-align:center;font-size:12px;line-height:28px}
 .exnf-leaf-report .leaf-evidence-absent,.exnf-leaf-report .leaf-evidence-unchecked{color:var(--text-muted,#58677b)}
 .exnf-leaf-report .leaf-evidence-invalid{color:var(--leaf-review);font-weight:600}
@@ -102,7 +105,7 @@ export const LEAF_REPORT_CSS = `
 .exnf-leaf-report .leaf-details h3{font-size:15px;margin:12px 0 6px}
 .exnf-leaf-report .leaf-details button{margin:3px}
 .exnf-leaf-report .leaf-legend{font-size:12px;color:var(--text-muted,#58677b)}
-@media(prefers-color-scheme:dark){.exnf-leaf-report{color:var(--text-normal,#e2e8f0);background:var(--background-primary,#20252c);--leaf-surface:var(--background-secondary,#282f39)}.exnf-leaf-report .leaf-path-field,.exnf-leaf-report .leaf-stats,.exnf-leaf-report .leaf-warning,.exnf-leaf-report .leaf-note,.exnf-leaf-report .leaf-tree,.exnf-leaf-report button,.exnf-leaf-report input,.exnf-leaf-report select{background:var(--background-secondary,#282f39)}.exnf-leaf-report .leaf-context,.exnf-leaf-report .leaf-tags,.exnf-leaf-report .leaf-legend{color:var(--text-muted,#b6c2d2)}}
+@media(prefers-color-scheme:dark){.exnf-leaf-report{color:var(--text-normal,#e2e8f0);background:var(--background-primary,#20252c);--leaf-surface:var(--background-secondary,#282f39)}.exnf-leaf-report .leaf-path-field,.exnf-leaf-report .leaf-stats,.exnf-leaf-report .leaf-warning,.exnf-leaf-report .leaf-note,.exnf-leaf-report .leaf-tree,.exnf-leaf-report button,.exnf-leaf-report input,.exnf-leaf-report select{background:var(--background-secondary,#282f39)}.exnf-leaf-report .leaf-context,.exnf-leaf-report .leaf-tags,.exnf-leaf-report .leaf-stats dt,.exnf-leaf-report .leaf-legend{color:var(--text-muted,#b6c2d2)}}
 @container(max-width:800px){.exnf-leaf-report .leaf-layout{grid-template-columns:minmax(0,1fr)}.exnf-leaf-report .leaf-details{max-height:none}.exnf-leaf-report .leaf-splitter,.exnf-leaf-report .leaf-reset-split{display:none}.exnf-leaf-report .leaf-details-header{position:static}}
 @container(max-width:800px){.exnf-leaf-report .leaf-details-pane{max-height:none}}
 @container(max-width:800px){.exnf-leaf-report .leaf-toolbar:has(>.leaf-disclosure){position:relative}.exnf-leaf-report .leaf-toolbar>.leaf-disclosure{position:static}.exnf-leaf-report .leaf-toolbar>.leaf-disclosure>.leaf-toolbar{left:0;right:0;width:100%}}

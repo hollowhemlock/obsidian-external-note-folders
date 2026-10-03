@@ -10,7 +10,10 @@ import type {
   TreeResult
 } from '../core/leafTree.ts';
 import type { TreeNavigation } from './leafTreeView.ts';
-import type { ScanFailure } from './scanFailure.ts';
+import type {
+  ScanContext,
+  ScanFailure
+} from './scanFailure.ts';
 
 import { runAuditSteps } from '../auditScheduler.ts';
 import { statusExportNode } from '../core/folderAvailability.ts';
@@ -43,8 +46,13 @@ import { LEAF_REPORT_CSS } from './leafStyles.ts';
 import { mountLeafTree } from './leafTreeView.ts';
 import {
   installReportMenus,
+  renderReportMetrics,
   reportDisclosure
 } from './reportDom.ts';
+import {
+  filterMetricEntries,
+  scanMetricEntries
+} from './reportMetrics.ts';
 import { installReportSplitter } from './reportSplitter.ts';
 import { formatScanFailure } from './scanFailure.ts';
 
@@ -66,6 +74,7 @@ export interface LeafReportHost {
   exportLeaves: (rows: readonly LeafRow[], filtered: boolean) => Promise<void>;
   exportReport?: (name: string) => Promise<void>;
   exportStatus?: (nodes: LeafTreeNode[], filtered: boolean) => Promise<void>;
+  initialContext?: ScanContext;
   openFolder?: (folderPath: string) => Promise<void>;
   openNote?: (notePath: string) => Promise<void>;
   openTemplateSettings?: () => void;
@@ -78,7 +87,7 @@ export interface LeafReportView {
   adopted: (folder: string, note: null | string) => void;
   dispose: () => void;
   scanFailure: (failure: null | ScanFailure) => void;
-  status: (message: string, busy?: boolean) => void;
+  status: (message: string, busy?: boolean, channel?: 'action' | 'filter' | 'scan') => void;
   update: (model: LeafReportModel, signal?: AbortSignal) => Promise<void>;
 }
 export function mountLeafReport(container: HTMLElement, host: LeafReportHost): LeafReportView {
@@ -127,12 +136,22 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   }
   const heading = element('div', '', root, 'leaf-heading-row');
   element('h1', 'External folder status', heading);
-  const topActions = element('div', '', heading, 'leaf-toolbar');
-  const scanTimestamp = element('p', 'No completed scan yet.', root, 'leaf-context leaf-scan-timestamp');
-  const scanDetails = reportDisclosure(root, 'Scan details');
+  const scanSection = element('section', '', root, 'leaf-scan-section');
+  element('h2', 'Scan', scanSection);
+  const filterSection = element('section', '', root, 'leaf-filter-section');
+  element('h2', 'Filter', filterSection);
+  const topActions = element('div', '', scanSection, 'leaf-toolbar leaf-scan-actions');
+  const scanTimestamp = element('p', 'No completed scan yet.', scanSection, 'leaf-context leaf-scan-timestamp');
+  const scanStatus = element('div', '', scanSection, 'leaf-status leaf-scan-status');
+  scanStatus.setAttribute('role', 'status');
+  const scanStats = element('dl', '', scanSection, 'leaf-stats leaf-scan-metrics');
+  renderReportMetrics(scanStats, scanMetricEntries());
+  const warning = element('div', '', scanSection, 'leaf-warning');
+  warning.hidden = true;
+  const scanDetails = reportDisclosure(scanSection, 'Scan details');
   const failedAttempt = element('section', '', scanDetails, 'leaf-failed-attempt');
   failedAttempt.hidden = true;
-  element('h2', 'Latest scan attempt', failedAttempt);
+  element('h3', 'Latest scan attempt', failedAttempt);
   const failureText = element('pre', '', failedAttempt, 'leaf-context leaf-scan-error');
   failureText.tabIndex = 0;
   const copyFeedback = element('span', '', failedAttempt);
@@ -147,16 +166,18 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   });
   const context = element('div', '', scanDetails, 'leaf-context');
   const scanIssues = element('div', '', scanDetails);
-  const warning = element('div', '', root, 'leaf-warning');
   const rootInfo = element('div', '', root, 'leaf-root-info');
-  const rootLabel = element('h2', '', rootInfo);
+  root.insertBefore(rootInfo, scanSection);
+  const rootLabel = element('p', initialRootLabel(host.initialContext), rootInfo, 'leaf-root-path');
   rootLabel.tabIndex = -1;
-  action('Inspect external root', rootInfo, async () => {
+  const inspectRoot = action('Inspect external root', rootInfo, async () => {
     if (model?.rootFolder) {
       await jumpTo(model.rootFolder);
     }
   });
-  const quickViews = element('div', '', root, 'leaf-quick-views');
+  inspectRoot.disabled = true;
+  const searchField = element('label', 'Search within results', filterSection, 'leaf-search-field');
+  const quickViews = element('div', '', filterSection, 'leaf-quick-views');
   quickViews.setAttribute('role', 'group');
   quickViews.setAttribute('aria-label', 'Quick views');
   const quickButtons = new Map<string, HTMLButtonElement>();
@@ -170,8 +191,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     button.setAttribute('aria-pressed', String(key === 'all'));
     quickButtons.set(key, button);
   }
-  const toolbar = element('div', '', root, 'leaf-toolbar');
-  const searchField = element('label', 'Search within results', root, 'leaf-search-field');
+  const toolbar = element('div', '', filterSection, 'leaf-toolbar');
   const search = element('input', '', searchField);
   search.type = 'search';
   search.placeholder = 'Filter current results by folder or note…';
@@ -217,9 +237,6 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   for (const [value, label] of [['name', 'Name'], ['count', 'Most leaves']]) {
     element('option', label ?? '', sort).value = value ?? '';
   }
-  if (host.resume) {
-    action('Resume folder adoption…', viewControls, host.resume);
-  }
   const showAll = action('Show all paths', viewControls, async () => {
     query.showGenerated = !query.showGenerated;
     jump = undefined;
@@ -247,13 +264,21 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   const nextAdoptable = action('Next adoptable leaf', issueControls, navigateAdoptable);
   const adoptionPosition = element('span', 'No adoptable leaves in current filters', issueControls);
   adoptionPosition.setAttribute('role', 'status');
-  const stats = element('p', 'No scan yet.', root, 'leaf-stats');
+  if (host.resume) {
+    action('Resume folder adoption…', issueControls, host.resume);
+  }
   const status = element('div', '', root, 'leaf-status');
   status.setAttribute('role', 'status');
-  const exportMenu = reportDisclosure(topActions, 'Export');
+  const filterStatus = element('div', '', filterSection, 'leaf-status leaf-filter-status');
+  filterStatus.setAttribute('role', 'status');
+  const stats = element('dl', '', filterSection, 'leaf-stats leaf-filter-metrics');
+  renderReportMetrics(stats, filterMetricEntries());
+  const exportMenu = reportDisclosure(scanSection, 'Export scan');
   const exportControls = element('div', '', exportMenu, 'leaf-toolbar');
-  const disposeMenus = installReportMenus(root, [viewMenu, exportMenu]);
-  const activeFilters = element('div', '', root, 'leaf-active-filters');
+  const filteredExportMenu = reportDisclosure(filterSection, 'Export filtered results');
+  const filteredExportControls = element('div', '', filteredExportMenu, 'leaf-toolbar');
+  const disposeMenus = installReportMenus(root, [viewMenu, exportMenu, filteredExportMenu]);
+  const activeFilters = element('div', '', filterSection, 'leaf-active-filters');
   activeFilters.setAttribute('aria-label', 'Active filters');
   const filterChips = element('div', '', activeFilters, 'leaf-filter-chips');
   const clearFilters = action('Clear filters', activeFilters, clearAllFilters);
@@ -262,7 +287,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     changed();
   }
   if (host.exportStatus) {
-    action('Export filtered status', exportControls, async () => {
+    action('Export filtered status', filteredExportControls, async () => {
       if (result) {
         await host.exportStatus?.(
           [...result.nodes.values()].filter((node) => result?.matched.has(node.id) === true)
@@ -277,12 +302,12 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       }
     });
   }
-  const exportFiltered = action('Export filtered leaves', exportControls, async () => {
+  const exportFiltered = action('Export filtered unmarked leaves', filteredExportControls, async () => {
     if (result) {
       await host.exportLeaves(result.rows, true);
     }
   });
-  const exportAll = action('Export all leaves', exportControls, async () => {
+  const exportAll = action('Export all unmarked leaves', exportControls, async () => {
     if (model) {
       await host.exportLeaves(model.rows, false);
     }
@@ -303,7 +328,8 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     updateLink();
     reportSelect.addEventListener('change', updateLink);
   }
-  root.append(searchField, activeFilters);
+  filterSection.insertBefore(activeFilters, filterStatus);
+  scanSection.append(topActions);
   element(
     'p',
     'exact = matching note path · yaml = valid note exnf · marker = Contains .exnf marker · ↑ = marker above. Named cell = found · blank = absent · ? unchecked · ⚠ invalid. Evidence columns do not by themselves prove a binding.',
@@ -329,15 +355,20 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   const disposeSplitter = installReportSplitter(layout, groups, detailsPane);
   const tree = mountLeafTree(groups, selected, descriptor);
   element('p', 'Generated-path filters only change this view. Unmarked does not mean adoption is required.', root, 'leaf-context');
-  function setStatus(message: string, running = busy): void {
+  function setStatus(message: string, running = busy, channel: 'action' | 'filter' | 'scan' = 'action'): void {
     if (disposed) {
       return;
     }
     busy = running;
+    const target = { action: status, filter: filterStatus, scan: scanStatus }[channel];
+    target.textContent = message;
+    refreshControls();
+  }
+  function refreshControls(): void {
     for (const button of root.querySelectorAll<HTMLButtonElement>('button[data-adoption-blocked]')) {
       button.disabled = busy || button.dataset['adoptionBlocked'] === 'true';
     }
-    status.textContent = message;
+    inspectRoot.disabled = busy || querying || !model?.rootFolder;
     if (refresh) {
       refresh.disabled = busy;
     }
@@ -347,8 +378,10 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     if (cancel) {
       cancel.hidden = !busy;
     }
-    for (const button of exportControls.querySelectorAll('button')) {
-      button.disabled = busy || querying || !result;
+    for (const controls of [exportControls, filteredExportControls]) {
+      for (const button of controls.querySelectorAll('button')) {
+        button.disabled = busy || querying || !result;
+      }
     }
     exportFiltered.disabled = busy || querying || !result;
     exportAll.disabled = busy || querying || !model;
@@ -503,7 +536,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       if (revision === filterRevision) {
         querying = false;
         root.setAttribute('aria-busy', 'false');
-        setStatus(status.textContent, busy);
+        refreshControls();
         updateIssueControls();
       }
     } catch (error: unknown) {
@@ -517,20 +550,12 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     issueOrder = order;
     adoptionOrder = adoptable;
     updateIssueControls();
-    const nodes = model?.tree ?? [];
-    const physical = nodes.filter((node) => node.kind === 'directory').length;
-    const leaves = nodes.filter((node) => node.evidence?.physicalLeaf === true).length;
-    const displayed = [...filtered.matched].filter((id) => filtered.nodes.get(id)?.kind === 'directory').length;
-    const excluded = nodes.filter((node) => node.kind === 'excluded').length;
-    const virtual = nodes.filter((node) => node.kind === 'virtual' && filtered.matched.has(node.id)).length;
-    stats.textContent = `${String(physical)} physical folders · ${String(leaves)} known physical leaves · ${String(displayed)} displayed folders · ${
-      String(excluded)
-    } excluded branches · ${String(virtual)} displayed virtual paths`;
+    renderReportMetrics(stats, filterMetricEntries(filtered));
     renderActiveFilters();
     emptyState.hidden = filtered.matched.size > 0;
     await tree.update(jump ? revealTreePath(filtered, jump.targetId, query.sort) : filtered, query.search, reset);
     if (result === filtered) {
-      setStatus(status.textContent, busy);
+      refreshControls();
     }
   }
   function renderActiveFilters(): void {
@@ -615,11 +640,12 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     }
   }
   function changed(preserveJump = false): void {
+    filterStatus.textContent = '';
     if (!preserveJump) {
       jump = undefined;
     }
     refilter().catch(() => {
-      setStatus('Filtering failed.');
+      setStatus('Filtering failed.', busy, 'filter');
     });
   }
   search.addEventListener('input', () => {
@@ -707,6 +733,9 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       copyFeedback.textContent = '';
       failedAttempt.hidden = !failure;
       if (failure) {
+        if (!model && failure.externalRoot) {
+          rootLabel.textContent = failure.externalRoot;
+        }
         scanDetails.open = true;
       }
     },
@@ -739,6 +768,10 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       }
       statusFilter.value = query.status ?? '';
       rootLabel.textContent = next.externalRoot;
+      renderReportMetrics(scanStats, scanMetricEntries(next));
+      if (!host.refresh) {
+        scanStatus.textContent = 'Completed snapshot loaded.';
+      }
       const completedAt = new Date(next.finishedAt);
       scanTimestamp.textContent = `${scanLabel(next)} · Last scanned: ${Number.isNaN(completedAt.getTime()) ? next.finishedAt : completedAt.toLocaleString()}`;
       adoptions.clear();
@@ -770,6 +803,9 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
 function extraScanContext(model: LeafReportModel): string {
   return [model.scanSummary, model.templateExclusionSummary].filter((text): text is string => typeof text === 'string').map((text) => `\n${text}`).join('');
 }
+function initialRootLabel(context?: ScanContext): string {
+  return context?.externalRoot ?? 'External root unavailable';
+}
 function scanLabel(model: LeafReportModel): string {
-  return model.scanSummary ?? 'Physical audit';
+  return model.statusScanMode ? `${model.statusScanMode === 'filtered' ? 'Filtered' : 'Unfiltered'} external scan` : 'Physical audit';
 }
