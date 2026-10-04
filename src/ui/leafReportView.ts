@@ -34,14 +34,15 @@ import {
 } from '../core/leafTree.ts';
 import { revealTreePath } from '../core/leafTreeNavigation.ts';
 import {
+  coverageNotice,
+  scanProblemSummary
+} from '../core/scanCoveragePresentation.ts';
+import {
   captureDetails,
   restoreDetails
 } from './detailsState.ts';
 import { ATTENTION_LABELS } from './folderAttention.ts';
-import {
-  paged,
-  renderFolderDetails
-} from './folderDetails.ts';
+import { renderFolderDetails } from './folderDetails.ts';
 import { LEAF_REPORT_CSS } from './leafStyles.ts';
 import { mountLeafTree } from './leafTreeView.ts';
 import {
@@ -54,6 +55,7 @@ import {
   scanMetricEntries
 } from './reportMetrics.ts';
 import { installReportSplitter } from './reportSplitter.ts';
+import { renderScanDetails } from './scanDetails.ts';
 import { formatScanFailure } from './scanFailure.ts';
 
 export const AUDIT_CSV_NAMES = [
@@ -146,6 +148,21 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   scanStatus.setAttribute('role', 'status');
   const scanStats = element('dl', '', scanSection, 'leaf-stats leaf-scan-metrics');
   renderReportMetrics(scanStats, scanMetricEntries());
+  const coverage = element('p', '', scanSection, 'leaf-context leaf-coverage-notice');
+  coverage.hidden = true;
+  const problems = element('div', '', scanSection, 'leaf-warning leaf-scan-problems');
+  problems.hidden = true;
+  const problemText = element('p', '', problems);
+  action('View scan problems', problems, () => {
+    scanDetails.open = true;
+    const groups = scanIssues.querySelectorAll<HTMLDetailsElement>('[data-scan-category="problems"], [data-scan-category="markers"]');
+    for (const group of groups) {
+      group.open = true;
+    }
+    const target = groups[0]?.querySelector('summary') ?? scanDetails.querySelector('summary');
+    target?.focus();
+    target?.scrollIntoView({ block: 'nearest' });
+  });
   const warning = element('div', '', scanSection, 'leaf-warning');
   warning.hidden = true;
   const scanDetails = reportDisclosure(scanSection, 'Scan details');
@@ -166,6 +183,14 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   });
   const context = element('div', '', scanDetails, 'leaf-context');
   const scanIssues = element('div', '', scanDetails);
+  function renderCoverage(next: LeafReportModel): void {
+    const issues = next.coverage?.issues ?? [];
+    renderScanDetails(scanIssues, issues);
+    coverage.textContent = coverageNotice(next);
+    coverage.hidden = coverage.textContent.length === 0;
+    problemText.textContent = scanProblemSummary(issues);
+    problems.hidden = problemText.textContent.length === 0;
+  }
   const rootInfo = element('div', '', root, 'leaf-root-info');
   root.insertBefore(rootInfo, scanSection);
   const rootLabel = element('p', initialRootLabel(host.initialContext), rootInfo, 'leaf-root-path');
@@ -782,17 +807,11 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
         next.uncheckedCount > 0 ? 'incomplete' : 'complete'
       }`;
       context.textContent += extraScanContext(next);
-      scanIssues.replaceChildren();
-      paged(scanIssues, next.coverage?.issues ?? [], (issue) => {
-        element('p', `${issue.scope} · ${issue.kind}\n${issue.location}\n${issue.reason}`, scanIssues, 'leaf-context');
-      });
+      renderCoverage(next);
       warning.textContent = [
         ...(next.uncheckedBindings ?? []),
         next.stale ? 'This snapshot predates mutations. Refresh to update results and counts.' : '',
-        next.mutationWarning ? 'Results may not reflect in-progress mutations.' : '',
-        next.uncheckedCount > 0
-          ? `${next.uncheckedCount.toLocaleString()} unchecked items. See Scan details for unchecked locations; unscanned areas may contain additional folders.`
-          : ''
+        next.mutationWarning ? 'Results may not reflect in-progress mutations.' : ''
       ].filter(Boolean).join(' ');
       warning.hidden = warning.textContent.length === 0;
       await applyResult(filtered, order, adoptable, reset);

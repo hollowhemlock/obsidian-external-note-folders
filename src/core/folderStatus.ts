@@ -15,6 +15,7 @@ import {
 } from './folderInspection.ts';
 import { auditIssueScope } from './folderInspectionBuild.ts';
 import { classifyLeafSegments } from './leafQuery.ts';
+import { hasObservedBinding } from './observedBinding.ts';
 import {
   deriveExternalFolderPath,
   normalizePathForIdentity as identity
@@ -218,8 +219,7 @@ export function* folderStatusSteps(scan: AuditSnapshot, tree: LeafTreeNode[]): G
         ...(local.some((marker) => marker.format === 'legacy')
           ? ['Legacy .exnf marker evidence remains; run marker migration to remove the deprecated marker.']
           : []),
-        ...node.issues,
-        ...(complete ? [] : ['Incomplete coverage: uniqueness and absence are provisional.'])
+        ...node.issues
       ],
       marker: markerState(),
       physicalLeaf,
@@ -239,6 +239,7 @@ export function* folderStatusSteps(scan: AuditSnapshot, tree: LeafTreeNode[]): G
     yield;
   }
   const ordered = [...tree].sort((a, b) => b.segments.length - a.segments.length);
+  yield* markNestedParents(ordered, nodes, markers, root);
   for (const node of ordered) {
     const parent = node.id === root ? undefined : nodes.get(node.parent ?? root);
     if (parent) {
@@ -267,7 +268,7 @@ function* classifyContainers(ordered: LeafTreeNode[], nodes: Map<string, LeafTre
     if (parent) {
       const aggregate = counts.get(parent.id) ?? { boundFolders: 0, markedFolders: 0 };
       aggregate.markedFolders += descendants.markedFolders + Number(node.markers.length > 0);
-      aggregate.boundFolders += descendants.boundFolders + Number(!!evidence?.bindingNote && evidence.confidence === 'checked');
+      aggregate.boundFolders += descendants.boundFolders + Number(hasObservedBinding(node));
       counts.set(parent.id, aggregate);
     }
     yield;
@@ -277,11 +278,37 @@ function* classifyContainers(ordered: LeafTreeNode[], nodes: Map<string, LeafTre
 function hasConflict(existing: boolean, invalid: boolean, conflict: boolean): boolean {
   return existing || invalid || conflict;
 }
+
 function hasNestedBinding(covered: boolean, markers: AuditSnapshot['markers']): boolean {
   return covered && markers.some((marker) => marker.status === 'valid');
 }
 function isInvalidMarker(marker: AuditSnapshot['markers'][number]): boolean {
   return marker.status !== 'valid' && marker.status !== 'unchecked-marker';
+}
+/** Only observed valid markers propagate overlap; gaps and ordinary containers do not. */
+function* markNestedParents(
+  ordered: LeafTreeNode[],
+  nodes: Map<string, LeafTreeNode>,
+  markers: Map<string, AuditSnapshot['markers']>,
+  root: string
+): Generator<void, void> {
+  const descendants = new Set<string>();
+  for (const node of ordered) {
+    const valid = markers.get(node.id)?.some((marker) => marker.status === 'valid') ?? false;
+    if (valid && descendants.has(node.id) && node.evidence) {
+      node.conflict = true;
+      node.evidence.status = 'Identity conflict';
+      node.evidence.explanations.push('This folder contains a valid marker above another marked folder.');
+      delete node.evidence.bindingNote;
+      delete node.evidence.expectedFolder;
+      delete node.evidence.uuid;
+    }
+    const parent = node.id === root ? undefined : nodes.get(node.parent ?? root);
+    if (parent && (valid || descendants.has(node.id))) {
+      descendants.add(parent.id);
+    }
+    yield;
+  }
 }
 function nestedBindingExplanations(nested: boolean): string[] {
   return nested ? ['This folder contains a valid marker beneath another marked folder.'] : [];

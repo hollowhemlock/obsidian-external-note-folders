@@ -16,6 +16,9 @@ export function buildAuditExportSummary(model: LeafReportModel, filename: string
     ...(model.uncheckedCount > 0
       ? ['Unscanned areas may contain additional results. Identity and absence conclusions are provisional; locally unchecked leaf paths are excluded.']
       : []),
+    ...(filename === 'folder-status.csv' || filename === 'filtered-folder-status.csv'
+      ? ['Status describes observed binding evidence. The confidence column describes exhaustive scan coverage, independently of displayed binding health.']
+      : []),
     ...(model.mutationWarning ? ['', '**Results may not reflect in-progress mutations**.'] : []),
     ...(model.stale ? ['', '**This snapshot predates mutations. Refresh before exporting current results.**'] : []),
     '',

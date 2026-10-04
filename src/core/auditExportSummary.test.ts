@@ -76,5 +76,6 @@ describe('audit export summaries', () => {
     const summary = buildAuditExportSummary(buildLeafReport(snapshot), 'folder-status.csv', 0);
     expect(summary).toContain('Filtered external scan');
     expect(summary).toContain('Git rule .gitignore:1: ignored/');
+    expect(summary).toContain('confidence column describes exhaustive scan coverage');
   });
 });

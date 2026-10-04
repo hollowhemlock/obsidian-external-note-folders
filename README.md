@@ -485,8 +485,8 @@ cancelled/failed refresh preserve this inspection; selecting another folder,
 changing filters, or a completed refresh ends it. Root markers are inspected
 through **Inspect external root**, without adding a folder row or adoption target.
 
-Parents above confirmed bindings are labeled **Contains bound subfolders**.
-When descendant markers exist without a confirmed binding, the label is
+Parents above checked, matching bindings are labeled **Contains bound subfolders**.
+When descendant markers exist without an observed valid binding, the label is
 **Contains descendant markers**. These replace misleading unassigned/adoption
 candidate labels without overriding local conflicts or unchecked evidence.
 An identified parent without a local marker retains **Marker absent here** and
@@ -526,7 +526,12 @@ for the current tab; reopening starts with all folders and natural name sorting.
 Scan progress and outcomes remain separate from filter and action feedback.
 Passive text, including paths, metrics, warnings, legends, and details, is selectable
 for copying. Interactive tree rows and controls retain their normal interactions.
-**Scan details** lists exclusions, skipped links, and read failures in pages.
+The Scan section describes expected omissions once: ignored folders reduce scan
+work and noise, links are not followed, and additional markers or note identities
+may exist in unchecked locations. These omissions are informational. Read failures
+and unavailable repositories have a compact warning with **View scan problems**.
+**Scan details** groups intentional exclusions, skipped links, read/repository
+failures, and marker findings in separate collapsed, paginated sections.
 Fatal scan failures open a separate **Latest scan attempt** section with the
 attempt's timestamp, scan mode, roots, affected path when available, and full
 diagnostic. Its text is selectable; **Copy error** copies the diagnostic and its
@@ -550,8 +555,17 @@ are respected; a fresh adoption preview still checks the selected note and mode.
 Exact-path evidence uses discovered vault paths independently of external scan
 gaps. An unreadable note still has a usable path, but its YAML identity is
 unchecked. An unreadable marker does not make inspected child directories
-unreadable or remove their known leaf counts. Identity uniqueness remains
-provisional when scan gaps could conceal duplicate UUIDs.
+unreadable or remove their known leaf counts.
+
+**Healthy binding** means the directory, associated note, and local marker identity
+were checked, their UUIDs match at the expected path, and no conflict affecting the
+binding was found. Exhaustive discovery is not required: unrelated vault gaps,
+external exclusions, skipped links/repositories, and unreadable descendants do not
+downgrade a matching binding. Drift remains orange. Unchecked local identity
+evidence prevents green, including an unreadable second marker beside a matching
+marker. Observed valid nested markers make both marked participants conflicts;
+ordinary unmarked containers remain informational. Global coverage cannot prove
+uniqueness or absence in unchecked locations, and is disclosed separately.
 
 The details panel leads with the relationship and available actions. Adoption
 stays visible but disabled for known restrictions, naming local, ancestor, or
@@ -562,7 +576,10 @@ refresh; the shortcut does not exclude anything itself. Offline reports show the
 settings path instead. Pending operations offer recovery; stale results offer
 Refresh. **Choose a note to check adoption**
 means no blocker is established by the snapshot; the adoption preview and fresh
-execution checks remain authoritative. Associated notes, same-name suggestions,
+execution checks remain authoritative. Observed valid bindings instead say
+**Already bound; adoption is not needed**, with the disabled adoption control and
+restrictions inside a collapsed **Adoption restrictions** section. Recovery and
+stale-result controls remain prominent. Associated notes, same-name suggestions,
 other marked ancestors, and technical/scan details start expanded; each section
 can be collapsed. Same-name suggestions remain separate from confirmed associations.
 Scan details and the Advanced/export controls outside the selected-folder panel
@@ -607,9 +624,9 @@ disables actions without recoloring the previous completed result.
 | Color | Meaning | Examples |
 | --- | --- | --- |
 | Gray | Informational | Blocked containers, content subfolders, intentionally excluded paths and skipped links |
-| Green | Healthy binding | Confirmed binding at the expected path |
+| Green | Healthy binding | Checked matching binding at the expected path |
 | Blue | Optional action | Branches or leaves with no known adoption blocker, including unassigned folders |
-| Orange | Review recommended | Drift, unreadable local evidence, unmatched markers, provisional bindings, changes awaiting refresh |
+| Orange | Review recommended | Drift, unreadable local evidence, unmatched markers, changes awaiting refresh |
 | Red | Conflict / recovery | Invalid identities, duplicate UUIDs, conflicting bindings, pending operations |
 
 | Attention | Light row / hover | Dark row / hover | Light / dark indicator |
@@ -666,12 +683,15 @@ Ignored, unreadable, and linked branches are hidden from the normal tree, with
 counts and reasons retained in **Scan details**. Git exclusions name the source
 file, line, and rule. Identified notes pointing into unchecked branches remain
 visible in a warning summary. Excluded topology still restricts adoption and
-physical-leaf counts. Incomplete coverage makes uniqueness and absence
-provisional. Display filters never rescan, and each new scan reloads Git rules.
+physical-leaf counts. Incomplete coverage limits exhaustive uniqueness and absence
+claims without downgrading checked bindings. Display filters never rescan, and each new scan reloads Git rules.
 Standalone audits and mutation preflights retain their existing scan behavior.
 
 **Export filtered status** and **Export all status** write `filtered-folder-status.csv`
 and `folder-status.csv`, including evidence, confidence, note paths, and explanations.
+The existing `confidence` column describes exhaustive coverage, independently of
+displayed binding health; `provisional` can accompany a green observed binding.
+CSV schemas and forensic audit classifications retain their existing meanings.
 Filtered exports include matching folders in collapsed branches, but exclude
 contextual tree ancestors and temporary navigation reveals. Displayed-folder
 counts in Filter likewise count actual filter matches. All-status exports include virtual
@@ -680,7 +700,7 @@ Status fields describe the captured scan. If session mutations affect filtering,
 status exports append that context to the existing explanation field; they do not
 replace captured evidence with an assumed post-mutation state.
 
-For a unique drifted binding, selected-folder details offer **Move external folder
+For a drifted binding with complete checked coverage, selected-folder details offer **Move external folder
 to match note** or **Move note to match external folder**. Both require a preview
 and explicit confirmation, fresh full scans, safe destinations, and mutation-lock
 checks. Folder moves include their subtree. Note moves relocate only the selected

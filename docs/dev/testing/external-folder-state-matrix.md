@@ -151,6 +151,17 @@ branches versus unavailable repositories, collapsed matches, context ancestors,
 and temporary navigation reveals. Sandbox checks cover section and export
 placement, rescan controls, root inspection, and selectable passive text.
 
+Status binding health for R30/R31 and G7 is independent of exhaustive coverage:
+checked matching note/marker identity at the expected path is green despite
+unrelated vault gaps, exclusions, skipped links/repositories, or unreadable
+descendants. Local directory/note/marker uncertainty prevents green, including a
+matching marker beside an unreadable second marker. Drift remains orange;
+observed valid nested markers make all overlapping marked participants red,
+without recoloring unmarked containers. Ancestor descriptions, binding counts,
+review navigation, and offline HTML use the same rule. Expected omissions are
+informational; actual failures have a compact warning and grouped diagnostics.
+Adoption/repair safeguards, forensic classifications, and CSV schemas are unchanged.
+
 ### Journal And Execution State
 
 | ID | State | Applies to |

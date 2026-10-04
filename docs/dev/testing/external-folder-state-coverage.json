@@ -3,6 +3,22 @@
   "coveredScenarios": [
     {
       "kind": "unit-test",
+      "domain": "status",
+      "scenario": "observed-binding-health",
+      "testPath": "src/core/folderStatus.test.ts",
+      "stateIds": ["G7", "T4", "T25", "R30", "R31"],
+      "notes": "Matching checked bindings remain healthy through unrelated scan gaps; local uncertainty and known nested conflicts prevent healthy classification while repair guards remain unchanged."
+    },
+    {
+      "kind": "integration-test",
+      "domain": "status",
+      "scenario": "healthy-bindings-with-scan-gaps",
+      "testPath": "test/integration/leaf-report.integration.test.ts",
+      "stateIds": ["G7", "T4", "T25", "R30", "R31"],
+      "notes": "Checks green rows, review navigation, coverage notices, grouped diagnostics, collapsed adoption restrictions, and offline HTML with filtered and unfiltered coverage gaps."
+    },
+    {
+      "kind": "unit-test",
       "domain": "open-recovery",
       "scenario": "recovery-explanations",
       "testPath": "src/openRecoveryPresentation.test.ts",

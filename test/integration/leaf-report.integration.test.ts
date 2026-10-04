@@ -12,6 +12,7 @@ import {
   it
 } from 'vitest';
 
+import { buildAuditHtml } from '../../scripts/audit-html.ts';
 import { buildLeafReport } from '../../src/core/leafReport.ts';
 import { auditFixture } from '../support/auditFixture.ts';
 import {
@@ -46,10 +47,138 @@ describe('shared leaf report integration', () => {
     await closeSandboxModals();
     evaluate(`app.workspace.detachLeavesOfType('${VIEW_TYPE}')`);
   });
+  it('shows healthy bindings through filtered and full scan gaps in the tab and offline HTML', async () => {
+    const pluginId = await readSandboxPluginId();
+    runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
+    await waitForSandboxModalText('Scan complete', REPORT_SELECTOR);
+    const fixture = auditFixture();
+    fixture.statusScanMode = 'filtered';
+    for (
+      const [relative, note, uuid] of [
+        ['deck', 'deck/deck.md', '11111111-1111-4111-8111-111111111111'],
+        ['Drift', 'Elsewhere.md', '22222222-2222-4222-8222-222222222222'],
+        ['Nested', 'Nested.md', '33333333-3333-4333-8333-333333333333'],
+        ['Nested/content/Child', 'Nested/content/Child.md', '44444444-4444-4444-8444-444444444444']
+      ]
+    ) {
+      const folderPath = path.join(fixture.externalRoot, relative!);
+      fixture.folders.push(folderPath);
+      fixture.notes.push({ hasExnf: true, notePath: path.join(fixture.vaultRoot, note!), relativePath: note!, status: 'valid', uuid: uuid!, value: uuid! });
+      fixture.markers.push({ folderPath, format: 'uuid-named', markerPath: path.join(folderPath, `${uuid}.exnf`), status: 'valid', uuid: uuid! });
+      fixture.vault.bindings.set(uuid!, note!);
+      fixture.external.bindings.set(uuid!, folderPath);
+    }
+    fixture.folders.push(path.join(fixture.externalRoot, 'deck/content'));
+    for (const relative of ['deck/.git', 'deck/lib/vendor']) {
+      const folderPath = path.join(fixture.externalRoot, relative);
+      fixture.external.ignoredDirectories.push({ folderPath, relativePath: relative });
+      fixture.issues.push({
+        kind: 'directory',
+        exclusionSource: 'git',
+        scope: 'external',
+        location: folderPath,
+        reason: 'Git rule .gitignore:2: vendor/',
+        unchecked: true
+      });
+    }
+    const filtered = buildLeafReport(fixture);
+    fixture.statusScanMode = 'unfiltered';
+    fixture.issues = [];
+    fixture.external.ignoredDirectories = [];
+    for (let i = 0; i < 803; i++) {
+      fixture.issues.push({
+        kind: 'link',
+        scope: 'external',
+        location: path.join(fixture.externalRoot, `dependencies/link-${i}`),
+        reason: 'Link not followed',
+        unchecked: true
+      });
+    }
+    for (let i = 0; i < 14; i++) {
+      fixture.issues.push({
+        kind: 'directory',
+        scope: 'external',
+        location: path.join(fixture.externalRoot, `temporary/unreadable-${i}`),
+        reason: 'Directory could not be fully read',
+        unchecked: true
+      });
+    }
+    const unfiltered = buildLeafReport(fixture);
+    const folderPath = path.join(fixture.externalRoot, 'deck');
+    fixture.markers.push({ folderPath, format: 'legacy', markerPath: path.join(folderPath, '.exnf'), status: 'unchecked-marker', uuid: '' });
+    fixture.issues.push({ kind: 'marker', scope: 'external', location: path.join(folderPath, '.exnf'), reason: 'Local identity unreadable', unchecked: true });
+    const unreadable = buildLeafReport(fixture);
+    const modelPath = resolveRepoPath('tmp/binding-health-models.json');
+    const htmlPath = resolveRepoPath('tmp/binding-health-report.html');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(modelPath, JSON.stringify({ filtered, unfiltered, unreadable }));
+    await writeFile(htmlPath, await buildAuditHtml(filtered));
+    const result = evaluate(`(async()=>{
+      const v=app.workspace.getLeavesOfType('${VIEW_TYPE}')[0].view;
+      const models=JSON.parse(require('fs').readFileSync(${JSON.stringify(modelPath)},'utf8'));
+      const el=v.contentEl;
+      const row=(name)=>Array.from(el.querySelectorAll('.leaf-tree-item')).find(r=>r.title.startsWith(name+' —'));
+      const button=(label)=>Array.from(el.querySelectorAll('button')).find(b=>b.textContent===label);
+      const wait=async()=>{await new Promise(r=>setTimeout(r,80));for(let i=0;i<200 && el.querySelector('.exnf-leaf-report').getAttribute('aria-busy')==='true';i++)await new Promise(r=>setTimeout(r,20));};
+      await v.report.update(models.filtered);row('deck').click();await wait();
+      const details=()=>el.querySelector('.leaf-details');
+      const filtered=row('deck').dataset.tone==='healthy' && details().textContent.includes('Already bound; adoption is not needed.') && !details().textContent.includes('provisional');
+      const restricted=!details().querySelector('[data-section=adoption]').open && button('Adopt this folder…').disabled;
+      const neutral=el.querySelector('.leaf-scan-problems').hidden && el.querySelector('.leaf-coverage-notice').textContent.includes('Ignored folders are skipped');
+      const exclusions=el.querySelector('[data-scan-category=exclusions]');
+      const grouped=!exclusions.open && exclusions.textContent.includes('Git rule .gitignore:2: vendor/');
+      await v.report.update(models.unfiltered);await wait();
+      const full=row('deck').dataset.tone==='healthy' && !el.querySelector('.leaf-coverage-notice').textContent.includes('Ignored folders') && el.querySelector('.leaf-scan-problems').textContent.includes('14 unreadable directories');
+      const links=el.querySelector('[data-scan-category=links]');
+      const paged=!links.open && links.querySelectorAll('p').length===50 && links.querySelector('summary').textContent.includes('803');
+      links.querySelector('button').click();const nextPage=links.querySelectorAll('p').length===100;
+      button('View scan problems').click();await wait();
+      const problems=el.querySelector('[data-scan-category=problems]');
+      const focused=problems.open && document.activeElement===problems.querySelector('summary') && !links.open;
+      const conflicts=row('Nested').dataset.tone==='conflict' && row('Drift').dataset.tone==='review';
+      button('Needs review').click();await wait();const review=!row('deck') && !!row('Drift') && !!row('Nested');
+      button('Clear filters').click();await wait();
+      await v.report.update(models.unreadable);await wait();
+      const local=row('deck').dataset.tone==='review' && !details().textContent.includes('Already bound; adoption is not needed.');
+      await v.report.update(models.filtered);await wait();
+      const newDisclosure=!details().querySelector('[data-section=adoption]').open;
+      const frame=document.createElement('iframe');frame.style.cssText='width:1200px;height:700px';el.append(frame);
+      let offline=false;
+      try {
+        frame.srcdoc=require('fs').readFileSync(${JSON.stringify(htmlPath)},'utf8');
+        for(let i=0;i<200;i++){
+          const doc=frame.contentDocument;
+          const deck=Array.from(doc?.querySelectorAll('.leaf-tree-item')??[]).find(r=>r.title.startsWith('deck —'));
+          if(deck){offline=deck.dataset.tone==='healthy' && doc.querySelector('.leaf-coverage-notice').textContent.includes('Additional .exnf markers') && doc.querySelector('.leaf-scan-problems').hidden;break;}
+          await new Promise(r=>setTimeout(r,25));
+        }
+      } finally {frame.remove();}
+      return JSON.stringify({filtered,restricted,neutral,grouped,full,paged,nextPage,focused,conflicts,review,local,newDisclosure,offline});
+    })()`);
+    for (
+      const key of [
+        'filtered',
+        'restricted',
+        'neutral',
+        'grouped',
+        'full',
+        'paged',
+        'nextPage',
+        'focused',
+        'conflicts',
+        'review',
+        'local',
+        'newDisclosure',
+        'offline'
+      ]
+    ) {
+      expect(result).toContain(`"${key}":true`);
+    }
+  }, 60_000);
   it('publishes skipped repository warnings with separate coverage counts', async () => {
     const pluginId = await readSandboxPluginId();
     runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
-    await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR);
+    await waitForSandboxModalText('Scan complete', REPORT_SELECTOR);
     const state = evaluate(`(async()=>{
       const v=app.workspace.getLeavesOfType('${VIEW_TYPE}')[0].view;
       const scan=v.session.host.scan;
@@ -79,7 +208,7 @@ describe('shared leaf report integration', () => {
   it('separates scan and filter controls, metrics, feedback, and selectable text', async () => {
     const pluginId = await readSandboxPluginId();
     runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
-    await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR);
+    await waitForSandboxModalText('Scan complete', REPORT_SELECTOR);
     const state = evaluate(`(async()=>{
       const v=app.workspace.getLeavesOfType('${VIEW_TYPE}')[0].view;
       const el=v.contentEl;
@@ -118,7 +247,7 @@ describe('shared leaf report integration', () => {
   it('exposes both scan modes and retains the completed snapshot after a Git failure', async () => {
     const pluginId = await readSandboxPluginId();
     runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
-    await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR);
+    await waitForSandboxModalText('Scan complete', REPORT_SELECTOR);
     const state = evaluate(`(async()=>{
       const v=app.workspace.getLeavesOfType('${VIEW_TYPE}')[0].view;
       const buttons=Array.from(v.contentEl.querySelectorAll('button'));
@@ -186,7 +315,7 @@ describe('shared leaf report integration', () => {
 
     runSandboxCli(['command', `id=${command}`]);
 
-    expect((await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR)).stdout).toContain('Filtered external scan');
+    expect((await waitForSandboxModalText('Scan complete', REPORT_SELECTOR)).stdout).toContain('Filtered external scan');
     // The sandbox sits under a Git-ignored fixture directory. Inspect its full physical fixture explicitly.
     evaluate(
       `Array.from(document.querySelectorAll('${REPORT_SELECTOR} button')).find(b=>b.textContent==='Rescan entire external directory without filters').click()`
@@ -245,7 +374,7 @@ describe('shared leaf report integration', () => {
   it('preserves a selected anchor beyond 100 siblings and handles hidden, removed and cancelled selections', async () => {
     const pluginId = await readSandboxPluginId();
     runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
-    await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR);
+    await waitForSandboxModalText('Scan complete', REPORT_SELECTOR);
     const fixture = auditFixture();
     fixture.notes = [];
     fixture.folders = [path.join(fixture.externalRoot, 'a-target')];
@@ -341,7 +470,7 @@ describe('shared leaf report integration', () => {
   it('reveals marked ancestors without changing filters, restores Back, and supports disclosure controls', async () => {
     const pluginId = await readSandboxPluginId();
     runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
-    await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR);
+    await waitForSandboxModalText('Scan complete', REPORT_SELECTOR);
     const fixture = auditFixture();
     fixture.folders = ['Project', 'Project/child', 'Other'].map((name) => path.join(fixture.externalRoot, name));
     const folderPath = path.join(fixture.externalRoot, 'Project');
@@ -469,7 +598,7 @@ describe('shared leaf report integration', () => {
   it('shares review navigation, adoption availability, and stable resizable details', async () => {
     const pluginId = await readSandboxPluginId();
     runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
-    await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR);
+    await waitForSandboxModalText('Scan complete', REPORT_SELECTOR);
     const fixture = auditFixture(150);
     fixture.folders.push(
       ...['Branch', 'Branch/Child', 'ReviewParent', 'ReviewParent/A', 'ReviewParent/B'].map((name) => path.join(fixture.externalRoot, name))
@@ -580,7 +709,7 @@ describe('shared leaf report integration', () => {
 
     runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
 
-    await waitForSandboxModalText('Scan complete.', REPORT_SELECTOR);
+    await waitForSandboxModalText('Scan complete', REPORT_SELECTOR);
 
     const fixture = auditFixture(20_000);
 

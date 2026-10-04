@@ -6,6 +6,7 @@ import type {
   ScanFailure
 } from './scanFailure.ts';
 
+import { scanProblemSummary } from '../core/scanCoveragePresentation.ts';
 import { createScanFailure } from './scanFailure.ts';
 
 const PROGRESS_INTERVAL_MS = 100;
@@ -89,8 +90,8 @@ export class AuditSession {
       this.model = model;
       this.setFailure(null);
       this.host.status(
-        snapshot.issues.some((issue) => issue.code === 'git-repository-unavailable')
-          ? 'Scan complete with warnings. See Scan details for skipped repositories.'
+        scanProblemSummary(snapshot.issues)
+          ? 'Scan complete with warnings. See Scan details for scan problems.'
           : 'Scan complete. Results describe the recorded scan time.',
         false
       );

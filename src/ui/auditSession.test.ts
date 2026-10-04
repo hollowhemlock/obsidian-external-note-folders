@@ -104,7 +104,16 @@ describe('audit tab session', () => {
     await session.refresh();
     expect(session.snapshot).toBe(next);
     expect(host.update).toHaveBeenCalledTimes(2);
-    expect(host.status).toHaveBeenLastCalledWith('Scan complete with warnings. See Scan details for skipped repositories.', false);
+    expect(host.status).toHaveBeenLastCalledWith('Scan complete with warnings. See Scan details for scan problems.', false);
+  });
+  it.each(['directory', 'note', 'marker', 'link'] as const)('distinguishes unexpected %s failures from intentional skips', async (kind) => {
+    const { host, session, snapshot } = fixture();
+    snapshot.issues.push({ kind, location: `${snapshot.externalRoot}/item`, reason: 'Unchecked', unchecked: true });
+    await session.refresh();
+    expect(host.status).toHaveBeenLastCalledWith(
+      kind === 'link' ? 'Scan complete. Results describe the recorded scan time.' : 'Scan complete with warnings. See Scan details for scan problems.',
+      false
+    );
   });
   it('defaults to filtered scans, preserves successful mode on failure, and discloses an empty first failure', async () => {
     const { host, session, snapshot } = fixture();

@@ -74,6 +74,32 @@ Scan details and exports retain exclusion reasons and Git rule provenance.
 This policy changes only status scans. Standalone audits and mutation preflights
 retain their current defaults and authoritative safety checks.
 
+### Observed binding health (2026-10-04)
+
+Status health describes checked note/folder evidence independently of exhaustive
+coverage. A readable directory and matching valid note/marker identity at the
+expected path are healthy unless a conflict affecting that binding was observed.
+Unrelated vault gaps, ignored branches, skipped repositories/links, and unreadable
+descendants do not downgrade that binding. Drift remains a review state. Unchecked
+local identity evidence prevents healthy classification, even if another local
+marker matches. Observed valid nested markers mark all overlapping marked
+participants as conflicts; unmarked containers do not inherit those conflicts.
+
+Ancestor descriptions and bound-descendant counts use the same checked-binding
+predicate. Scan-wide coverage confidence is retained for exports and existing
+repair eligibility, never substituted with displayed health. Mutation safety
+rules are unchanged. This refines product-intent principles 6 and 8 and ADR-0009:
+scan warnings describe their affected evidence without making healthy siblings
+appear broken.
+
+Expected omissions appear as a neutral scope notice once in Scan. Unexpected
+read/identity failures and skipped repositories have a compact warning linking to
+grouped diagnostics. Exclusions, links, failures, and marker findings retain their
+paths and provenance in collapsed, paginated groups. Unfiltered scans remain
+optional diagnostics, not a prerequisite for green. Bound-folder details collapse
+adoption restrictions while keeping recovery and stale-result actions visible.
+The status CSV schema and legacy exhaustive-coverage confidence values are unchanged.
+
 ## Consequences
 
 Filtered scanning requires Git on the desktop application's PATH. There is no

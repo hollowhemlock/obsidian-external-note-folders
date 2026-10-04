@@ -1,5 +1,7 @@
 import type { LeafTreeNode } from './leafTree.ts';
 
+import { hasObservedBinding } from './observedBinding.ts';
+
 export type FolderAttention = 'conflict' | 'healthy' | 'neutral' | 'optional' | 'review';
 export type FolderChange = 'changed' | 'pending' | undefined;
 
@@ -44,7 +46,7 @@ export function folderAttention(node: LeafTreeNode, change?: FolderChange): Fold
   }
   const status = evidence?.status ?? '';
   if (status === 'Bound at expected path') {
-    return evidence?.confidence === 'checked' ? 'healthy' : 'review';
+    return hasObservedBinding(node) ? 'healthy' : 'review';
   }
   return STATUS_ATTENTION[status] ?? 'neutral';
 }
