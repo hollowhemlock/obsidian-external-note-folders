@@ -14,6 +14,8 @@ User-visible change:
   the end of Scan and adoption recovery beside result navigation.
 - Make passive report text selectable for copying and label unmarked-leaf exports
   explicitly without changing their contents.
+- Disable filtered exports while filters are recalculating so exports cannot use
+  the previous result with newly selected filter controls.
 
 Product alignment: ADR-0034 and state-matrix R30/R31 presentation checks.
 

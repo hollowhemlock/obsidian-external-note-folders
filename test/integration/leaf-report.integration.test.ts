@@ -746,8 +746,11 @@ describe('shared leaf report integration', () => {
         await wait();
         const selected=el.querySelector('.leaf-details').textContent.includes('group-0');
         const search=el.querySelector('input[type=search]');
+        const exports=Array.from(el.querySelectorAll('.leaf-filter-section button')).filter(b=>b.textContent.startsWith('Export filtered'));
         search.value='group'; search.dispatchEvent(new Event('input'));
+        const exportsPending=exports.length===2 && exports.every(b=>b.disabled);
         await wait();
+        const exportsReady=exports.every(b=>!b.disabled);
         const broad=el.querySelector('[data-metric=matchingFolders] dd').textContent===(20100).toLocaleString();
         const domRows=el.querySelectorAll('.leaf-tree-item').length;
         const tree=el.querySelector('.leaf-tree');
@@ -763,13 +766,15 @@ describe('shared leaf report integration', () => {
         const filtered=el.querySelector('[data-metric=matchingFolders] dd').textContent==='1';
         const hiddenSelection=el.querySelector('.leaf-details').textContent.includes('hidden by the current filters');
         observer.disconnect();
-        return JSON.stringify({totalMs:performance.now()-started,maxTask,domRows,finalRows,broad,filtered,selected,hiddenSelection});
+        return JSON.stringify({totalMs:performance.now()-started,maxTask,domRows,finalRows,broad,filtered,selected,hiddenSelection,exportsPending,exportsReady});
       })()`
     );
     expect(rendered).toContain('"broad":true');
     expect(rendered).toContain('"filtered":true');
     expect(rendered).toContain('"selected":true');
     expect(rendered).toContain('"hiddenSelection":true');
+    expect(rendered).toContain('"exportsPending":true');
+    expect(rendered).toContain('"exportsReady":true');
     const domRows = /"domRows":(?<count>\d+)/u.exec(rendered)?.groups?.['count'];
     const finalRows = /"finalRows":(?<count>\d+)/u.exec(rendered)?.groups?.['count'];
     expect(Number(domRows)).toBeLessThanOrEqual(60);

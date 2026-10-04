@@ -543,12 +543,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     if (!model) {
       return;
     }
-    for (const button of exportControls.querySelectorAll('button')) {
-      button.disabled = true;
-    }
-    previousIssue.disabled = true;
-    nextIssue.disabled = true;
-    nextAdoptable.disabled = true;
+    refreshControls();
     const input = model;
     try {
       const filtered = await runAuditSteps(queryTreeSteps(input, { ...query }, new Map(adoptions)), { signal: abort.signal });
