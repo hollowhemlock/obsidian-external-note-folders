@@ -15,6 +15,7 @@ import {
   markedAncestors,
   shortFolderStatus
 } from '../core/folderInspection.ts';
+import { missingMarkerNote } from '../core/missingMarker.ts';
 import { hasObservedBinding } from '../core/observedBinding.ts';
 import {
   ATTENTION_LABELS,
@@ -205,11 +206,13 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
     }
   }
   function renderActions(target: HTMLElement): void {
-    if (isRoot || node.kind === 'virtual') {
-      return;
-    }
     const stale = !!model.stale;
     const pending = options.overlay?.[1] === null;
+    const repairNote = missingMarkerNote(node);
+    if (repairNote) {
+      renderMissingMarker(target, repairNote);
+      return;
+    }
     const blocked = stale || !options.availability?.adoptable;
     let adoptionTarget = target;
     if (hasObservedBinding(node)) {
@@ -279,6 +282,41 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
     });
     renderRepairActions(stale, target);
   }
+  function renderMissingMarker(target: HTMLElement, notePath: string): void {
+    reportElement(target, 'p', `Associated note: ${notePath}`);
+    if (host.openNote) {
+      button(target, 'Open associated note', () => host.openNote?.(notePath));
+    }
+    if (host.createMissingMarker) {
+      const create = button(target, 'Create missing marker', () => host.createMissingMarker?.(notePath, node.folderPath));
+      const blocked = !options.availability?.markerRepair;
+      create.disabled = options.busy || blocked;
+      create.dataset['adoptionBlocked'] = String(blocked);
+      reportElement(target, 'p', 'Preview fresh checks before creating this note’s marker. Intentional exclusions do not block marker repair.');
+    } else {
+      reportElement(target, 'p', 'In Obsidian, open External folder status and choose Create missing marker. This offline report cannot write markers.');
+    }
+    if (options.overlay?.[1] === null) {
+      reportElement(target, 'p', 'An unfinished operation affects this folder. Review it before creating a marker.');
+      if (host.resume) {
+        button(target, 'Review pending operation', host.resume);
+      }
+    } else if (model.stale || options.overlay) {
+      reportElement(target, 'p', 'Refresh status to check current evidence before creating a marker.');
+      if (host.refresh) {
+        button(target, 'Refresh status', host.refresh);
+      }
+    }
+    if (node.inspection?.subtreeMarkers) {
+      reportElement(target, 'p', 'Descendant marker evidence prevents creating a marker here. Inspect the marked subfolders.');
+    }
+    for (const folder of node.evidence?.relatedFolders ?? []) {
+      reportElement(target, 'p', `This UUID was found at ${folder}. Repair will recheck that location before offering creation.`);
+      if (host.openFolder) {
+        button(target, 'Inspect existing binding', () => host.openFolder?.(folder));
+      }
+    }
+  }
   function renderRepairActions(stale: boolean, target: HTMLElement): void {
     if (host.repair && hasObservedBinding(node) && node.evidence?.status === 'Bound at different path' && node.evidence.confidence !== 'checked') {
       reportElement(
@@ -330,6 +368,7 @@ function statusDescription(node: LeafTreeNode): string {
     'Excluded from scan': 'This branch was excluded by the command’s scan settings. Its contents were not inspected.',
     'Identity conflict': 'Identities disagree or marked folders overlap. Inspect the evidence before making changes.',
     'Inside a marked folder': 'This folder is inside a folder containing marker evidence. See its ancestor relationship below.',
+    'Marker absent here': 'This note has an external folder identifier, but this folder is missing its marker.',
     'Unassigned folder': 'No direct note association or local marker was found. Ordinary content folders do not need adoption.',
     'Unchecked': 'Some evidence for this folder could not be checked. The reasons are available below.'
   };

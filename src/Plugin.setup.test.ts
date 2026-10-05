@@ -22,7 +22,10 @@ import {
   vi
 } from 'vitest';
 
+import type { OpenExternalFolderRecoveryPlan } from './core/openExternalFolderRecovery.ts';
+import type { ReconcilePlan } from './core/reconcilePlan.ts';
 import type { SetupPlan } from './core/setupPlan.ts';
+import type { AdoptionExecutionOperations } from './storage/adoptionExecutor.ts';
 import type {
   SetupExecutionOperations,
   SetupJournal
@@ -53,8 +56,14 @@ const UUID = '123e4567-e89b-42d3-a456-426614174000';
 const OTHER_UUID = '223e4567-e89b-42d3-a456-426614174000';
 
 interface SetupCommands {
+  assertNoPendingMarkerRepair: (folder: string) => Promise<void>;
+  buildAdoptionExecutionOperations: (root: string) => AdoptionExecutionOperations;
   buildSetupExecutionOperations: () => SetupExecutionOperations;
   buildSetupPlanForFile: (file: TFile) => Promise<SetupPlan>;
+  getActiveMarkdownFile: () => TFile;
+  openRecoveryModal: (plan: OpenExternalFolderRecoveryPlan, opened: null | string) => void;
+  runOpenExternalFolderCommand: () => Promise<void>;
+  runReconcileExecuteCommand: (plan: ReconcilePlan) => Promise<void>;
   runSetupExecuteCommand: (plan: SetupPlan) => Promise<void>;
   runSetupResumeCommand: (journal: { journalPath: string } & SetupJournal) => Promise<void>;
   withProgressModal: <T>(title: string, description: string, operation: () => Promise<T>) => Promise<T>;
@@ -90,6 +99,53 @@ describe('setup command safety', () => {
     expect(await readSetupJournal(journal.journalPath)).toMatchObject({ stage: 'frontmatter-write' });
   });
 
+  it('reads selected note bytes before choosing setup when metadata is absent', async () => {
+    const fixture = await createFixture();
+    fixture.plugin.app.vault.adapter.read = async (): Promise<string> => `---\nexnf: ${UUID}\n---\n`;
+    const plan = await fixture.commands.buildSetupPlanForFile(fixture.file);
+    expect(plan).toMatchObject({ action: 'open-existing', uuid: UUID });
+    expect(fixture.writeNote).not.toHaveBeenCalled();
+    expect(await readdir(fixture.targetPath)).toEqual([]);
+  });
+  it('uses fresh selected identity for Open recovery despite an absent metadata identity', async () => {
+    const fixture = await createFixture();
+    fixture.plugin.app.vault.adapter.read = async (): Promise<string> => `---\nexnf: ${UUID}\n---\n`;
+    vi.spyOn(fixture.commands, 'getActiveMarkdownFile').mockReturnValue(fixture.file);
+    const modal = vi.spyOn(fixture.commands, 'openRecoveryModal').mockImplementation(() => undefined);
+    await fixture.commands.runOpenExternalFolderCommand();
+    expect(modal).toHaveBeenCalledWith(expect.objectContaining({ notePath: fixture.file.path, uuid: UUID }), null);
+    expect(fixture.writeNote).not.toHaveBeenCalled();
+  });
+  it('blocks overlapping bulk adoption writes and reconcile moves behind a pending repair', async () => {
+    const fixture = await createFixture();
+    const guard = vi.spyOn(fixture.commands, 'assertNoPendingMarkerRepair').mockRejectedValue(new Error('Review pending repair'));
+    const operations = fixture.commands.buildAdoptionExecutionOperations(fixture.root);
+    const row = { externalFolder: 'Alpha', folderPath: fixture.targetPath, kind: 'adopt' as const, notePath: 'Alpha.md' };
+    await expect(operations.writeMarker(row, UUID)).rejects.toThrow('pending repair');
+    await expect(operations.writeNoteUuid(row, UUID)).rejects.toThrow('pending repair');
+    expect(guard).toHaveBeenCalledWith(fixture.targetPath);
+    const plan: ReconcilePlan = {
+      errors: [],
+      externalRootPath: fixture.root,
+      hasGlobalErrors: false,
+      markdownReport: '',
+      mutationSequence: 0,
+      rows: [{
+        currentExternalFolder: 'Alpha',
+        kind: 'move',
+        notePath: 'Other.md',
+        sourcePath: fixture.targetPath,
+        targetExternalFolder: 'Other',
+        targetPath: path.join(fixture.root, 'Other'),
+        uuid: UUID
+      }],
+      summaryText: '',
+      warnings: []
+    };
+    await expect(fixture.commands.runReconcileExecuteCommand(plan)).rejects.toThrow('pending repair');
+    expect(await readdir(fixture.targetPath)).toEqual([]);
+    expect(fixture.writeNote).not.toHaveBeenCalled();
+  });
   it('omits excluded templates from setup identity and descendant reservations', async () => {
     const fixture = await createFixture();
     fixture.addOwner('Alpha/Child.tpl.md');
@@ -328,7 +384,10 @@ describe('setup command safety', () => {
       fileManager: { processFrontMatter: writeNote },
       metadataCache: { getFileCache: (note: TFile) => ({ frontmatter: metadata.get(note) }) },
       vault: {
-        adapter: { getBasePath: () => root },
+        adapter: {
+          getBasePath: () => root,
+          read: async () => typeof frontmatter['exnf'] === 'string' ? `---\nexnf: ${frontmatter['exnf']}\n---\n` : 'note without identity'
+        },
         configDir: '.test-config',
         getAbstractFileByPath: (notePath: string) => files.find((note) => note.path === notePath),
         getMarkdownFiles: () => files,
@@ -359,7 +418,7 @@ describe('setup command safety', () => {
 
   async function interruptBeforeNote(
     fixture: SetupFixture,
-    action: SetupJournal['action'] = 'confirm-unmarked-adoption'
+    action: Exclude<SetupJournal['action'], 'create-missing-marker'> = 'confirm-unmarked-adoption'
   ): Promise<{ journalPath: string } & SetupJournal> {
     if (action === 'confirm-marker-restore') {
       await writeFile(fixture.markerPath, '');

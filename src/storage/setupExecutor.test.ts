@@ -56,6 +56,40 @@ describe('setup execution journal', () => {
     });
   });
 
+  it('repairs only the marker and resumes verification without writing frontmatter', async () => {
+    const calls: string[] = [];
+    const first = await executeSetupPlan({
+      journalRootPath: await tempRoot(),
+      operations: {
+        ...operations(calls),
+        assertComplete: async () => {
+          throw new Error('interrupted verification');
+        }
+      },
+      plan: {
+        ...plan('confirm-unmarked-adoption'),
+        action: 'create-missing-marker',
+        knownMatches: [],
+        markerPresent: false,
+        omissions: [],
+        repairContext: {
+          externalRootPath: path.resolve('external'),
+          ignorePatterns: [],
+          knownFolders: [],
+          notePath: 'Alpha.md',
+          targetPath: path.resolve('external/Alpha'),
+          templatePatterns: [],
+          uuid: UUID
+        },
+        uuid: UUID
+      }
+    });
+    expect(first.journal.stage).toBe('complete');
+    expect(calls).toEqual(['marker']);
+    await resumeSetupJournal({ journalPath: first.journalPath, operations: operations(calls) });
+    expect(calls).toEqual(['marker', 'complete']);
+  });
+
   it.each(
     [
       ['folder-create', 'createFolder'],

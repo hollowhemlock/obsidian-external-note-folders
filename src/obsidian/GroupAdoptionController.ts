@@ -45,6 +45,7 @@ import { executeReconcilePlan } from '../storage/reconcileExecutor.ts';
 import { GroupAdoptionModal } from './GroupAdoptionModal.ts';
 
 export interface GroupAdoptionHost {
+  assertNoPending?: (folder: string) => Promise<void>;
   changed: (folder: string, note: null | string) => void;
   mutate: (operation: () => Promise<void>) => Promise<void>;
   sequence: () => number;
@@ -99,6 +100,8 @@ export class GroupAdoptionController {
 
   public async execute(plan: GroupAdoptionPlan, content: null | string): Promise<void> {
     await this.host.mutate(async () => {
+      await this.host.assertNoPending?.(plan.folderPath);
+      await this.host.assertNoPending?.(plan.expectedFolder);
       if (this.disposed || plan.mutationSequence !== this.host.sequence()) {
         throw new Error('Plan is stale. Preview again.');
       }
@@ -193,6 +196,7 @@ export class GroupAdoptionController {
     move: boolean,
     signal: AbortSignal
   ): Promise<{ content: null | string; plan: GroupAdoptionPlan }> {
+    await this.host.assertNoPending?.(folder);
     if (source) {
       assertBindingNoteAllowed(source, this.host.settings().templateExcludePatterns);
     }
@@ -212,6 +216,7 @@ export class GroupAdoptionController {
   }
 
   public async repair(folder: string, direction: 'external' | 'note'): Promise<void> {
+    await this.host.assertNoPending?.(folder);
     const sequence = this.host.sequence();
     const snapshot = await this.scan();
     const binding = repairBinding(snapshot, folder);
@@ -300,6 +305,7 @@ export class GroupAdoptionController {
           return;
         }
         await this.host.mutate(async () => {
+          await this.host.assertNoPending?.(folder);
           if (this.disposed || sequence !== this.host.sequence()) {
             throw new Error('Plan is stale. Open a fresh preview.');
           }
@@ -434,6 +440,11 @@ export class GroupAdoptionController {
     }
   }
 
+  private async assertPendingRepair(plan: GroupAdoptionJournal['plan']): Promise<void> {
+    await this.host.assertNoPending?.(plan.folderPath);
+    await this.host.assertNoPending?.(plan.expectedFolder);
+  }
+
   private assertTemplateScope(plan: GroupAdoptionPlan): void {
     const patterns = buildTemplateExclusionMatcher(this.host.settings().templateExcludePatterns).patterns;
     if (JSON.stringify(patterns) !== JSON.stringify(plan.templateExcludePatterns ?? [])) {
@@ -564,6 +575,7 @@ export class GroupAdoptionController {
   }
 
   private async preflightResume(journal: GroupAdoptionJournal, acknowledgedDescendants: readonly string[] = []): Promise<void> {
+    await this.assertPendingRepair(journal.plan);
     const plan = journal.plan;
     this.assertTemplateScope(plan);
     const roots = this.roots();

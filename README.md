@@ -288,7 +288,7 @@ Standalone audit commands continue to scan all notes by default.
 | Expected folder has matching marker | Opens without a root scan. Additional UUID markers in that folder produce a warning and are never overwritten. | Reported as current plus stale/orphan/misplaced evidence. | [ADR-0015](docs/dev/adr/0015-external-folder-path-derivation.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md), [ADR-0027](docs/dev/adr/0027-uuid-named-marker-files.md) |
 | Canonical marker contains arbitrary or unreadable data | Content is not read; the canonical filename supplies identity. | Classified from the filename. | [ADR-0027](docs/dev/adr/0027-uuid-named-marker-files.md) |
 | Expected folder is missing | Runs the active-note recovery scan before offering create/open actions. | Can report a missing expected folder or an unexpected off-path folder if one exists. | [ADR-0002](docs/dev/adr/0002-missing-external-is-normal.md), [ADR-0015](docs/dev/adr/0015-external-folder-path-derivation.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md) |
-| Expected folder exists without marker | Runs recovery scan and may offer explicit marker adoption after revalidation. | Reported as an occupied target path when a bound folder is expected there. | [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md), [ADR-0027](docs/dev/adr/0027-uuid-named-marker-files.md) |
+| Expected folder exists without marker | Runs recovery discovery and offers the shared **Create missing marker** preview with fresh scoped checks. | Reported as an occupied target path when a bound folder is expected there. | [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md), [ADR-0027](docs/dev/adr/0027-uuid-named-marker-files.md) |
 | Expected folder has a malformed marker filename, malformed legacy marker content, or a different marker UUID | Does not open the expected path; runs recovery scan and shows the expected-path problem. | Reported as an integrity error or occupied target. | [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md), [ADR-0027](docs/dev/adr/0027-uuid-named-marker-files.md) |
 | Same UUID is bound somewhere else | If expected fast path failed, one off-path match can open with a persistent modal; duplicates block auto-open. | Reported as unexpected drift and can be reconciled explicitly. | [ADR-0006](docs/dev/adr/0006-reconcile-is-explicit.md), [ADR-0022](docs/dev/adr/0022-reconcile-planner-and-execution-contract.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md) |
 | Marker has no matching vault note | Only shown by open recovery when it is an exact-name candidate or active-note-relevant warning. | Reported as an orphan bound folder. | [ADR-0008](docs/dev/adr/0008-no-reverse-reconciliation.md), [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md), [ADR-0027](docs/dev/adr/0027-uuid-named-marker-files.md) |
@@ -446,6 +446,38 @@ present; those files remain in the markdown inventory and unchecked findings.
 This is a live scan, not an atomic filesystem snapshot; rerun if files change during
 the scan. Exit codes are `0` for a complete scan (which may have findings), `2` for
 incomplete coverage with reports, and `1` for a command/output failure.
+
+### Create a missing marker
+
+When an identified note maps exactly to a checked, unmarked folder, status shows
+**Missing marker** and **Create missing marker**. Setup and Open recovery use the
+same preview. It shows the note, existing UUID, absolute folder, and proposed
+marker path. **Create marker** writes only an empty `<uuid>.exnf`; the note,
+folder contents, and locations stay unchanged. Offline HTML explains this action
+and directs you to Obsidian.
+
+Fresh checks read vault note identities without relying on the metadata cache,
+then inspect the target, ancestors, and included descendants. Intentional settings
+and Git exclusions (including tracked-path exceptions and Git metadata) are
+listed in a collapsed disclosure and require no acknowledgment. They do not
+block this narrow repair. An excluded target, unsafe paths, unignored links,
+required read/repository failures, competing UUID owners, overlapping identified
+note reservations, or observed conflicting markers do block it. Ordinary child
+notes without identifiers do not block restoring the parent marker.
+
+Previously discovered locations for this UUID are rechecked before creation.
+A remaining match offers **Inspect existing binding**. Unknown locations outside
+the checked scope may still contain markers; this does not prove exhaustive
+uniqueness. Changes to eligibility or disclosed omission scope require a new
+preview. A matching marker that appears meanwhile is verified, never overwritten.
+
+Marker-only repairs use the setup journal's `marker-write → complete` stages,
+never frontmatter writing. **Review pending operation** remains available after
+restart; resume requires the original note UUID and repeats the same checks.
+Overlapping mutations are blocked while repair is pending. Successful creation
+refreshes the current status mode, selection, and filters; a failed or cancelled
+refresh keeps the previous snapshot visibly stale. Generic adoption, missing-folder
+creation, and imported-identity restoration retain their separate safeguards.
 
 ### External folder status
 

@@ -30,10 +30,12 @@ import { AuditExportModal } from './AuditExportModal.ts';
 export const LEAF_REPORT_VIEW_TYPE = 'external-note-folders-leaf-report';
 export interface LeafReportTabOptions {
   adopt?: (folder: string) => void;
+  createMissingMarker?: (notePath: string, folderPath: string, knownFolders: string[]) => Promise<void>;
   externalRoot: () => string;
   mutationState: () => AuditMutationState;
   openTemplateSettings?: () => void;
   pending?: () => Promise<number>;
+  pendingRepairs?: () => Promise<{ targetPath: string }[]>;
   repair?: (folder: string, direction: 'external' | 'note') => Promise<void>;
   resume?: () => Promise<void>;
   scanPatterns?: () => string[];
@@ -60,6 +62,10 @@ export class LeafReportTab extends ItemView {
     return LEAF_REPORT_VIEW_TYPE;
   }
 
+  public knownMarkerFolders(uuid: string): string[] {
+    return (this.session?.snapshot?.markers ?? []).filter((marker) => marker.uuid === uuid).map((marker) => marker.folderPath);
+  }
+
   public markAdopted(folder: string, note: null | string): void {
     if (this.session?.model) {
       this.session.model.stale = true;
@@ -75,6 +81,14 @@ export class LeafReportTab extends ItemView {
   public override async onOpen(): Promise<void> {
     this.contentEl.replaceChildren();
     this.report = mountLeafReport(this.contentEl, {
+      ...(this.options.createMissingMarker
+        ? {
+          createMissingMarker: async (notePath: string, folderPath: string): Promise<void> => {
+            const note = this.session?.snapshot?.notes.find((item) => item.relativePath === notePath);
+            await this.options.createMissingMarker?.(notePath, folderPath, note ? this.knownMarkerFolders(note.uuid) : []);
+          }
+        }
+        : {}),
       ...(this.options.adopt ? { adopt: this.options.adopt } : {}),
       ...(this.options.resume ? { resume: this.options.resume } : {}),
       ...(this.options.repair ? { repair: this.options.repair } : {}),
@@ -140,13 +154,20 @@ export class LeafReportTab extends ItemView {
     });
     await this.session.refresh();
     try {
+      for (const repair of await this.options.pendingRepairs?.() ?? []) {
+        this.markAdopted(repair.targetPath, null);
+      }
       const pending = await this.options.pending?.();
       if (pending) {
-        this.showReportStatus(`${String(pending)} pending folder adoption(s). Use Resume folder adoption.`);
+        this.showReportStatus(`${String(pending)} pending folder operation(s). Use Review pending operation or Resume folder adoption.`);
       }
     } catch (error: unknown) {
       this.showReportStatus(`Cannot inspect pending adoptions: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  public async refreshAfterRepair(): Promise<void> {
+    await this.session?.refreshAfterMutation(this.session.model?.statusScanMode ?? 'filtered');
   }
 
   public shutdown(): void {

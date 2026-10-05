@@ -7,8 +7,17 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 
+import type {
+  MarkerRepairContext,
+  MarkerRepairOmission,
+  MarkerRepairPlan
+} from '../core/markerRepair.ts';
 import type { SetupPlan } from '../core/setupPlan.ts';
 
+import {
+  isMarkerRepairContext,
+  isMarkerRepairOmissions
+} from '../core/markerRepair.ts';
 import { isCanonicalUuid } from '../core/uuid.ts';
 
 const JSON_INDENT = 2;
@@ -27,13 +36,15 @@ export interface SetupExecutionResult {
 }
 
 export interface SetupJournal {
-  action: 'confirm-marker-restore' | 'confirm-unmarked-adoption' | 'create-new';
+  action: 'confirm-marker-restore' | 'confirm-unmarked-adoption' | 'create-missing-marker' | 'create-new';
   completedAt: null | string;
   externalRootPath: string;
   kind: 'external-folder-setup';
   message: null | string;
   notePath: string;
+  omissions?: MarkerRepairOmission[];
   outcome: 'failure' | 'pending' | 'success';
+  repairContext?: MarkerRepairContext;
   runId: string;
   schemaVersion: 1;
   stage: SetupJournalStage;
@@ -47,12 +58,13 @@ export type SetupJournalStage = 'complete' | 'folder-create' | 'frontmatter-writ
 export async function executeSetupPlan(input: {
   journalRootPath: string;
   operations: SetupExecutionOperations;
-  plan: SetupPlan;
+  plan: MarkerRepairPlan | SetupPlan;
 }): Promise<SetupExecutionResult> {
   if (
     input.plan.action !== 'create-new'
     && input.plan.action !== 'confirm-unmarked-adoption'
     && input.plan.action !== 'confirm-marker-restore'
+    && input.plan.action !== 'create-missing-marker'
   ) {
     throw new Error(`Setup plan action ${input.plan.action} cannot be executed.`);
   }
@@ -62,6 +74,7 @@ export async function executeSetupPlan(input: {
   const runId = randomUUID();
   const journalPath = path.join(input.journalRootPath, `${runId}.json`);
   const journal: SetupJournal = {
+    ...(input.plan.action === 'create-missing-marker' ? { omissions: input.plan.omissions, repairContext: input.plan.repairContext } : {}),
     action: input.plan.action,
     completedAt: null,
     externalRootPath: input.plan.externalRootPath,
@@ -121,11 +134,23 @@ export async function resumeSetupJournal(input: {
   return runSetupJournal(input.journalPath, journal, input.operations, true);
 }
 
+/** A fresh, confirmed repair preview may replace its omission policy, never its identity. */
+export async function updateMarkerRepairJournal(journalPath: string, plan: MarkerRepairPlan): Promise<void> {
+  const journal = await readSetupJournal(journalPath);
+  if (
+    journal.action !== 'create-missing-marker' || journal.notePath !== plan.notePath || journal.uuid !== plan.uuid
+    || journal.targetPath !== plan.targetPath || journal.externalRootPath !== plan.externalRootPath || journal.completedAt !== null
+  ) {
+    throw new Error('Repair journal changed. Review pending operations again.');
+  }
+  await writeJournal(journalPath, { ...journal, omissions: plan.omissions, repairContext: plan.repairContext });
+}
+
 function initialStage(action: SetupJournal['action']): SetupJournalStage {
   if (action === 'create-new') {
     return 'folder-create';
   }
-  if (action === 'confirm-unmarked-adoption') {
+  if (action === 'confirm-unmarked-adoption' || action === 'create-missing-marker') {
     return 'marker-write';
   }
   return 'frontmatter-write';
@@ -145,7 +170,10 @@ function isSetupJournal(input: unknown): input is SetupJournal {
     && 'schemaVersion' in input
     && input.schemaVersion === 1
     && 'action' in input
-    && (input.action === 'create-new' || input.action === 'confirm-unmarked-adoption' || input.action === 'confirm-marker-restore')
+    && (input.action === 'create-new' || input.action === 'confirm-unmarked-adoption' || input.action === 'confirm-marker-restore'
+      || input.action === 'create-missing-marker')
+    && (input.action !== 'create-missing-marker'
+      || ('repairContext' in input && isMarkerRepairContext(input.repairContext) && 'omissions' in input && isMarkerRepairOmissions(input.omissions)))
     && 'stage' in input
     && (input.stage === 'folder-create' || input.stage === 'marker-write' || input.stage === 'frontmatter-write' || input.stage === 'complete')
     && isStageValidForAction(input.action, input.stage)
@@ -162,6 +190,9 @@ function isSetupJournal(input: unknown): input is SetupJournal {
 }
 
 function isStageValidForAction(action: SetupJournal['action'], stage: SetupJournalStage): boolean {
+  if (action === 'create-missing-marker') {
+    return stage === 'marker-write' || stage === 'complete';
+  }
   if (action === 'create-new') {
     return true;
   }
@@ -192,7 +223,7 @@ async function runSetupJournal(
     }
     if (journal.stage === 'marker-write') {
       await operations.writeMarker(journal);
-      journal.stage = 'frontmatter-write';
+      journal.stage = journal.action === 'create-missing-marker' ? 'complete' : 'frontmatter-write';
       await writeJournal(journalPath, journal);
     }
     if (journal.stage === 'frontmatter-write') {

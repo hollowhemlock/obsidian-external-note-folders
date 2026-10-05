@@ -76,9 +76,11 @@ export async function createSetupTargetExclusively(
 }
 
 export async function inspectSetupTarget(input: {
+  directoryPolicy?: (directory: string) => Promise<null | string>;
   externalRootPath: string;
   ignorePatterns: readonly string[];
   notePath: string;
+  signal?: AbortSignal;
 }): Promise<SetupTargetInspection> {
   const externalRootPath = await resolveExternalRootPath(input.externalRootPath);
   const targetPath = deriveExternalFolderPath(input.notePath, externalRootPath);
@@ -99,7 +101,17 @@ export async function inspectSetupTarget(input: {
     targetPath
   };
 
-  await inspectAncestors(externalRootPath, targetPath, inspection);
+  async function policy(directory: string): Promise<boolean> {
+    input.signal?.throwIfAborted();
+    const reason = await input.directoryPolicy?.(directory);
+    if (!reason) {
+      return false;
+    }
+    (inspection.omissions ??= []).push({ location: directory, reason });
+    inspection.ignoredDirectories.push(directory);
+    return true;
+  }
+  await inspectAncestors(externalRootPath, targetPath, inspection, policy);
   if (inspection.errors.length > 0) {
     return inspection;
   }
@@ -123,8 +135,13 @@ export async function inspectSetupTarget(input: {
     return inspection;
   }
 
-  inspection.targetKind = 'directory';
-  await walkTarget(targetPath, targetPath, inspection, ignoreMatcher);
+  Object.assign(inspection, { targetKind: 'directory' });
+  if (await policy(targetPath)) {
+    Object.assign(inspection, { targetIgnored: true });
+  }
+  if (!inspection.targetIgnored) {
+    await walkTarget(targetPath, targetPath, inspection, ignoreMatcher, policy);
+  }
   inspection.ancestorMarkerPaths.sort();
   inspection.descendantMarkerPaths.sort();
   inspection.directoryPaths.sort();
@@ -133,6 +150,7 @@ export async function inspectSetupTarget(input: {
   inspection.skippedDirectories.sort();
   inspection.targetMarkerUuids = [...new Set(inspection.targetMarkerUuids)].sort();
   inspection.errors.sort();
+  inspection.omissions?.sort((a, b) => a.location.localeCompare(b.location));
   return inspection;
 }
 
@@ -165,7 +183,8 @@ function assertPathDoesNotEscapeRoot(externalRootPath: string, candidatePath: st
 async function inspectAncestors(
   externalRootPath: string,
   targetPath: string,
-  inspection: SetupTargetInspection
+  inspection: SetupTargetInspection,
+  policy: (directory: string) => Promise<boolean>
 ): Promise<void> {
   const relativeSegments = path.relative(externalRootPath, path.dirname(targetPath)).split(path.sep).filter(Boolean);
   let currentPath = externalRootPath;
@@ -181,6 +200,10 @@ async function inspectAncestors(
       }
       if (!stat.isDirectory()) {
         inspection.errors.push(`Expected external folder ancestor is not a directory: ${currentPath}`);
+        return;
+      }
+      if (await policy(currentPath)) {
+        inspection.errors.push(`Expected folder is inside an excluded location: ${currentPath}`);
         return;
       }
       const markers = await readDirectoryMarkers(currentPath, inspection.errors);
@@ -218,14 +241,14 @@ async function readDirectoryMarkersFromEntries(
 ): Promise<{ format: 'legacy' | 'uuid-named'; markerPath: string; uuid: string }[]> {
   const markers: { format: 'legacy' | 'uuid-named'; markerPath: string; uuid: string }[] = [];
   for (const entry of entries) {
-    if (!entry.isFile()) {
-      continue;
-    }
     const markerPath = path.join(directoryPath, entry.name);
     try {
       const fileName = classifyExnfMarkerFileName(entry.name);
       if (fileName.kind === 'not-marker') {
         continue;
+      }
+      if (!entry.isFile()) {
+        throw new Error('Marker path is not a regular file.');
       }
       const marker = fileName.kind === 'uuid-named'
         ? parseUuidNamedExnfMarkerFile(entry.name)
@@ -246,7 +269,8 @@ async function walkTarget(
   directoryPath: string,
   targetPath: string,
   inspection: SetupTargetInspection,
-  ignoreMatcher: ReturnType<typeof buildExternalRootIgnoreMatcher>
+  ignoreMatcher: ReturnType<typeof buildExternalRootIgnoreMatcher>,
+  policy: (directory: string) => Promise<boolean>
 ): Promise<void> {
   let entries: Dirent[];
   try {
@@ -273,6 +297,9 @@ async function walkTarget(
       continue;
     }
     const childPath = path.join(directoryPath, entry.name);
+    if (await policy(childPath)) {
+      continue;
+    }
     if (ignoreMatcher.ignoresAbsoluteDirectoryPath(childPath)) {
       inspection.ignoredDirectories.push(childPath);
       continue;
@@ -288,6 +315,6 @@ async function walkTarget(
       continue;
     }
     inspection.directoryPaths.push(childPath);
-    await walkTarget(childPath, targetPath, inspection, ignoreMatcher);
+    await walkTarget(childPath, targetPath, inspection, ignoreMatcher, policy);
   }
 }

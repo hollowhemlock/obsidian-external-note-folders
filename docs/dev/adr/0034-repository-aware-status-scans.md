@@ -100,6 +100,17 @@ optional diagnostics, not a prerequisite for green. Bound-folder details collaps
 adoption restrictions while keeping recovery and stale-result actions visible.
 The status CSV schema and legacy exhaustive-coverage confidence values are unchanged.
 
+## Missing-marker actions
+
+A checked physical target with one valid exact-path note and no local marker offers
+**Create missing marker**. Display availability permits requesting the shared
+ADR-0031 repair preview; fresh ownership and branch checks authorize creation.
+Intentional omissions do not disable preview. Pending recovery and stale-result
+controls remain prominent. Offline HTML describes the action without an executable
+control. Creation refreshes the current scan mode; failed/cancelled refresh retains
+the previous timestamp and stale evidence. Health and adoption eligibility remain
+separate from marker-repair eligibility.
+
 ## Consequences
 
 Filtered scanning requires Git on the desktop application's PATH. There is no
