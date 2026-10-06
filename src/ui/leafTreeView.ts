@@ -119,6 +119,12 @@ export function mountLeafTree(
       describeItem(item, node, rowLabel.textContent);
       return;
     }
+    if (node.repositoryRoot === node.folderPath) {
+      const badge = doc.createElement('span');
+      badge.className = 'leaf-repository-badge';
+      badge.textContent = 'Git repository';
+      rowLabel.append(badge);
+    }
     if (node.covered) {
       const inherited = doc.createElement('span');
       inherited.className = 'leaf-inherited';

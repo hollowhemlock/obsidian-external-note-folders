@@ -261,7 +261,7 @@ from external-folder ignore settings. Refresh **External folder status** after
 changing it. Scan details and exports disclose the configured patterns and count
 of excluded files or directory subtrees; coverage refers to eligible notes only.
 Ordinary unreadable or malformed notes still restrict adoption. Changing the
-patterns invalidates previews; pending group-adoption recovery requires restoring
+patterns invalidates previews; legacy group-adoption recovery requires restoring
 its original patterns. Removing a pattern restores normal checks for those notes.
 Standalone audit commands continue to scan all notes by default.
 
@@ -601,7 +601,8 @@ uniqueness or absence in unchecked locations, and is disclosed separately.
 
 The details panel leads with the relationship and available actions. Adoption
 stays visible but disabled for known restrictions, naming local, ancestor, or
-descendant markers and excluded, linked, or unreadable paths. When note restrictions
+descendant markers, excluded targets, and required linked or unreadable paths. Intentional
+exclusions beneath an included target alone do not restrict selected-folder adoption. When note restrictions
 could come from intentional template frontmatter, **Open template exclusion settings** opens
 and focuses the plugin's pattern setting. Configure deliberate exclusions and
 refresh; the shortcut does not exclude anything itself. Offline reports show the
@@ -714,10 +715,19 @@ checked for all `.exnf` markers, regardless of file-level Git ignore rules.
 Ignored, unreadable, and linked branches are hidden from the normal tree, with
 counts and reasons retained in **Scan details**. Git exclusions name the source
 file, line, and rule. Identified notes pointing into unchecked branches remain
-visible in a warning summary. Excluded topology still restricts adoption and
+visible in a warning summary. Excluded targets remain unavailable and excluded topology preserves
 physical-leaf counts. Incomplete coverage limits exhaustive uniqueness and absence
 claims without downgrading checked bindings. Display filters never rescan, and each new scan reloads Git rules.
-Standalone audits and mutation preflights retain their existing scan behavior.
+Standalone audits, bulk adoption, and other repairs retain their existing scan behavior.
+
+Detected repository roots show **Git repository**, including nested repositories,
+worktrees, and submodules. Descendant details show **Inside repository**, linking
+to the nearest root when it is in the displayed tree. A containing root outside
+the tree is shown as a path. These labels describe discovered `.git` metadata,
+not repository health or eligibility. Unfiltered scans detect directories and
+gitfiles without invoking Git or following their pointers. Normal filtered browsing
+keeps `.git` hidden. Labels do not change colors, leaf counts, expansion, navigation,
+or candidate selection; users can choose an eligible outer, repository, or inner folder.
 
 **Export filtered status** and **Export all status** write `filtered-folder-status.csv`
 and `folder-status.csv`, including evidence, confidence, note paths, and explanations.
@@ -772,8 +782,21 @@ External folders never move during adoption. Future reconciliation remains
 note-driven. Hidden vault paths and paths that cannot round-trip through the
 plugin's path rules cannot be new-note or move destinations.
 
-Adoption respects ignore settings and checks the entire selected subtree for
-markers and unsafe evidence, including physically present ignored descendants.
+Selected-folder adoption that creates a new UUID inspects the target, ancestors,
+and included descendants using the same configured/Git exclusions, tracked-path
+exceptions, and metadata exclusions as filtered status scans. It checks every marker
+in included directories regardless of file-level ignore rules. Excluded targets or
+targets under excluded ancestors remain unavailable; intentional excluded descendants
+alone do not block the parent. Existing-unmarked-folder setup uses this same policy.
+The preview's collapsed **Excluded from checks** retains paths, reasons, and Git rule
+provenance. No exclusion acknowledgment is required. Excluded locations may contain
+undiscovered markers; these checks do not establish exhaustive uniqueness.
+
+Fresh vault identity, note-content, destination, and reservation checks still apply.
+Known overlapping marker evidence from completed reports is rechecked even under
+excluded directories; unreadable known evidence blocks. Unrelated external failures
+do not veto adoption, but failures in a containing repository needed to inspect the
+target do. A different note-derived expected path receives the same topology checks.
 Existing bindings prevent nested adoption. Matching unassigned child notes require
 acknowledgment; they remain unchanged but cannot have separate nested bindings.
 An existing UUID is reused only after fresh uniqueness checks. Alias problems,
@@ -788,6 +811,10 @@ Resume checks saved note content before writing markers or note properties. Edit
 source notes block further writes. Newly discovered descendant notes are listed
 in the recovery dialog and require acknowledgment before resuming; further
 additions require acknowledgment again.
+New-policy journals retain their inspection scope and known marker evidence. If
+omissions change after a partial write, **Review pending operation** offers updated
+checks for confirmation and resumes the same journal, preserving identity and completed
+effects. Older journals retain their original strict rules without migration.
 An interrupted rename is never blindly repeated. Once the note is at the intended
 destination and links have been checked manually, **I checked links — verify
 completion** validates the binding and finishes the journal without another move.
@@ -797,7 +824,9 @@ After adoption, stay in the report and use **Open note** if desired. Affected
 folders are marked adopted or pending recovery. Counts and exports remain a
 historical snapshot, with a stale warning until **Refresh**. Standalone HTML has
 no adoption controls. Single-folder writes avoid creating unwanted notes, but
-safety checks can still require full-root scans.
+safety checks for reuse of an existing UUID still require full-root scans. Imported
+restoration, bulk exact adoption, and reconcile/move checks remain unchanged. Missing-folder
+setup retains its targeted fast path; exact missing-marker repair uses its separate workflow.
 
 The tab labels its scope **Physical audit — scan and template exclusions are disclosed below**.
 It defaults to filtered external scanning; eligible vault notes are still fully

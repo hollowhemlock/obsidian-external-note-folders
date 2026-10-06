@@ -2,6 +2,8 @@ import type { AuditMarker } from './auditTypes.ts';
 import type { LeafReportModel } from './leafQuery.ts';
 import type { LeafTreeNode } from './leafTree.ts';
 
+import { isIntentionalExclusion } from './adoptionPolicy.ts';
+
 export interface AdoptionBlocker {
   location: string;
   message: string;
@@ -19,11 +21,14 @@ export interface CoverageIssue {
 }
 export interface FolderInspection {
   ancestorMarkerId: null | string;
+  ancestorReserved?: boolean;
   directoryChecked: boolean;
   issueIds: string[];
   markers: AuditMarker[];
   subtreeIssues: number;
   subtreeMarkers: number;
+  subtreeOmissions?: number;
+  subtreeReservations?: number;
 }
 export interface InspectionIndex {
   issues: Map<string, CoverageIssue>;
@@ -58,6 +63,7 @@ export function* adoptionBlockerSteps(index: InspectionIndex, node: LeafTreeNode
   let parent = index.nodes.get(node.parent ?? index.rootId ?? '');
   while (parent && parent.id !== node.id) {
     addIssues(parent);
+    addReservations(parent);
     parent = parent.id === index.rootId ? undefined : index.nodes.get(parent.parent ?? index.rootId ?? '');
     yield;
   }
@@ -77,9 +83,10 @@ export function* adoptionBlockerSteps(index: InspectionIndex, node: LeafTreeNode
       });
     }
     addIssues(current);
+    addReservations(current);
     for (const id of current.children) {
       const child = index.nodes.get(id);
-      if (child && child.kind !== 'virtual') {
+      if (child) {
         pending.push(child);
       }
       yield;
@@ -87,10 +94,24 @@ export function* adoptionBlockerSteps(index: InspectionIndex, node: LeafTreeNode
     yield;
   }
   return blockers;
+  function addReservations(current: LeafTreeNode): void {
+    for (const note of current.notes) {
+      if ((note.association === 'exact' || note.association === 'exact+uuid') && note.status !== 'missing-property') {
+        blockers.push({
+          location: note.notePath,
+          message: 'This identified or invalid note reserves an overlapping folder. Inspect its binding before adoption.',
+          nodeId: current.id
+        });
+      }
+    }
+  }
   function addIssues(current: LeafTreeNode): void {
     for (const id of current.inspection?.issueIds ?? []) {
       const issue = index.issues.get(id);
-      if (issue?.unchecked) {
+      if (
+        issue?.unchecked && !(current.id !== node.id && isIntentionalExclusion(issue)
+          && current.segments.length > node.segments.length)
+      ) {
         blockers.push({ location: issue.location, message: blockerExplanation(issue), nodeId: current.id });
       }
     }

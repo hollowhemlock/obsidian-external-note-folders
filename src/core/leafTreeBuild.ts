@@ -71,6 +71,16 @@ export function* buildLeafTreeSteps(
   }
   const ordered = yield* sortAuditSteps([...nodes.values()], (a, b) => a.segments.length - b.segments.length);
   yield* aggregateTree(ordered, nodes);
+  const repositories = new Map((snapshot.repositoryRoots ?? []).map((folder) => [normalizePathForIdentity(folder), folder]));
+  const containing = [...repositories].filter(([folder]) => rootId === folder || rootId.startsWith(folder + path.sep))
+    .sort(([a], [b]) => b.length - a.length)[0]?.[1];
+  for (const node of ordered) {
+    const repository = repositories.get(node.id) ?? nodes.get(node.parent ?? '')?.repositoryRoot ?? (node.id === rootId ? containing : undefined);
+    if (repository) {
+      node.repositoryRoot = repository;
+    }
+    yield;
+  }
   const result: LeafTreeNode[] = [];
   for (const node of ordered) {
     if (node.id !== rootId) {

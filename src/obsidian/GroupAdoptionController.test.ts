@@ -1,5 +1,6 @@
 import type { App } from 'obsidian';
 
+import { execFile } from 'node:child_process';
 import {
   existsSync,
   statSync
@@ -11,10 +12,12 @@ import {
   readFile,
   rename,
   rm,
+  symlink,
   writeFile
 } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { TFile } from 'obsidian';
 import {
   afterEach,
@@ -32,6 +35,7 @@ import {
 import type { GroupAdoptionPlan } from '../core/groupAdoption.ts';
 
 import { buildNoteRepair } from '../core/folderRepair.ts';
+import { inspectAdoption } from '../storage/adoptionInspection.ts';
 import { scanAdoptionAudit } from '../storage/auditScan.ts';
 import {
   createGroupJournal,
@@ -39,6 +43,7 @@ import {
   saveGroupJournal
 } from '../storage/groupAdoptionJournal.ts';
 import { GroupAdoptionController } from './GroupAdoptionController.ts';
+import { checkSetupAdoption } from './setupAdoption.ts';
 
 vi.mock('obsidian', async (importOriginal) => ({
   ...await importOriginal<typeof import('obsidian')>(),
@@ -58,6 +63,168 @@ describe('folder adoption controller recovery', () => {
     await mkdir(path.join(root, 'external', 'Group'), { recursive: true });
     return createFixture(root);
   }
+
+  it('adopts a project around Git exclusions without inspecting unrelated repositories', async () => {
+    const f = await fixture();
+    const run = promisify(execFile);
+    await run('git', ['init', f.folder]);
+    await writeFile(path.join(f.folder, '.gitignore'), 'build/\n.dart_tool/\nwindows/flutter/ephemeral/\n');
+    for (const name of ['build', '.dart_tool', 'windows/flutter/ephemeral']) {
+      await mkdir(path.join(f.folder, name), { recursive: true });
+      await writeFile(path.join(f.folder, name, 'fixture.exnf'), 'ignored fixture');
+    }
+    const unrelated = path.join(path.dirname(f.folder), 'broken');
+    await mkdir(unrelated);
+    await writeFile(path.join(unrelated, '.git'), 'gitdir: missing-metadata');
+    const preview = await f.controller.preview(f.folder, null, false, new AbortController().signal);
+    expect(preview.plan.inspectionPolicy?.omissions).toHaveLength(4);
+    await f.controller.execute(preview.plan, preview.content);
+    expect(await readdir(f.folder)).toContain(`${preview.plan.uuid}.exnf`);
+    expect(await readFile(f.absolute('Group.md'), 'utf8')).toContain(preview.plan.uuid);
+  });
+
+  it('blocks overlapping pending adoption before creating a second operation', async () => {
+    const f = await fixture();
+    const preview = await f.controller.preview(f.folder, null, false, new AbortController().signal);
+    f.create.mockRejectedValueOnce(new Error('Interrupted'));
+    await expect(f.controller.execute(preview.plan, null)).rejects.toThrow('Interrupted');
+    const pending = await f.controller.pending();
+    await expect(f.controller.preview(f.folder, null, false, new AbortController().signal)).rejects.toThrow('pending adoption');
+    await expect(f.controller.execute(preview.plan, null)).rejects.toThrow('pending adoption');
+    expect(await f.controller.pending()).toEqual(pending);
+  });
+
+  it('confirms changed omissions and resumes the same operation after marker creation', async () => {
+    const f = await fixture();
+    await promisify(execFile)('git', ['init', f.folder]);
+    await mkdir(path.join(f.folder, 'build'));
+    await writeFile(path.join(f.folder, '.gitignore'), 'build/\n');
+    const preview = await f.controller.preview(f.folder, null, false, new AbortController().signal);
+    f.create.mockRejectedValueOnce(new Error('Interrupted after marker'));
+    await expect(f.controller.execute(preview.plan, null)).rejects.toThrow('Interrupted');
+    const [file] = await f.controller.pending();
+    const before = await readGroupJournal(file!);
+    const marker = path.join(f.folder, `${preview.plan.uuid}.exnf`);
+    const bytes = await readFile(marker, 'utf8');
+    await mkdir(path.join(f.folder, 'dist'));
+    await writeFile(path.join(f.folder, '.gitignore'), 'build/\ndist/\n');
+    await expect(f.controller.resume(file!)).rejects.toThrow('Excluded locations changed');
+    expect(await readGroupJournal(file!)).toEqual(before);
+    const checked = await inspectAdoption({
+      externalRoot: path.dirname(f.folder),
+      ignorePatterns: [],
+      knownMarkerPaths: [],
+      targets: [f.folder],
+      templatePatterns: [],
+      vaultRoot: f.absolute('')
+    });
+    await f.controller.resume(file!, [], checked.inspectionPolicy);
+    expect(await readGroupJournal(file!)).toMatchObject({ plan: { inspectionPolicy: checked.inspectionPolicy, uuid: preview.plan.uuid }, stage: 'complete' });
+    expect(await readFile(marker, 'utf8')).toBe(bytes);
+    expect((await readdir(f.folder)).filter((name) => name.endsWith('.exnf'))).toEqual([`${preview.plan.uuid}.exnf`]);
+  });
+
+  it('rechecks known conflicting markers beneath newly excluded directories on resume', async () => {
+    const f = await fixture();
+    await promisify(execFile)('git', ['init', f.folder]);
+    const build = path.join(f.folder, 'build');
+    await mkdir(build);
+    await writeFile(path.join(f.folder, '.gitignore'), 'build/\n');
+    const known = path.join(build, 'malformed.exnf');
+    await writeFile(known, 'fixture');
+    await expect(f.controller.preview(f.folder, null, false, new AbortController().signal, [known])).rejects.toThrow('Conflicting marker');
+    await rm(known);
+    const preview = await f.controller.preview(f.folder, null, false, new AbortController().signal, [known]);
+    f.create.mockRejectedValueOnce(new Error('Interrupted'));
+    await expect(f.controller.execute(preview.plan, null)).rejects.toThrow('Interrupted');
+    const [file] = await f.controller.pending();
+    await writeFile(known, 'returned');
+    await expect(f.controller.resume(file!)).rejects.toThrow('Conflicting marker');
+    expect((await readGroupJournal(file!)).plan.inspectionPolicy?.knownMarkerPaths).toEqual([known]);
+    await rm(known);
+    // A non-directory replacement cannot safely disprove the known evidence.
+    await rm(build, { recursive: true });
+    await writeFile(build, 'replacement');
+    await expect(f.controller.resume(file!)).rejects.toThrow('Unchecked evidence');
+  });
+
+  it('keeps ignored targets, included markers, and identified reservations unavailable', async () => {
+    const f = await fixture();
+    await promisify(execFile)('git', ['init', f.folder]);
+    const ignored = path.join(f.folder, 'build');
+    await mkdir(ignored);
+    await writeFile(path.join(f.folder, '.gitignore'), 'build/\n*.exnf\n');
+    await expect(f.controller.preview(ignored, null, false, new AbortController().signal)).rejects.toThrow('Unchecked evidence');
+    const marker = path.join(f.folder, 'malformed.exnf');
+    await writeFile(marker, '');
+    await expect(f.controller.preview(f.folder, null, false, new AbortController().signal)).rejects.toThrow('Conflicting marker');
+    await rm(marker);
+    await f.addNote('Group/build.md', '---\nexnf: 11111111-1111-4111-8111-111111111111\n---\n');
+    await expect(f.controller.preview(f.folder, null, false, new AbortController().signal)).rejects.toThrow('reserves this branch');
+  });
+
+  it('blocks included links, tracked markers and required repository failures, while honoring intentional link exclusions', async () => {
+    const f = await fixture();
+    const run = promisify(execFile);
+    await run('git', ['init', f.folder]);
+    const sibling = path.join(path.dirname(f.folder), 'unrelated');
+    await mkdir(sibling);
+    await symlink(sibling, path.join(f.folder, 'linked'), 'junction');
+    await expect(f.controller.preview(f.folder, null, false, new AbortController().signal)).rejects.toThrow('Unchecked evidence');
+    await writeFile(path.join(f.folder, '.gitignore'), 'linked\nbuild/\n');
+    await expect(f.controller.preview(f.folder, null, false, new AbortController().signal)).resolves.toBeDefined();
+    await mkdir(path.join(f.folder, 'build'));
+    const marker = path.join(f.folder, 'build', '11111111-1111-4111-8111-111111111111.exnf');
+    await writeFile(marker, '');
+    await run('git', ['-C', f.folder, 'add', '-f', marker]);
+    await expect(f.controller.preview(f.folder, null, false, new AbortController().signal)).rejects.toThrow('Conflicting marker');
+    const requiredRepo = path.join(sibling, 'broken');
+    await mkdir(requiredRepo);
+    await writeFile(path.join(requiredRepo, '.git'), 'gitdir: missing');
+    await expect(f.controller.preview(requiredRepo, null, false, new AbortController().signal)).rejects.toThrow('Unchecked evidence');
+    const abort = new AbortController();
+    abort.abort();
+    await expect(f.controller.preview(f.folder, null, false, abort.signal)).rejects.toThrow();
+    expect(await f.controller.pending()).toEqual([]);
+  });
+
+  it('shares setup checks with selected-folder adoption and verifies existing effects after interruption', async () => {
+    const f = await fixture();
+    await promisify(execFile)('git', ['init', f.folder]);
+    await mkdir(path.join(f.folder, 'build'));
+    await writeFile(path.join(f.folder, '.gitignore'), 'build/\n');
+    await writeFile(path.join(f.folder, 'build', 'ignored.exnf'), '');
+    const source = '---\ntitle: Keep\n---\nBody';
+    await f.addNote('Group.md', source);
+    const input = {
+      externalRoot: path.dirname(f.folder),
+      ignorePatterns: [],
+      knownMarkerPaths: [],
+      mutationSequence: 0,
+      notePath: 'Group.md',
+      templatePatterns: [],
+      vaultRoot: f.absolute('')
+    };
+    const setup = await checkSetupAdoption(f.app, input);
+    if (!setup.uuid) {
+      throw new Error('Missing planned UUID');
+    }
+    const selected = await f.controller.preview(f.folder, 'Group.md', false, new AbortController().signal);
+    expect(setup.inspectionPolicy).toEqual(selected.plan.inspectionPolicy);
+    expect(setup.action).toBe('confirm-unmarked-adoption');
+    await writeFile(path.join(f.folder, `${setup.uuid}.exnf`), 'existing bytes');
+    await f.writeFrontmatter(noteFile('Group.md'), (metadata) => {
+      metadata['exnf'] = setup.uuid;
+    });
+    const resume = { ...input, resume: true, sourceContent: source, uuid: setup.uuid };
+    expect((await checkSetupAdoption(f.app, resume)).uuid).toBe(setup.uuid);
+    await f.addNote('Other.md', `---\nexnf: ${setup.uuid}\n---\n`);
+    await expect(checkSetupAdoption(f.app, resume)).rejects.toThrow('UUID is already used');
+    await f.addNote('Other.md', 'Unassigned');
+    await f.addNote('Group.md', source.replace('Body', 'Edited'));
+    await expect(checkSetupAdoption(f.app, resume)).rejects.toThrow('Note changed');
+    expect(await readFile(path.join(f.folder, `${setup.uuid}.exnf`), 'utf8')).toBe('existing bytes');
+  });
 
   it('moves an already-bound note without changing its marker or UUID', async () => {
     const f = await fixture();
@@ -95,8 +262,8 @@ describe('folder adoption controller recovery', () => {
     const f = await fixture();
     const { file, plan } = await f.prepare(null);
     f.templatePatterns.push('*.tpl.md');
-    await expect(f.controller.execute(plan, null)).rejects.toThrow('Template exclusion settings changed');
-    await expect(f.controller.resume(file)).rejects.toThrow('Template exclusion settings changed');
+    await expect(f.controller.execute(plan, null)).rejects.toThrow('changed');
+    await expect(f.controller.resume(file)).rejects.toThrow('Excluded locations changed');
     expect(await readdir(f.folder)).toEqual([]);
     f.templatePatterns.splice(0);
     await f.controller.resume(file);
@@ -310,6 +477,7 @@ describe('folder adoption controller recovery', () => {
 function createFixture(root: string): {
   absolute: (relative: string) => string;
   addNote: (relative: string, content: string) => Promise<void>;
+  app: App;
   controller: GroupAdoptionController;
   create: ReturnType<typeof vi.fn<(relative: string, content: string) => Promise<TFile>>>;
   folder: string;
@@ -350,7 +518,8 @@ function createFixture(root: string): {
     vault: {
       adapter: {
         exists: async (relative: string): Promise<boolean> => existsSync(absolute(relative)),
-        getBasePath: (): string => vaultRoot
+        getBasePath: (): string => vaultRoot,
+        read: async (relative: string): Promise<string> => readFile(absolute(relative), 'utf8')
       },
       configDir: 'config',
       create,
@@ -376,7 +545,7 @@ function createFixture(root: string): {
     const file = await createGroupJournal(path.join(root, 'journals'), preview.plan, preview.content);
     return { file, plan: preview.plan };
   }
-  return { absolute, addNote, controller, create, folder, prepare, processFrontMatter, renameFile, templatePatterns, writeFrontmatter };
+  return { absolute, addNote, app, controller, create, folder, prepare, processFrontMatter, renameFile, templatePatterns, writeFrontmatter };
 }
 
 function noteFile(relative: string): TFile {

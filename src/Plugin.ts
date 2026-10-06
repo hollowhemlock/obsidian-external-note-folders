@@ -30,6 +30,7 @@ import {
   buildExactPathCandidateIdentities,
   haveSameAdoptionRows
 } from './core/adoptionPlan.ts';
+import { sameAdoptionScope } from './core/adoptionPolicy.ts';
 import { buildDriftReport } from './core/driftReport.ts';
 import { getExnfFrontmatterValue } from './core/frontmatter.ts';
 import { pathsOverlap } from './core/groupAdoption.ts';
@@ -75,6 +76,7 @@ import { MarkerRepairController } from './obsidian/MarkerRepairController.ts';
 import { readMarkerRepairNote } from './obsidian/markerRepairVault.ts';
 import { openPluginSettings } from './obsidian/openPluginSettings.ts';
 import { scanVault } from './obsidian/scanVault.ts';
+import { checkSetupAdoption } from './obsidian/setupAdoption.ts';
 import {
   assertNoteUuidMatches,
   writeUuidToNoteIfMissing
@@ -119,7 +121,9 @@ import { scanExternalRoot } from './storage/scanExternalRoot.ts';
 import {
   executeSetupPlan,
   listIncompleteSetupJournals,
-  resumeSetupJournal
+  readSetupJournal,
+  resumeSetupJournal,
+  updateSetupAdoptionJournal
 } from './storage/setupExecutor.ts';
 import {
   assertSetupMarkerWriteReady,
@@ -158,7 +162,7 @@ export class Plugin extends ObsidianPlugin {
   public override async onload(): Promise<void> {
     await this.loadSettings();
     this.groupAdoption = new GroupAdoptionController(this.app, this.manifest.id, {
-      assertNoPending: async (folder): Promise<void> => this.assertNoPendingMarkerRepair(folder),
+      assertNoPending: async (folder): Promise<void> => this.assertSetupAdoptionOverlap(folder, undefined, true),
       changed: (folder, note): void => {
         for (const leaf of this.app.workspace.getLeavesOfType(LEAF_REPORT_VIEW_TYPE)) {
           if (leaf.view instanceof LeafReportTab) {
@@ -188,7 +192,7 @@ export class Plugin extends ObsidianPlugin {
     });
     this.registerView(LEAF_REPORT_VIEW_TYPE, (leaf) =>
       new LeafReportTab(leaf, {
-        adopt: (folder): void => this.groupAdoption?.open(folder),
+        adopt: (folder, known): void => this.groupAdoption?.open(folder, known),
         createMissingMarker: async (note, folder, known): Promise<void> => this.markerRepairs().preview(note, folder, known),
         externalRoot: (): string => this.settings.externalRootPath,
         mutationState: (): { active: boolean; activity: number; sequence: number } => ({
@@ -200,8 +204,9 @@ export class Plugin extends ObsidianPlugin {
           openPluginSettings(this.app, this.manifest.id);
           this.settingsTab?.focusTemplatePatterns();
         },
-        pending: async (): Promise<number> => ((await this.groupAdoption?.pending())?.length ?? 0) + (await this.markerRepairs().pending()).length,
-        pendingRepairs: async (): Promise<({ journalPath: string } & SetupJournal)[]> => this.markerRepairs().pending(),
+        pending: async (): Promise<number> =>
+          ((await this.groupAdoption?.pending())?.length ?? 0) + (await listIncompleteSetupJournals(this.getSetupJournalRootPath())).length,
+        pendingRepairs: async (): Promise<({ journalPath: string } & SetupJournal)[]> => listIncompleteSetupJournals(this.getSetupJournalRootPath()),
         repair: async (folder, direction): Promise<void> => this.groupAdoption?.repair(folder, direction),
         resume: async (): Promise<void> => this.reviewPendingFolderOperations(),
         scanPatterns: (): string[] => [...this.settings.externalRootIgnorePatterns],
@@ -326,8 +331,38 @@ export class Plugin extends ObsidianPlugin {
     }
   }
 
+  private async assertSetupAdoptionOverlap(folder: string, except?: string, skipGroups = false): Promise<void> {
+    for (const journal of await listIncompleteSetupJournals(this.getSetupJournalRootPath())) {
+      if (journal.journalPath !== except && pathsOverlap(folder, journal.targetPath)) {
+        throw new Error(`Review pending setup: ${journal.journalPath}`);
+      }
+    }
+    for (const file of skipGroups ? [] : await this.groupAdoption?.pending() ?? []) {
+      const other = await readGroupJournal(file);
+      if (pathsOverlap(folder, other.plan.folderPath) || pathsOverlap(folder, other.plan.expectedFolder)) {
+        throw new Error(`Review pending folder adoption: ${file}`);
+      }
+    }
+    for (const item of await listIncompleteAdoptionJournals(this.getAdoptionJournalRootPath())) {
+      const pending = await readAdoptionJournal(item.journalPath);
+      if (pending.entries.some((entry) => entry.completedAt === null && pathsOverlap(folder, entry.folderPath))) {
+        throw new Error(`Review pending bulk adoption: ${item.journalPath}`);
+      }
+    }
+  }
+
   private async assertSetupJournalTargetSafe(journal: SetupJournal): Promise<void> {
     assertBindingNoteAllowed(journal.notePath, this.settings.templateExcludePatterns);
+    if (journal.inspectionPolicy) {
+      const checked = await this.checkScopedSetup(journal.notePath, journal);
+      if (!checked.inspectionPolicy || !sameAdoptionScope(journal.inspectionPolicy, checked.inspectionPolicy)) {
+        throw new Error('Excluded locations changed. Review pending operation to confirm updated checks.');
+      }
+      if (journal.stage === 'frontmatter-write' || journal.stage === 'complete') {
+        await assertExpectedMarkerMatches({ externalRootPath: journal.externalRootPath, notePath: journal.notePath, uuid: journal.uuid });
+      }
+      return;
+    }
     const inspection = await inspectSetupTarget({
       externalRootPath: journal.externalRootPath,
       ignorePatterns: this.settings.externalRootIgnorePatterns,
@@ -424,7 +459,7 @@ export class Plugin extends ObsidianPlugin {
     };
   }
 
-  private async buildSetupPlanForFile(activeFile: TFile): Promise<SetupPlan> {
+  private async buildSetupPlanForFile(activeFile: TFile, previous?: SetupPlan): Promise<SetupPlan> {
     assertBindingNoteAllowed(activeFile.path, this.settings.templateExcludePatterns);
     const { identity } = await readMarkerRepairNote(this.app, activeFile.path);
     if (identity.kind !== 'missing') {
@@ -438,6 +473,29 @@ export class Plugin extends ObsidianPlugin {
       });
     }
 
+    const shallow = await inspectSetupTarget({
+      externalRootPath: this.settings.externalRootPath,
+      ignorePatterns: this.settings.externalRootIgnorePatterns,
+      notePath: activeFile.path,
+      shallow: true
+    });
+    if (shallow.targetKind === 'directory' && !shallow.targetMarkerUuids.length && !shallow.errors.length && !shallow.targetIgnored) {
+      try {
+        await this.assertSetupAdoptionOverlap(shallow.targetPath);
+        return await this.checkScopedSetup(activeFile.path, previous);
+      } catch (error: unknown) {
+        const blocked = buildSetupPlan({
+          identity,
+          inspection: shallow,
+          mutationSequence: this.mutationSequence,
+          notePath: activeFile.path,
+          notePaths: this.getMarkdownNotePaths(),
+          vaultScan: scanVault(this.app, this.settings.templateExcludePatterns)
+        });
+        return { ...blocked, action: 'block', errors: [error instanceof Error ? error.message : String(error)] };
+      }
+    }
+    // Missing-folder creation and imported identities keep their original non-Git checks.
     const inspection = await inspectSetupTarget({
       externalRootPath: this.settings.externalRootPath,
       ignorePatterns: this.settings.externalRootIgnorePatterns,
@@ -463,6 +521,28 @@ export class Plugin extends ObsidianPlugin {
       plan = validateSetupRestoration(plan, externalScan, scanVault(this.app, this.settings.templateExcludePatterns));
     }
     return plan;
+  }
+
+  private async checkScopedSetup(notePath: string, previous?: SetupJournal | SetupPlan): Promise<SetupPlan> {
+    if (previous?.inspectionPolicy && normalizePathForIdentity(previous.inspectionPolicy.vaultRoot) !== normalizePathForIdentity(this.getVaultRootPath())) {
+      throw new Error('Vault root changed before adoption.');
+    }
+    if (previous && normalizePathForIdentity(previous.externalRootPath) !== normalizePathForIdentity(this.settings.externalRootPath)) {
+      throw new Error('External root changed before adoption.');
+    }
+    return checkSetupAdoption(this.app, {
+      externalRoot: this.settings.externalRootPath,
+      ignorePatterns: this.settings.externalRootIgnorePatterns,
+      knownMarkerPaths: previous?.inspectionPolicy?.knownMarkerPaths ?? this.app.workspace.getLeavesOfType(LEAF_REPORT_VIEW_TYPE)
+        .flatMap((leaf) => leaf.view instanceof LeafReportTab ? leaf.view.knownMarkerPaths() : []),
+      mutationSequence: this.mutationSequence,
+      notePath,
+      ...(previous?.adoptionSourceContent === undefined ? {} : { sourceContent: previous.adoptionSourceContent }),
+      ...(previous?.uuid ? { uuid: previous.uuid } : {}),
+      resume: !!previous && 'stage' in previous,
+      templatePatterns: this.settings.templateExcludePatterns ?? [],
+      vaultRoot: this.getVaultRootPath()
+    });
   }
 
   private async collectScanContext(): Promise<ScanContext> {
@@ -765,7 +845,7 @@ export class Plugin extends ObsidianPlugin {
   }
 
   private async reviewPendingFolderOperations(): Promise<void> {
-    const repairs = await this.markerRepairs().pending();
+    const repairs = await listIncompleteSetupJournals(this.getSetupJournalRootPath());
     if (!repairs.length) {
       await this.groupAdoption?.showRecovery();
       return;
@@ -774,10 +854,12 @@ export class Plugin extends ObsidianPlugin {
     modal.titleEl.setText('Review pending folder operations');
     for (const repair of repairs) {
       modal.contentEl.createEl('p', { text: `${repair.notePath}\n${repair.targetPath}\n${repair.message ?? ''}` });
-      const button = modal.contentEl.createEl('button', { text: 'Review pending marker repair' });
+      const button = modal.contentEl.createEl('button', {
+        text: repair.action === 'create-missing-marker' ? 'Review pending marker repair' : 'Review pending setup adoption'
+      });
       button.onclick = (): void => {
         modal.close();
-        this.markerRepairs().preview(repair.notePath, repair.targetPath, [], repair.journalPath).catch((error: unknown) => {
+        this.runSetupResumeCommand(repair).catch((error: unknown) => {
           this.showUnexpectedError(error);
         });
       };
@@ -1349,13 +1431,16 @@ export class Plugin extends ObsidianPlugin {
 
   private async runSetupExecuteCommand(plan: SetupPlan): Promise<void> {
     await this.runMutatingCommand('set up an external folder', async () => {
+      if (plan.inspectionPolicy) {
+        await this.assertSetupAdoptionOverlap(plan.targetPath);
+      }
       await this.assertNoPendingMarkerRepair(plan.targetPath);
       if (plan.mutationSequence !== this.mutationSequence) {
         new Notice('External folder setup changed before execution. Run setup again.');
         return false;
       }
       const activeFile = this.getMarkdownFileByPath(plan.notePath);
-      const currentPlan = await this.buildSetupPlanForFile(activeFile);
+      const currentPlan = await this.buildSetupPlanForFile(activeFile, plan.inspectionPolicy ? plan : undefined);
       if (!haveSameSetupPlan(plan, currentPlan)) {
         new Notice('External folder setup preflight changed. Nothing was written; run setup again.');
         return false;
@@ -1452,12 +1537,44 @@ export class Plugin extends ObsidianPlugin {
     ).open();
   }
 
-  private async runSetupResumeCommand(journal: { journalPath: string } & SetupJournal): Promise<void> {
+  private async runSetupResumeCommand(journal: { journalPath: string } & SetupJournal, confirmed?: SetupPlan): Promise<void> {
     if (journal.action === 'create-missing-marker') {
       await this.markerRepairs().preview(journal.notePath, journal.targetPath, [], journal.journalPath);
       return;
     }
+    if (journal.inspectionPolicy && !confirmed) {
+      const current = await readSetupJournal(journal.journalPath);
+      await this.assertSetupAdoptionOverlap(current.targetPath, journal.journalPath);
+      const preview = await this.checkScopedSetup(current.notePath, current);
+      new SetupPlanModal(
+        this.app,
+        preview,
+        async () => this.runSetupResumeCommand({ ...current, journalPath: journal.journalPath }, preview),
+        this.getReportContext(current.externalRootPath),
+        true
+      ).open();
+      return;
+    }
     await this.runMutatingCommand('resume external folder setup', async () => {
+      if (journal.inspectionPolicy) {
+        const current = await readSetupJournal(journal.journalPath);
+        await this.assertSetupAdoptionOverlap(current.targetPath, journal.journalPath);
+        const fresh = await this.checkScopedSetup(current.notePath, current);
+        if (
+          !confirmed?.inspectionPolicy || !fresh.inspectionPolicy || !sameAdoptionScope(confirmed.inspectionPolicy, fresh.inspectionPolicy)
+          || confirmed.mutationSequence !== this.mutationSequence
+        ) {
+          throw new Error('Adoption checks changed. Review pending operation again.');
+        }
+        await updateSetupAdoptionJournal(journal.journalPath, fresh);
+        const result = await resumeSetupJournal({ journalPath: journal.journalPath, operations: this.buildSetupExecutionOperations() });
+        if (result.succeeded) {
+          await this.openExternalFolder(result.journal.targetPath);
+        } else {
+          new Notice(`Adoption remains pending: ${result.journal.message ?? ''}. Review pending operation.`);
+        }
+        return true;
+      }
       await this.assertNoPendingMarkerRepair(journal.targetPath);
       const note = this.getMarkdownFileByPath(journal.notePath);
       const identity = this.getActiveFileUuidValue(note);

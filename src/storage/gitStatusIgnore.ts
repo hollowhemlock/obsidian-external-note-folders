@@ -205,17 +205,8 @@ export class GitStatusIgnore {
 
   public async initialize(root: string): Promise<GitIgnoreRepository | null> {
     await git(root, ['--version'], 'version', this.signal);
-    let current = root;
-    for (;;) {
-      if (await hasRepository(current)) {
-        return this.repository(current);
-      }
-      const parent = path.dirname(current);
-      if (parent === current) {
-        return null;
-      }
-      current = parent;
-    }
+    const repository = await findRepositoryRoot(root);
+    return repository ? this.repository(repository) : null;
   }
 
   private async repository(root: string): Promise<GitIgnoreRepository> {
@@ -229,6 +220,21 @@ export class GitStatusIgnore {
     const repository = new GitIgnoreRepository(root, tracked.split('\0'), this.signal);
     this.repositories.set(root, repository);
     return repository;
+  }
+}
+
+/** Recognize metadata without executing Git or following gitfile pointers. */
+export async function findRepositoryRoot(root: string): Promise<null | string> {
+  let current = root;
+  for (;;) {
+    if (await hasRepository(current)) {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
   }
 }
 

@@ -26,7 +26,7 @@ export function* folderAvailabilitySteps(
   const blockedGlobally = !!model.stale || !!model.coverage?.vaultIdentityIssueIds.length;
   for (const node of all) {
     const operation = changes.get(node.id);
-    const adoptable = !blockedGlobally && !operation && availableNode(node, model.rootFolder?.id);
+    const adoptable = !blockedGlobally && !operation && !missingMarkerNote(node) && availableNode(node, model.rootFolder?.id);
     let change: 'changed' | 'pending' | undefined;
     if (operation) {
       change = operation[1] === null ? 'pending' : 'changed';
@@ -68,7 +68,7 @@ export function statusExportNode(node: LeafTreeNode, availability: FolderAvailab
 function availableNode(node: LeafTreeNode, rootId: string | undefined): boolean {
   return node.id !== rootId && node.kind === 'directory' && !!node.inspection?.directoryChecked
     && !node.blocked && !node.conflict && !node.covered && !node.markers.length
-    && !node.inspection.subtreeIssues && !node.inspection.subtreeMarkers;
+    && node.inspection.subtreeIssues === (node.inspection.subtreeOmissions ?? 0) && !node.inspection.subtreeMarkers;
 }
 function key(folder: string, caseSensitive: boolean): string {
   const normalized = folder.normalize('NFC').replaceAll('\\', '/').replace(/\/$/u, '');

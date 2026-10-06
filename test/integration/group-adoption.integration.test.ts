@@ -1,4 +1,6 @@
+import { execFileSync } from 'node:child_process';
 import {
+  beforeAll,
   describe,
   expect,
   it
@@ -7,6 +9,7 @@ import {
   closeSandboxModals,
   formatCliResult,
   readSandboxPluginId,
+  resolveRepoPath,
   runSandboxEval
 } from './obsidianCliHarness.ts';
 
@@ -16,6 +19,10 @@ function evaluate(code: string): string {
   return result.stdout;
 }
 describe('folder group adoption in Obsidian', () => {
+  beforeAll(() => {
+    // Keep the sandbox independent of the checkout's ignored sandbox directory.
+    execFileSync('git', ['init', '-q', resolveRepoPath('test/fixtures/sandbox/external-root')]);
+  });
   it('previews and confirms both directions for an existing drifted binding', async () => {
     await closeSandboxModals();
     const id = await readSandboxPluginId();

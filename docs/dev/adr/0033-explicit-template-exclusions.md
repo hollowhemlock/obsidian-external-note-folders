@@ -47,7 +47,9 @@ explicit exclusions from callers without reading plugin settings implicitly.
 Settings changes invalidate pending plugin plans. Group adoption journals capture
 the exclusion patterns and require the same scope on execution and recovery;
 older journals imply an empty exclusion list. Selected sources and destinations
-are checked again before effects. No exclusion rewrites templates or markers.
+are checked again before effects. New-policy ADR-0032 journals may confirm updated
+scope through recovery while preserving operation identity and completed effects.
+No exclusion rewrites templates or markers.
 
 ### Consequences
 

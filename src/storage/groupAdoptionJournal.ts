@@ -12,6 +12,7 @@ import path from 'node:path';
 
 import type { GroupAdoptionPlan } from '../core/groupAdoption.ts';
 
+import { isAdoptionInspectionPolicy } from '../core/adoptionPolicy.ts';
 import { assertPathIsWithinRoot } from '../core/pathPolicy.ts';
 import { isCanonicalUuid } from '../core/uuid.ts';
 
@@ -178,6 +179,9 @@ function isGroupJournal(value: unknown): value is GroupAdoptionJournal {
 }
 function isGroupPlan(value: unknown): value is GroupAdoptionPlan {
   if (!isRecord(value)) {
+    return false;
+  }
+  if ('inspectionPolicy' in value && !isAdoptionInspectionPolicy(value['inspectionPolicy'])) {
     return false;
   }
   for (const key of ['folderPath', 'vaultRoot', 'externalRoot', 'notePath', 'expectedFolder', 'uuid']) {

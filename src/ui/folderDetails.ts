@@ -78,6 +78,19 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
     button(navigation, 'Open folder', () => host.openFolder?.(node.folderPath));
   }
   const relationship = section(parent, 'Binding relationship', 'relationship');
+  if (node.repositoryRoot) {
+    if (node.repositoryRoot === node.folderPath) {
+      reportElement(relationship, 'p', 'Git repository', 'leaf-repository-badge');
+    } else {
+      const repository = [...index.nodes.values()].find((item) => item.folderPath === node.repositoryRoot);
+      const context = reportElement(relationship, 'p', 'Inside repository: ');
+      if (repository) {
+        button(context, repository.segments.at(-1) ?? repository.folderPath, () => options.select(repository));
+      } else {
+        reportElement(context, 'span', node.repositoryRoot, 'leaf-context');
+      }
+    }
+  }
   reportElement(relationship, 'p', statusDescription(node));
   renderRelationship(relationship);
   if (!isRoot && node.kind !== 'virtual') {
@@ -224,7 +237,20 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
       adoptionTarget = restrictions;
     }
     if (host.adopt) {
-      const adopt = button(adoptionTarget, 'Adopt this folder…', () => host.adopt?.(node.folderPath));
+      const adopt = button(
+        adoptionTarget,
+        'Adopt this folder…',
+        () =>
+          host.adopt?.(
+            node.folderPath,
+            [...index.nodes.values()].flatMap((item) => item.inspection?.markers.map((marker) => marker.markerPath) ?? [])
+              .concat(
+                [...index.issues.values()].filter((issue) =>
+                  issue.scope === 'external' && (issue.kind === 'marker' || issue.location.toLowerCase().endsWith('.exnf'))
+                ).map((issue) => issue.location)
+              )
+          )
+      );
       adopt.disabled = options.busy || blocked;
       adopt.dataset['adoptionBlocked'] = String(blocked);
       if (node.conflict) {

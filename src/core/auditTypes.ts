@@ -40,6 +40,7 @@ export interface AuditSnapshot {
   issues: AuditIssue[];
   markers: AuditMarker[];
   notes: AuditNote[];
+  repositoryRoots?: string[];
   startedAt: string;
   statusScanMode?: StatusScanMode;
   templateExclusions?: import('./templateExclusions.ts').TemplateExclusions;

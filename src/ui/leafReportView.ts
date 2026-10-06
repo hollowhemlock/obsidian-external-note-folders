@@ -69,7 +69,7 @@ export const AUDIT_CSV_NAMES = [
   'unmarked-leaf-folders.csv'
 ];
 export interface LeafReportHost {
-  adopt?: (folder: string) => Promise<void> | void;
+  adopt?: (folder: string, knownMarkerPaths: string[]) => Promise<void> | void;
   cancel?: () => void;
   copy: (text: string) => Promise<void>;
   createMissingMarker?: (notePath: string, folderPath: string) => Promise<void>;

@@ -23,11 +23,11 @@ export class GroupAdoptionModal extends Modal {
   private refresh: (() => void) | undefined;
   private readonly state: AdoptionDialogState;
 
-  public constructor(app: App, private readonly adoption: GroupAdoptionController, private readonly folder: string) {
+  public constructor(app: App, private readonly adoption: GroupAdoptionController, private readonly folder: string, knownMarkerPaths: string[] = []) {
     super(app);
     this.state = new AdoptionDialogState(
       () => adoption.choices().map((note) => note.path),
-      (source, move, signal) => adoption.preview(folder, source, move, signal),
+      (source, move, signal) => adoption.preview(folder, source, move, signal, knownMarkerPaths),
       () => {
         this.refresh?.();
       }
@@ -94,6 +94,10 @@ export class GroupAdoptionModal extends Modal {
     summary.createEl('dt', { text: 'Changes' });
     const changes = summary.createEl('dd');
     const warnings = preview.createEl('p');
+    const exclusions = preview.createEl('details');
+    exclusions.createEl('summary', { text: 'Excluded from checks' });
+    exclusions.createEl('p', { text: 'Excluded locations were not inspected and may contain undiscovered markers.' });
+    const exclusionsText = exclusions.createEl('pre');
     const acknowledgment = preview.createEl('label');
     const checkbox = acknowledgment.createEl('input', { attr: { 'aria-label': 'Acknowledge descendant notes', 'type': 'checkbox' } });
     acknowledgment.createSpan({ text: ' I acknowledge these descendant notes remain unchanged and cannot have separate nested bindings.' });
@@ -276,6 +280,8 @@ export class GroupAdoptionModal extends Modal {
         }
       }
       warnings.textContent = plan?.warnings.join('\n') ?? '';
+      exclusions.hidden = !plan?.inspectionPolicy?.omissions.length;
+      exclusionsText.textContent = plan?.inspectionPolicy?.omissions.map((item) => `${item.location}\n${item.reason}`).join('\n\n') ?? '';
       acknowledgment.hidden = !plan?.descendants.length;
       descendants.textContent = plan?.descendants.join('\n') ?? '';
       technicalText.textContent = plan

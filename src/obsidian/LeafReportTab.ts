@@ -29,7 +29,7 @@ import { AuditExportModal } from './AuditExportModal.ts';
 
 export const LEAF_REPORT_VIEW_TYPE = 'external-note-folders-leaf-report';
 export interface LeafReportTabOptions {
-  adopt?: (folder: string) => void;
+  adopt?: (folder: string, knownMarkerPaths: string[]) => void;
   createMissingMarker?: (notePath: string, folderPath: string, knownFolders: string[]) => Promise<void>;
   externalRoot: () => string;
   mutationState: () => AuditMutationState;
@@ -64,6 +64,18 @@ export class LeafReportTab extends ItemView {
 
   public knownMarkerFolders(uuid: string): string[] {
     return (this.session?.snapshot?.markers ?? []).filter((marker) => marker.uuid === uuid).map((marker) => marker.folderPath);
+  }
+
+  public knownMarkerPaths(): string[] {
+    const snapshot = this.session?.snapshot;
+    return [
+      ...new Set([
+        ...(snapshot?.markers.map((marker) => marker.markerPath) ?? []),
+        ...(snapshot?.issues.filter((issue) => issue.scope === 'external' && (issue.kind === 'marker' || issue.location.toLowerCase().endsWith('.exnf'))).map((
+          issue
+        ) => issue.location) ?? [])
+      ])
+    ];
   }
 
   public markAdopted(folder: string, note: null | string): void {

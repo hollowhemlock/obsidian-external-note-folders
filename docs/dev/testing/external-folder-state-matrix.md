@@ -435,3 +435,18 @@ matrix and with committed expected JSON.
 | Completed repair, refresh succeeds | Green observed binding; filters/selection retained | Sandbox UI |
 | Failed/cancelled refresh after mutation | Preserve stale snapshot | Audit session regressions |
 | Old setup journals | Existing stages remain readable/resumable | Existing setup/journal regressions |
+
+## Scoped new-UUID adoption and repository orientation (ADR-0032/0034)
+
+| State | Expected behavior | Coverage |
+| --- | --- | --- |
+| Included outer project, repo root, or eligible inner folder with ignored descendants | Preview allowed; exclusions disclosed without acknowledgment | Controller and rendered sandbox |
+| Excluded target or ancestor | Unavailable; never suggested through leaf navigation | Availability/controller |
+| Included marker, identified reservation, unsafe path, required read/repository failure | Block the affected adoption; retain forensic coverage | Controller, scanner, core |
+| Unrelated broken repository | Does not independently veto a targeted adoption | Controller |
+| Known overlapping marker becomes excluded | Recheck before dismissing; unreadable known location blocks | Controller recovery |
+| Omission scope changes after marker creation | Updated preview and confirmation resume same journal/UUID without rewriting completed effects | Controller, setup journal, sandbox |
+| Old journal or malformed optional context | Absent context uses old rules; malformed context rejected | Journal/storage |
+| Nested repo, worktree, submodule, external containing root | Nearest repository badge/context; metadata label does not imply health | Git scanner and sandbox |
+| Unfiltered scan without Git | Detect metadata without following gitfile pointers | Git scanner |
+| Labels with leaf navigation and offline HTML | Same ordering, branch expansion, physical counts, read-only offline controls | Core and sandbox |

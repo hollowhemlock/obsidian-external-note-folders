@@ -23,9 +23,14 @@ import {
   parseLegacyExnfMarkerFile,
   parseUuidNamedExnfMarkerFile
 } from '../core/marker.ts';
+import {
+  assertPathIsWithinRoot,
+  normalizePathForIdentity
+} from '../core/pathPolicy.ts';
 import { registerUuidBinding } from '../core/scanResult.ts';
 import { buildTemplateExclusionMatcher } from '../core/templateExclusions.ts';
 import {
+  findRepositoryRoot,
   GitFilteringError,
   GitRepositoryValidationError,
   GitStatusIgnore
@@ -36,7 +41,9 @@ export type { AuditScan } from '../core/auditTypes.ts';
 const YAML_ALIAS_LIMIT = 100;
 
 export interface AuditScanOptions {
+  adoptionTargets?: readonly string[];
   ignorePatterns?: readonly string[];
+  knownMarkerPaths?: readonly string[];
   onProgress?: (counts: { directories: number; markers: number; notes: number }) => void;
   signal?: AbortSignal;
   statusScanMode?: import('../core/auditTypes.ts').StatusScanMode;
@@ -45,6 +52,7 @@ export interface AuditScanOptions {
 
 export async function scanAdoptionAudit(vaultRoot: string, externalRoot: string, options: AuditScanOptions = {}): Promise<AuditScan> {
   const scan: AuditScan = {
+    ...(options.statusScanMode ? { repositoryRoots: [] } : {}),
     ...(options.statusScanMode ? { statusScanMode: options.statusScanMode } : {}),
     external: {
       accessErrors: [],
@@ -77,12 +85,22 @@ export async function scanAdoptionAudit(vaultRoot: string, externalRoot: string,
   }
   scan.external.ignorePatterns = matcher.patterns;
   const templates = buildTemplateExclusionMatcher(options.templateExcludePatterns);
+  for (const target of options.adoptionTargets ?? []) {
+    assertPathIsWithinRoot(scan.externalRoot, target);
+  }
   scan.templateExclusions = { paths: [], patterns: templates.patterns };
   const git = options.statusScanMode === 'filtered' ? new GitStatusIgnore(options.signal) : undefined;
   try {
     const repository = await git?.initialize(scan.externalRoot) ?? null;
+    if (scan.repositoryRoots) {
+      // Optional label discovery must not make unfiltered scans depend on ancestor metadata access.
+      addRepositoryRoot(scan, repository?.root ?? await findRepositoryRoot(scan.externalRoot).catch(() => null));
+    }
     await walk(scan.vaultRoot, 'vault', scan, options, matcher, templates);
     await walk(scan.externalRoot, 'external', scan, options, matcher, templates, git, repository);
+    for (const markerPath of options.knownMarkerPaths ?? []) {
+      await inspectKnownMarker(markerPath, scan, options);
+    }
     await git?.finish();
   } finally {
     git?.dispose();
@@ -91,6 +109,12 @@ export async function scanAdoptionAudit(vaultRoot: string, externalRoot: string,
   scan.external.directories = scan.folders;
   scan.finishedAt = new Date().toISOString();
   return scan;
+}
+
+function addRepositoryRoot(scan: AuditScan, directory: null | string): void {
+  if (directory && !scan.repositoryRoots?.includes(directory)) {
+    scan.repositoryRoots?.push(directory);
+  }
 }
 
 function excludeTemplatePath(
@@ -111,6 +135,49 @@ function excludeTemplatePath(
   return excluded;
 }
 
+function inAdoptionScope(directory: string, options: AuditScanOptions): boolean {
+  const current = normalizePathForIdentity(directory);
+  return !options.adoptionTargets || options.adoptionTargets.some((target) => {
+    const selected = normalizePathForIdentity(target);
+    return current === selected || current.startsWith(selected + path.sep) || selected.startsWith(current + path.sep);
+  });
+}
+
+async function inspectKnownMarker(markerPath: string, scan: AuditScan, options: AuditScanOptions): Promise<void> {
+  assertPathIsWithinRoot(scan.externalRoot, markerPath);
+  if (!markerPath.toLowerCase().endsWith('.exnf')) {
+    throw new Error('Known marker path is invalid.');
+  }
+  let current = scan.externalRoot;
+  try {
+    for (const segment of ['', ...path.relative(scan.externalRoot, path.dirname(markerPath)).split(path.sep).filter(Boolean)]) {
+      options.signal?.throwIfAborted();
+      current = path.join(current, segment);
+      const info = await lstat(current);
+      if (info.isSymbolicLink() || !info.isDirectory()) {
+        throw new Error(`Known marker location is unsafe: ${current}`);
+      }
+    }
+    // Recheck the entire known location, including replacement/malformed marker evidence.
+    for (const entry of await readdir(current, { withFileTypes: true })) {
+      if (!entry.name.toLowerCase().endsWith('.exnf')) {
+        continue;
+      }
+      const found = path.join(current, entry.name);
+      if (!entry.isFile()) {
+        recordUnchecked(found, 'Known marker is not a regular file.', 'external', scan, 'marker');
+      } else if (!scan.markers.some((marker) => marker.markerPath === found)) {
+        await scanMarker(found, scan);
+      }
+    }
+  } catch (error: unknown) {
+    options.signal?.throwIfAborted();
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      recordUnchecked(markerPath, `Known marker could not be checked: ${String(error)}`, 'external', scan, 'marker');
+    }
+  }
+}
+
 /** False means the directory was excluded or recorded as unchecked before reading entries. */
 async function loadRepository(
   directory: string,
@@ -127,12 +194,17 @@ async function loadRepository(
     return false;
   }
   try {
-    return await git.context(directory, parent);
+    const context = await git.context(directory, parent);
+    if (context?.root === directory) {
+      addRepositoryRoot(scan, directory);
+    }
+    return context;
   } catch (error: unknown) {
     options.signal?.throwIfAborted();
     if (!(error instanceof GitRepositoryValidationError) || directory === scan.externalRoot) {
       throw error;
     }
+    addRepositoryRoot(scan, directory);
     recordUnchecked(
       directory,
       `Skipped repository: Git could not validate its metadata. ${error.message}`,
@@ -160,6 +232,28 @@ function recordUnchecked(
     const issues = location === scan.externalRoot ? scan.external.accessErrors : scan.external.skippedDirectories;
     issues.push({ location, message: reason });
   }
+}
+
+async function scanLink(
+  entryPath: string,
+  scope: 'external' | 'vault',
+  scan: AuditScan,
+  matcher: ReturnType<typeof buildExternalRootIgnoreMatcher>,
+  git?: GitStatusIgnore,
+  repository?: GitIgnoreRepository | null
+): Promise<void> {
+  if (scope === 'external' && git && !entryPath.toLowerCase().endsWith('.exnf')) {
+    if (matcher.ignoresAbsoluteDirectoryPath(entryPath)) {
+      recordUnchecked(entryPath, 'Excluded from scan by shared external-folder patterns.', scope, scan, 'link', 'settings');
+      return;
+    }
+    const reason = await repository?.ignores(entryPath);
+    if (reason) {
+      recordUnchecked(entryPath, reason, scope, scan, 'link', 'git');
+      return;
+    }
+  }
+  recordUnchecked(entryPath, 'Symbolic link or junction was not followed.', scope, scan, 'link');
 }
 
 async function scanMarker(markerPath: string, scan: AuditScan): Promise<void> {
@@ -261,6 +355,15 @@ async function scanNote(notePath: string, scan: AuditScan): Promise<void> {
   }
 }
 
+function skipAdoptionEntry(
+  entry: { isDirectory: () => boolean; isSymbolicLink: () => boolean },
+  entryPath: string,
+  scope: string,
+  options: AuditScanOptions
+): boolean {
+  return scope === 'external' && (entry.isDirectory() || entry.isSymbolicLink()) && !inAdoptionScope(entryPath, options);
+}
+
 async function walk(
   directory: string,
   scope: 'external' | 'vault',
@@ -323,16 +426,28 @@ async function walkEntries(
   repository: GitIgnoreRepository | null = null
 ): Promise<void> {
   const entries = await readdir(directory, { withFileTypes: true });
+  if (
+    scope === 'external'
+    && entries.some((entry) => entry.name === '.git' && (entry.isDirectory() || entry.isFile()))
+  ) {
+    addRepositoryRoot(scan, directory);
+  }
   entries.sort((a, b) => a.name.localeCompare(b.name));
   for (const entry of entries) {
     options.signal?.throwIfAborted();
     const entryPath = path.join(directory, entry.name);
+    if (skipAdoptionEntry(entry, entryPath, scope, options)) {
+      continue;
+    }
     if (excludeTemplatePath(scope, entryPath, entry.isDirectory(), scan, templates)) {
       continue;
     }
     if (entry.isSymbolicLink()) {
-      recordUnchecked(entryPath, 'Symbolic link or junction was not followed.', scope, scan, 'link');
+      await scanLink(entryPath, scope, scan, matcher, git, repository);
     } else if (entry.isDirectory()) {
+      if (options.adoptionTargets && scope === 'external' && entry.name.toLowerCase().endsWith('.exnf')) {
+        recordUnchecked(entryPath, 'Marker path is not a regular file.', scope, scan, 'marker');
+      }
       if (scope === 'external') {
         scan.folders.push(entryPath);
       }

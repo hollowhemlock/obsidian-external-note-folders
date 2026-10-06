@@ -7,6 +7,7 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 
+import type { AdoptionInspectionPolicy } from '../core/adoptionPolicy.ts';
 import type {
   MarkerRepairContext,
   MarkerRepairOmission,
@@ -14,6 +15,7 @@ import type {
 } from '../core/markerRepair.ts';
 import type { SetupPlan } from '../core/setupPlan.ts';
 
+import { isAdoptionInspectionPolicy } from '../core/adoptionPolicy.ts';
 import {
   isMarkerRepairContext,
   isMarkerRepairOmissions
@@ -37,8 +39,10 @@ export interface SetupExecutionResult {
 
 export interface SetupJournal {
   action: 'confirm-marker-restore' | 'confirm-unmarked-adoption' | 'create-missing-marker' | 'create-new';
+  adoptionSourceContent?: string;
   completedAt: null | string;
   externalRootPath: string;
+  inspectionPolicy?: AdoptionInspectionPolicy;
   kind: 'external-folder-setup';
   message: null | string;
   notePath: string;
@@ -74,6 +78,12 @@ export async function executeSetupPlan(input: {
   const runId = randomUUID();
   const journalPath = path.join(input.journalRootPath, `${runId}.json`);
   const journal: SetupJournal = {
+    ...('inspectionPolicy' in input.plan
+      ? {
+        adoptionSourceContent: input.plan.adoptionSourceContent,
+        inspectionPolicy: input.plan.inspectionPolicy
+      }
+      : {}),
     ...(input.plan.action === 'create-missing-marker' ? { omissions: input.plan.omissions, repairContext: input.plan.repairContext } : {}),
     action: input.plan.action,
     completedAt: null,
@@ -146,6 +156,19 @@ export async function updateMarkerRepairJournal(journalPath: string, plan: Marke
   await writeJournal(journalPath, { ...journal, omissions: plan.omissions, repairContext: plan.repairContext });
 }
 
+export async function updateSetupAdoptionJournal(journalPath: string, plan: SetupPlan): Promise<void> {
+  const journal = await readSetupJournal(journalPath);
+  if (
+    !journal.inspectionPolicy || !plan.inspectionPolicy || journal.completedAt !== null
+    || journal.action !== 'confirm-unmarked-adoption' || journal.uuid !== plan.uuid || journal.notePath !== plan.notePath
+    || journal.targetPath !== plan.targetPath || journal.externalRootPath !== plan.externalRootPath
+    || journal.adoptionSourceContent !== plan.adoptionSourceContent
+  ) {
+    throw new Error('Pending adoption identity or context changed.');
+  }
+  await writeJournal(journalPath, { ...journal, inspectionPolicy: plan.inspectionPolicy });
+}
+
 function initialStage(action: SetupJournal['action']): SetupJournalStage {
   if (action === 'create-new') {
     return 'folder-create';
@@ -165,6 +188,9 @@ function isMissingError(error: unknown): boolean {
 function isSetupJournal(input: unknown): input is SetupJournal {
   return typeof input === 'object'
     && input !== null
+    && (!('inspectionPolicy' in input) || (isAdoptionInspectionPolicy(input.inspectionPolicy)
+      && 'action' in input && input.action === 'confirm-unmarked-adoption'
+      && 'adoptionSourceContent' in input && typeof input.adoptionSourceContent === 'string'))
     && 'kind' in input
     && input.kind === 'external-folder-setup'
     && 'schemaVersion' in input

@@ -28,11 +28,40 @@ Obsidian's own link-update behavior is retained.
 Core owns suggestions and plans; adapters own effects. Name and alias matches are
 review evidence only. A chosen existing UUID requires uniqueness proof. Ignore
 settings block ignored targets, while physical evidence throughout the selected
-subtree must exclude nested markers even in hidden or ignored branches. Unassigned
+subtree must exclude nested markers even in hidden or ignored branches for existing-UUID
+reuse and legacy journals. For new-UUID adoption, the scoped policy below applies. Unassigned
 descendant notes may remain after explicit acknowledgment. Existing identities and
 unchecked overlapping topology block adoption. Bulk adoption retains ADR-0026.
 
 ## Execution and Recovery
+
+### Scoped new-UUID adoption (2026-10-06)
+
+New-UUID selected-folder adoption and existing-unmarked-folder setup inspect the
+target, ancestors, and included descendants through the Git-aware exclusion engine.
+Tracked directories remain included; all local marker filenames are inspected
+regardless of file-level ignores. Excluded targets and excluded ancestors block.
+Intentional omissions strictly below the target are disclosed in a collapsed
+**Excluded from checks** section, without an acknowledgment checkbox. Required read
+failures, unsafe paths, unignored links, and repository failures block. Unrelated
+external failures do not. Fresh vault identities, note bytes, destinations, and
+reservations remain authoritative, including topology at a different expected path.
+
+Available completed report evidence supplies known overlapping marker locations,
+including malformed and unchecked evidence. Preview, execution, verification, and
+resume recheck these locations even if they have since become excluded. An unreadable
+known location cannot clear a conflict. Scoped inspection is not exhaustive discovery.
+
+Optional validated policy context captures roots, exclusions, known evidence, and
+omissions in plans and journals. Missing context means legacy strict checks; invalid
+context is rejected. Changed omission scope requires another confirmation. After a
+partial write, recovery previews updated scope and persists it in the same journal
+before continuing, retaining UUID, note intent, stage, and verified output. Only that
+journal is exempt from its own overlap restriction; other pending operations block.
+Uncertain note renames still require manual verification. No replacement operation or
+UUID is generated. Bulk adoption, imported restoration, and other repairs are unchanged.
+
+### Journal effects
 
 Under the mutation lock, fresh scans validate the confirmed plan. A dedicated,
 versioned journal records intent before effects and completion afterward. Execution
