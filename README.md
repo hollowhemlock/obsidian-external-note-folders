@@ -728,7 +728,7 @@ not repository health or eligibility. Unfiltered scans detect directories and
 gitfiles without invoking Git or following their pointers. Normal filtered browsing
 keeps `.git` hidden. Labels do not change colors, leaf counts, expansion, navigation,
 or candidate selection; users can choose an eligible outer, repository, or inner folder.
-Healthy binding names use normal font weight in the tree, including when selected.
+All tree rows use normal font weight, including marked folders and selected rows.
 
 **Export filtered status** and **Export all status** write `filtered-folder-status.csv`
 and `folder-status.csv`, including evidence, confidence, note paths, and explanations.

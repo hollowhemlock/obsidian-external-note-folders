@@ -28,3 +28,15 @@ Validation evidence (local, 2026-10-08T13:55:00Z):
 
 Commit review: PASS, high confidence; one presentation scope, synchronized
 documentation, patch intent, no product-intent changes, and no overrides.
+
+## Follow-up: normal weight for every tree row
+
+Remove bold styling from all tree rows, including marked folders, selected rows,
+and invalid-evidence indicators. Preserve status colors and selection outlines
+in both report hosts. Column headings retain their existing styling.
+
+Local validation (2026-10-08T13:56:13Z): `npx vitest run src/ui/leafStyles.test.ts`
+passed all four palette tests; `npm run lint`, `npm run build`,
+`npm run format:check`, and `git diff --check` passed. Focused self-review of
+the CSS and documentation found no actionable issues. No new tests or live UI
+run for this small styling adjustment; rendered appearance remains unverified.
