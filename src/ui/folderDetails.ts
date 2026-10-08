@@ -80,7 +80,7 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
   const relationship = section(parent, 'Binding relationship', 'relationship');
   if (node.repositoryRoot) {
     if (node.repositoryRoot === node.folderPath) {
-      reportElement(relationship, 'p', 'Git repository', 'leaf-repository-badge');
+      reportElement(relationship, 'p', 'git', 'leaf-repository-badge');
     } else {
       const repository = [...index.nodes.values()].find((item) => item.folderPath === node.repositoryRoot);
       const context = reportElement(relationship, 'p', 'Inside repository: ');

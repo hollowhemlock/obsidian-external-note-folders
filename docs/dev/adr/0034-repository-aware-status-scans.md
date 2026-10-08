@@ -75,7 +75,7 @@ Scan details and exports retain exclusion reasons and Git rule provenance.
 Standalone audits and strict mutation preflights retain their defaults. ADR-0032's
 scoped new-UUID adoption explicitly reuses the Git-aware exclusion policy.
 
-Detected repository roots carry optional shared report metadata for a **Git repository**
+Detected repository roots carry optional shared report metadata for a **git**
 badge. Descendants link to their nearest containing root in details, or show its path
 when outside the tree. Nested repositories, worktrees, and submodules are labeled.
 Unfiltered scans recognize `.git` files/directories without Git or pointer traversal.

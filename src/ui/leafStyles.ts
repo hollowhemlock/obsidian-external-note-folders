@@ -80,6 +80,7 @@ export const LEAF_REPORT_CSS = `
 .exnf-leaf-report .leaf-evidence-absent,.exnf-leaf-report .leaf-evidence-unchecked{color:var(--text-muted,#58677b)}
 .exnf-leaf-report .leaf-evidence-invalid{color:var(--leaf-review);font-weight:600}
 .exnf-leaf-report .leaf-tree-item[data-marked=true] .leaf-tree-label{font-weight:650}
+.exnf-leaf-report .leaf-tree-item[data-tone=healthy] .leaf-tree-label{font-weight:400}
 .exnf-leaf-report .leaf-inherited{flex-shrink:0;margin-left:6px;color:var(--text-muted,#58677b)}
 .exnf-leaf-report .leaf-disclosure{margin:10px 0}
 .exnf-leaf-report .leaf-disclosure>summary{padding:6px 0}

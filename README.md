@@ -720,7 +720,7 @@ physical-leaf counts. Incomplete coverage limits exhaustive uniqueness and absen
 claims without downgrading checked bindings. Display filters never rescan, and each new scan reloads Git rules.
 Standalone audits, bulk adoption, and other repairs retain their existing scan behavior.
 
-Detected repository roots show **Git repository**, including nested repositories,
+Detected repository roots show **git**, including nested repositories,
 worktrees, and submodules. Descendant details show **Inside repository**, linking
 to the nearest root when it is in the displayed tree. A containing root outside
 the tree is shown as a path. These labels describe discovered `.git` metadata,
@@ -728,6 +728,7 @@ not repository health or eligibility. Unfiltered scans detect directories and
 gitfiles without invoking Git or following their pointers. Normal filtered browsing
 keeps `.git` hidden. Labels do not change colors, leaf counts, expansion, navigation,
 or candidate selection; users can choose an eligible outer, repository, or inner folder.
+Healthy binding names use normal font weight in the tree, including when selected.
 
 **Export filtered status** and **Export all status** write `filtered-folder-status.csv`
 and `folder-status.csv`, including evidence, confidence, note paths, and explanations.

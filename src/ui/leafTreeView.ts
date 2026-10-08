@@ -122,7 +122,8 @@ export function mountLeafTree(
     if (node.repositoryRoot === node.folderPath) {
       const badge = doc.createElement('span');
       badge.className = 'leaf-repository-badge';
-      badge.textContent = 'Git repository';
+      // eslint-disable-next-line obsidianmd/ui/sentence-case -- Repository badges intentionally use the lowercase git label.
+      badge.textContent = 'git';
       rowLabel.append(badge);
     }
     if (node.covered) {
