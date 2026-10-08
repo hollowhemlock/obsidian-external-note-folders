@@ -159,7 +159,8 @@ export function runObsidianCli(
     const result = spawnSync(candidate, args, {
       cwd,
       encoding: 'utf8',
-      timeout: timeoutMilliseconds
+      timeout: timeoutMilliseconds,
+      windowsHide: true
     });
     if (isMissingExecutableError(result.error)) {
       continue;

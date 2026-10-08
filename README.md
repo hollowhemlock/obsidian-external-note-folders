@@ -372,6 +372,8 @@ and run `npm run docs:adr:index` rather than editing the index by hand.
 - `npm run dev`
 - `npm run build`
 - `npm run build:clean`
+- `npm run sandbox:refresh` (build and reload the existing sandbox plugin without
+  resetting notes, external files, settings, or journals; primary checkout only)
 - `npm run lint`
 - `npm run format:check`
 - `npm run test`
@@ -383,6 +385,20 @@ and run `npm run docs:adr:index` rather than editing the index by hand.
 - `npm run release:check-metadata`
 - `npm run release:check-assets`
 - `npm run fixtures:new-sandbox`
+
+After validated runtime/UI changes, the agent workflow runs `npm run sandbox:refresh`
+automatically. This uses the successful `dist/build` artifacts and reloads only this
+plugin in the sandbox; it does not reload the whole app window or reset fixtures.
+The sandbox must already be initialized with the plugin enabled. A reload failure
+is reported separately from copying the artifacts. Builds used by CI and worktrees
+remain independent of the local Obsidian runtime. `npm run dev` remains available
+for continuous watch builds.
+
+Integration tests still use a real Obsidian runtime and reset the disposable sandbox.
+They can open notes and modals within that vault. The existing runner may open/reload
+its window; it does not guarantee a desktop without interruptions. Use an isolated
+desktop session or test machine for that guarantee. See the
+[integration guide](test/integration/README.md#desktop-interruption-and-background-runs).
 
 ### Standalone read-only adoption audit
 

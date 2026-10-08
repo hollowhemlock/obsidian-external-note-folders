@@ -32,6 +32,8 @@ details in agent guidance.
 
 - `npm run dev`: watch build into the dev sandbox vault via `scripts/dev.ts`.
 - `npm run build` / `npm run build:clean`
+- `npm run sandbox:refresh`: build, install only plugin artifacts, and reload only
+  the sandbox plugin, preserving notes, external files, settings, and journals.
 - `npm run test`: unit and adapter tests; excludes `**/*.integration.test.ts`.
 - Single test: `npx vitest run src/core/pathPolicy.test.ts`, or by name:
   `npx vitest run -t "<name>"`.
@@ -44,6 +46,14 @@ details in agent guidance.
 - `npm run fixtures:new-sandbox`: fully reset the sandbox vault and external
   root from committed fixtures, then reload Obsidian and run the version
   preflight. Primary checkout only.
+
+## Sandbox refresh after changes
+
+After validating runtime/UI changes in the primary checkout, run
+`npm run sandbox:refresh` automatically before reporting completion. Do not use
+fixture reset or integration preparation merely to refresh the plugin. If refresh
+cannot confirm the sandbox runtime, report that limitation; never substitute a
+personal vault. Pure builds remain independent of the sandbox for CI/worktrees.
 
 ## Architecture
 
