@@ -29,7 +29,8 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "ignore": "^7.0.5"
+    "ignore": "^7.0.5",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@codemirror/state": "latest",

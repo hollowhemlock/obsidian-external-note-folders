@@ -4,7 +4,6 @@ import {
   readFile
 } from 'node:fs/promises';
 import path from 'node:path';
-// eslint-disable-next-line import-x/no-extraneous-dependencies -- Standalone audit deliberately uses the existing tooling dependency tree without changing plugin dependencies.
 import {
   parseDocument,
   stringify

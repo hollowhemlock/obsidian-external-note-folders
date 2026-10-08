@@ -26,7 +26,6 @@ import {
   it,
   vi
 } from 'vitest';
-// eslint-disable-next-line import-x/no-extraneous-dependencies -- Match the physical audit's existing YAML tooling dependency in adapter tests.
 import {
   parse,
   stringify
