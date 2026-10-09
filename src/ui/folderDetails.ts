@@ -92,6 +92,7 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
     }
   }
   reportElement(relationship, 'p', statusDescription(node));
+  renderBindingHistory(relationship, node, options);
   renderRelationship(relationship);
   if (!isRoot && node.kind !== 'virtual') {
     renderActions(section(parent, 'Available actions', 'actions'));
@@ -379,6 +380,27 @@ function noteIdentityLabel(status: string): string {
     'valid': 'Valid exnf UUID'
   };
   return labels[status] ?? status;
+}
+
+function renderBindingHistory(relationship: HTMLElement, node: LeafTreeNode, options: FolderDetailsOptions): void {
+  const { index, model } = options;
+  function button(parent: HTMLElement, label: string, callback: () => Promise<void>): void {
+    reportAction(parent, label, callback, options.onError);
+  }
+  const changedFolders = [...new Set((model.verifiedChanges ?? []).flatMap((change) => change.folders))];
+  if (changedFolders.includes(node.folderPath)) {
+    reportElement(relationship, 'p', 'Binding changed this session.', 'leaf-context');
+  }
+  const children = changedFolders.filter((folder) => folder.replaceAll('\\', '/').startsWith(`${node.folderPath.replaceAll('\\', '/').replace(/\/$/u, '')}/`));
+  if (children.length) {
+    const history = reportDisclosure(relationship, `Binding changed in ${children.length === 1 ? 'a subfolder' : `${String(children.length)} subfolders`}`);
+    for (const folder of children) {
+      const child = [...index.nodes.values()].find((item) => item.folderPath === folder);
+      if (child) {
+        button(history, child.relativePath, () => options.select(child));
+      }
+    }
+  }
 }
 
 function statusDescription(node: LeafTreeNode): string {

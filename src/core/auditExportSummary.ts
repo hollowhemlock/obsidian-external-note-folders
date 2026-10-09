@@ -7,6 +7,13 @@ export function buildAuditExportSummary(model: LeafReportModel, filename: string
     `Vault: ${model.vaultRoot}`,
     `External root: ${model.externalRoot}`,
     `Scan: ${model.startedAt} – ${model.finishedAt}`,
+    ...(model.verifiedChanges?.length
+      ? [
+        `Working revision: ${String(model.revision)}. Verified binding updates:`,
+        ...model.verifiedChanges.map((change) => `${change.verifiedAt}: ${change.folders.join(', ')}`),
+        'Original discovery scope and scan time are retained. Other locations were not necessarily rechecked.'
+      ]
+      : []),
     ...(model.scanSummary ? [model.scanSummary] : []),
     ...(model.uncheckedBindings ?? []),
     ...(model.statusScanMode ? (model.coverage?.issues ?? []).map((issue) => `${issue.location}: ${issue.reason}`) : []),

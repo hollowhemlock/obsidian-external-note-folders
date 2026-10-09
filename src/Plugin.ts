@@ -170,6 +170,15 @@ export class Plugin extends ObsidianPlugin {
           }
         }
       },
+      completed: async (change): Promise<void> => {
+        await Promise.all(
+          this.app.workspace.getLeavesOfType(LEAF_REPORT_VIEW_TYPE).map(async (leaf) => {
+            if (leaf.view instanceof LeafReportTab) {
+              await leaf.view.applyVerified(change);
+            }
+          })
+        );
+      },
       mutate: async (operation): Promise<void> => {
         if (this.isMutationInProgress) {
           throw new Error('Another mutation is running. Try again when it finishes.');

@@ -757,9 +757,10 @@ Filtered exports include matching folders in collapsed branches, but exclude
 contextual tree ancestors and temporary navigation reveals. Displayed-folder
 counts in Filter likewise count actual filter matches. All-status exports include virtual
 expected paths. Existing audit CSVs and unmarked-leaf exports retain their meanings.
-Status fields describe the captured scan. If session mutations affect filtering,
-status exports append that context to the existing explanation field; they do not
-replace captured evidence with an assumed post-mutation state.
+Status fields and current status exports include verified adoption updates. Each
+export pins one report revision when invoked, even while its destination dialog is
+open. Summaries preserve the original scan scope/time and list later verification.
+Raw forensic audit exports continue to describe the original completed scan.
 
 For a drifted binding with complete checked coverage, selected-folder details offer **Move external folder
 to match note** or **Move note to match external folder**. Both require a preview
@@ -775,8 +776,12 @@ conflict repair is offered.
 
 In Obsidian, **Adopt this folder…** in the selected folder details binds that directory and its
 entire subtree to one note, including content hidden by filters. It opens a
-dialog; nothing changes until **Confirm adoption**. Suggestions include exact
-derived paths, matching filenames, and aliases. Search the vault for other
+dialog; nothing changes until **Confirm adoption**. A persistent **Suggested notes**
+list shows full paths, exact-path matches, same-name candidates, aliases, and local
+restrictions. One locally suitable exact-name candidate is preselected after all
+competing candidates have been checked; multiple or unresolved choices require
+selection. Suggestions never prove eligibility. Clicking or keyboard-selecting a
+suggestion immediately prepares a preview and defaults to **Bind without moving**. Search the vault for other
 notes in the autocomplete field and choose a suggestion, or enter an exact vault-relative
 note path (the `.md` extension is optional). Empty input selects **Create new note**;
 a valid existing note enables **Bind without moving** and **Move note to match folder**.
@@ -839,10 +844,21 @@ destination and links have been checked manually, **I checked links — verify
 completion** validates the binding and finishes the journal without another move.
 No rollback deletes notes, directories, or markers.
 
-After adoption, stay in the report and use **Open note** if desired. Affected
-folders are marked adopted or pending recovery. Counts and exports remain a
-historical snapshot, with a stale warning until **Refresh**. Standalone HTML has
-no adoption controls. Single-folder writes avoid creating unwanted notes, but
+After verified adoption or resume, YAML and marker columns, binding status, counts,
+and navigation update automatically without another filesystem traversal or manual
+refresh. The report retains selection, expansion, filters, and scroll position.
+An adopted row leaving **Adoptable only** remains temporarily visible until you
+navigate away; it is no longer an adoptable candidate. Healthy and Path differs
+remain primary. Secondary history distinguishes **Binding changed this session**
+from **Binding changed in a subfolder** and links to affected descendants.
+
+Updates preserve unrelated conflicts and unchecked evidence. Each report retains its
+own discovery scope, including unfiltered evidence omitted by adoption's narrower
+checks. Original scan times remain visible beside later verification times. A scan
+overlapping a mutation cannot replace newer verified results. If presentation fails,
+**Adoption completed; status update needs verification** offers a read-only retry;
+a completed adoption is not repeated. Pending writes retain recovery controls.
+Standalone HTML presents the supplied working revision with no adoption controls. Single-folder writes avoid creating unwanted notes, but
 safety checks for reuse of an existing UUID still require full-root scans. Imported
 restoration, bulk exact adoption, and reconcile/move checks remain unchanged. Missing-folder
 setup retains its targeted fast path; exact missing-marker repair uses its separate workflow.
@@ -884,6 +900,12 @@ CSV slice durations, and export time in `tmp/audit-performance.json`. The sandbo
 integration suite also measures shared-interface rendering and filtering with
 20,000 leaves. Performance varies with hardware, path depth, and file sizes;
 one filesystem response or individual YAML document cannot be interrupted midway.
+Selected adoption verifies the target, ancestors, included descendants, the relevant
+expected path, and all eligible vault identities. Fresh bytes remain mandatory.
+Bounded note reads and workflow-local parse reuse reduce repeated work; confirmation
+still repeats required safety checks. The controller benchmark records preview and
+confirmation separately, with inspection/read/parse/Git work counts. A no-op move
+performs no inspection; final verification also supplies report evidence.
 
 ### Commit conventions
 

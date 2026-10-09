@@ -131,6 +131,11 @@ Git snapshots. New scans reload rules rather than maintaining a watcher.
 
 ## Validation
 
+Selected-folder adoption can incrementally update the shared report under ADR-0032's
+verified-revision contract. Its narrower filtered checks preserve an unfiltered
+baseline's discovery scope and omitted evidence. Original forensic exports remain
+separate from current status exports; local verification times are explicit.
+
 Storage tests exercise real Git pattern syntax, global/local rules, tracked
 paths, nested repositories, worktrees, submodules, and failures. Protocol tests
 cover chunk boundaries, negation, no matches, errors, timeout, and cancellation.

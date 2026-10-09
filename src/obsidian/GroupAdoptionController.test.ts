@@ -35,6 +35,8 @@ import type { GroupAdoptionPlan } from '../core/groupAdoption.ts';
 
 import { buildNoteRepair } from '../core/folderRepair.ts';
 import { inspectAdoption } from '../storage/adoptionInspection.ts';
+// eslint-disable-next-line import-x/no-namespace -- Observe the shared inspection boundary without replacing its implementation.
+import * as adoptionInspection from '../storage/adoptionInspection.ts';
 import { scanAdoptionAudit } from '../storage/auditScan.ts';
 import {
   createGroupJournal,
@@ -62,6 +64,101 @@ describe('folder adoption controller recovery', () => {
     await mkdir(path.join(root, 'external', 'Group'), { recursive: true });
     return createFixture(root);
   }
+
+  it('measures adoption preview and confirmation across representative scopes', async () => {
+    const original = inspectAdoption;
+    const measured = vi.spyOn(adoptionInspection, 'inspectAdoption');
+    const samples: { directories: number; milliseconds: number; notes: number }[] = [];
+    measured.mockImplementation(async (input) => {
+      const start = performance.now();
+      const result = await original(input);
+      samples.push({
+        directories: result.snapshot.folders.length,
+        ...result.snapshot.work,
+        milliseconds: performance.now() - start,
+        notes: result.snapshot.notes.length
+      });
+      return result;
+    });
+    try {
+      for (const scenario of ['ordinary', 'repository', 'large-vault', 'relocation']) {
+        const f = await fixture();
+        if (scenario === 'repository') {
+          await promisify(execFile)('git', ['init', f.folder]);
+          await writeFile(path.join(f.folder, '.gitignore'), 'node_modules/\n');
+          await mkdir(path.join(f.folder, 'node_modules'));
+        }
+        if (scenario === 'large-vault') {
+          for (let index = 0; index < 600; index++) {
+            await f.addNote(`Notes/note-${String(index)}.md`, `---\ntitle: Note ${String(index)}\n---\n${'Content. '.repeat(100)}`);
+          }
+        }
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const folder = attempt ? path.join(path.dirname(f.folder), 'Second') : f.folder;
+          await mkdir(folder, { recursive: true });
+          const source = scenario === 'relocation' ? `Source${String(attempt)}.md` : null;
+          if (source) {
+            await f.addNote(source, 'Original content');
+          }
+          samples.length = 0;
+          const start = performance.now();
+          const preview = await f.controller.preview(folder, source, !!source, new AbortController().signal);
+          const previewMs = performance.now() - start;
+          const confirmStart = performance.now();
+          await f.controller.execute(preview.plan, preview.content);
+          expect(samples.length).toBeLessThanOrEqual(scenario === 'relocation' ? 6 : 5);
+          console.debug(
+            '[external-note-folders] ADOPTION_BENCHMARK',
+            JSON.stringify({ attempt, confirmationMs: performance.now() - confirmStart, previewMs, scans: samples, scenario })
+          );
+        }
+      }
+    } finally {
+      measured.mockRestore();
+    }
+  }, 60_000);
+
+  it('checks suggestion candidates locally without running previews or writing', async () => {
+    const f = await fixture();
+    await f.addNote('Group.md', 'Plain note');
+    await f.addNote('Other/Group.md', '---\nexnf: invalid\n---\n');
+    vi.spyOn(f.controller, 'choices').mockReturnValue([{ aliases: [], path: 'Group.md' }, { aliases: [], path: 'Other/Group.md' }, {
+      aliases: [],
+      path: 'Unreadable/Group.md'
+    }]);
+    const preview = vi.spyOn(f.controller, 'preview');
+    const suggestions = await f.controller.suggestions(f.folder, new AbortController().signal);
+    expect(suggestions).toMatchObject([
+      { path: 'Group.md', reason: 'Exact path', restriction: '', unresolved: false },
+      { path: 'Other/Group.md', restriction: 'Invalid external folder identifier', unresolved: false },
+      { path: 'Unreadable/Group.md', unresolved: true }
+    ]);
+    expect(preview).not.toHaveBeenCalled();
+    expect(await readdir(f.folder)).toEqual([]);
+    expect(f.processFrontMatter).not.toHaveBeenCalled();
+  });
+
+  it('keeps a completed journal complete when report publication fails', async () => {
+    const f = await fixture();
+    f.completed.mockImplementationOnce(() => {
+      throw new Error('Presentation failed');
+    });
+    const preview = await f.controller.preview(f.folder, null, false, new AbortController().signal);
+    await expect(f.controller.executeForDialog(preview.plan, null)).resolves.toEqual({ kind: 'complete' });
+    expect(await f.controller.pending()).toEqual([]);
+    expect(await readdir(f.folder)).toEqual([`${preview.plan.uuid}.exnf`]);
+  });
+
+  it('publishes verified identities without requiring another report scan', async () => {
+    const f = await fixture();
+    const preview = await f.controller.preview(f.folder, null, false, new AbortController().signal);
+    await f.controller.execute(preview.plan, null);
+    expect(f.completed).toHaveBeenCalledOnce();
+    const change = f.completed.mock.calls[0]?.[0];
+    expect(change?.evidence.notes).toContainEqual(expect.objectContaining({ relativePath: 'Group.md', uuid: preview.plan.uuid }));
+    expect(change?.evidence.markers).toContainEqual(expect.objectContaining({ uuid: preview.plan.uuid }));
+    expect(await f.controller.pending()).toEqual([]);
+  });
 
   it('adopts a project around Git exclusions without inspecting unrelated repositories', async () => {
     const f = await fixture();
@@ -477,6 +574,7 @@ function createFixture(root: string): {
   absolute: (relative: string) => string;
   addNote: (relative: string, content: string) => Promise<void>;
   app: App;
+  completed: ReturnType<typeof vi.fn<(change: import('../core/verifiedBindingChange.ts').VerifiedBindingChange) => void>>;
   controller: GroupAdoptionController;
   create: ReturnType<typeof vi.fn<(relative: string, content: string) => Promise<TFile>>>;
   folder: string;
@@ -529,8 +627,10 @@ function createFixture(root: string): {
     }
   } as unknown as App;
   const templatePatterns: string[] = [];
+  const completed = vi.fn<(change: import('../core/verifiedBindingChange.ts').VerifiedBindingChange) => void>();
   const controller = new GroupAdoptionController(app, 'review', {
     changed: vi.fn<() => void>(),
+    completed,
     mutate: async (operation): Promise<void> => operation(),
     sequence: (): number => 0,
     settings: (): { externalRootIgnorePatterns: string[]; externalRootPath: string; templateExcludePatterns: string[] } => ({
@@ -544,7 +644,7 @@ function createFixture(root: string): {
     const file = await createGroupJournal(path.join(root, 'journals'), preview.plan, preview.content);
     return { file, plan: preview.plan };
   }
-  return { absolute, addNote, app, controller, create, folder, prepare, processFrontMatter, renameFile, templatePatterns, writeFrontmatter };
+  return { absolute, addNote, app, completed, controller, create, folder, prepare, processFrontMatter, renameFile, templatePatterns, writeFrontmatter };
 }
 
 function noteFile(relative: string): TFile {

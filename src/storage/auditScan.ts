@@ -14,6 +14,7 @@ import type {
   AuditNote,
   AuditScan
 } from '../core/auditTypes.ts';
+import type { AdoptionNoteCache } from './adoptionNoteCache.ts';
 import type { GitIgnoreRepository } from './gitStatusIgnore.ts';
 
 import { buildExternalRootIgnoreMatcher } from '../core/externalRootIgnore.ts';
@@ -38,21 +39,29 @@ import {
 export type { AuditScan } from '../core/auditTypes.ts';
 
 const YAML_ALIAS_LIMIT = 100;
+const MAX_NOTE_READS = 8;
 
 export interface AuditScanOptions {
   adoptionTargets?: readonly string[];
   ignorePatterns?: readonly string[];
   knownMarkerPaths?: readonly string[];
+  noteCache?: AdoptionNoteCache<NoteResult>;
   onProgress?: (counts: { directories: number; markers: number; notes: number }) => void;
   signal?: AbortSignal;
   statusScanMode?: import('../core/auditTypes.ts').StatusScanMode;
   templateExcludePatterns?: readonly string[];
 }
 
+export interface NoteResult {
+  issue?: import('../core/auditTypes.ts').AuditIssue;
+  note: AuditNote;
+}
+
 export async function scanAdoptionAudit(vaultRoot: string, externalRoot: string, options: AuditScanOptions = {}): Promise<AuditScan> {
   const scan: AuditScan = {
-    ...(options.statusScanMode ? { repositoryRoots: [] } : {}),
-    ...(options.statusScanMode ? { statusScanMode: options.statusScanMode } : {}),
+    ...scanModeFields(options),
+    checkedDirectories: [],
+    confirmedAbsences: [],
     external: {
       accessErrors: [],
       bindings: new Map(),
@@ -75,7 +84,8 @@ export async function scanAdoptionAudit(vaultRoot: string, externalRoot: string,
     notes: [],
     startedAt: new Date().toISOString(),
     vault: { bindings: new Map(), duplicatePaths: new Map(), invalidFrontmatter: [] },
-    vaultRoot: path.resolve(vaultRoot)
+    vaultRoot: path.resolve(vaultRoot),
+    work: { directoriesEnumerated: 0, gitProcesses: 0, maxConcurrentReads: 0, notesParsed: 0, notesRead: 0 }
   };
   const matcher = buildExternalRootIgnoreMatcher(scan.externalRoot, options.statusScanMode === 'unfiltered' ? [] : options.ignorePatterns ?? []);
   if (matcher.errors.length) {
@@ -88,6 +98,8 @@ export async function scanAdoptionAudit(vaultRoot: string, externalRoot: string,
     assertPathIsWithinRoot(scan.externalRoot, target);
   }
   scan.templateExclusions = { paths: [], patterns: templates.patterns };
+  const queue = noteQueue(scan, options);
+  const controls = { ...options, enqueueNote: queue.enqueueNote };
   const git = options.statusScanMode === 'filtered' ? new GitStatusIgnore(options.signal) : undefined;
   try {
     const repository = await git?.initialize(scan.externalRoot) ?? null;
@@ -95,13 +107,16 @@ export async function scanAdoptionAudit(vaultRoot: string, externalRoot: string,
       // Optional label discovery must not make unfiltered scans depend on ancestor metadata access.
       addRepositoryRoot(scan, repository?.root ?? await findRepositoryRoot(scan.externalRoot).catch(() => null));
     }
-    await walk(scan.vaultRoot, 'vault', scan, options, matcher, templates);
-    await walk(scan.externalRoot, 'external', scan, options, matcher, templates, git, repository);
+    await walk(scan.vaultRoot, 'vault', scan, controls, matcher, templates);
+    await queue.flush();
+    await walk(scan.externalRoot, 'external', scan, controls, matcher, templates, git, repository);
     for (const markerPath of options.knownMarkerPaths ?? []) {
       await inspectKnownMarker(markerPath, scan, options);
     }
     await git?.finish();
   } finally {
+    await queue.settle();
+    recordGitWork(scan, git);
     git?.dispose();
   }
   options.signal?.throwIfAborted();
@@ -158,7 +173,9 @@ async function inspectKnownMarker(markerPath: string, scan: AuditScan, options: 
       }
     }
     // Recheck the entire known location, including replacement/malformed marker evidence.
-    for (const entry of await readdir(current, { withFileTypes: true })) {
+    const entries = await readdir(current, { withFileTypes: true });
+    recordEnumeration(scan, current, entries);
+    for (const entry of entries) {
       if (!entry.name.toLowerCase().endsWith('.exnf')) {
         continue;
       }
@@ -171,7 +188,9 @@ async function inspectKnownMarker(markerPath: string, scan: AuditScan, options: 
     }
   } catch (error: unknown) {
     options.signal?.throwIfAborted();
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      scan.confirmedAbsences?.push(current);
+    } else {
       recordUnchecked(markerPath, `Known marker could not be checked: ${String(error)}`, 'external', scan, 'marker');
     }
   }
@@ -214,6 +233,161 @@ async function loadRepository(
       'git-repository-unavailable'
     );
     return false;
+  }
+}
+
+function mergeNote(result: NoteResult, scan: AuditScan): void {
+  scan.notes.push(result.note);
+  if (result.note.uuid) {
+    registerUuidBinding(scan.vault.bindings, scan.vault.duplicatePaths, result.note.uuid, result.note.relativePath);
+  }
+  if (result.issue) {
+    scan.issues.push(result.issue);
+    scan.vault.invalidFrontmatter.push({
+      location: result.note.relativePath,
+      message: result.issue.unchecked ? 'Unreadable or invalid frontmatter.' : 'Invalid exnf property.'
+    });
+  }
+}
+
+function noteQueue(
+  scan: AuditScan,
+  options: AuditScanOptions
+): { enqueueNote: (notePath: string) => Promise<void>; flush: () => Promise<void>; settle: () => Promise<unknown> } {
+  const pendingNotes: Promise<NoteResult>[] = [];
+  async function flushNote(): Promise<void> {
+    const result = await pendingNotes.shift();
+    if (result && !options.signal?.aborted) {
+      mergeNote(result, scan);
+    }
+  }
+  async function enqueueNote(notePath: string): Promise<void> {
+    options.signal?.throwIfAborted();
+    pendingNotes.push(readNoteResult(notePath, scan.vaultRoot, options.noteCache, scan.work, options.signal));
+    if (scan.work) {
+      scan.work.maxConcurrentReads = Math.max(scan.work.maxConcurrentReads, pendingNotes.length);
+    }
+    if (pendingNotes.length >= MAX_NOTE_READS) {
+      await flushNote();
+    }
+  }
+  return {
+    enqueueNote,
+    flush: async (): Promise<void> => {
+      while (pendingNotes.length) {
+        await flushNote();
+      }
+    },
+    settle: async (): Promise<unknown> => Promise.allSettled(pendingNotes)
+  };
+}
+
+function parseNote(markdown: string, result: NoteResult): NoteResult {
+  const { note } = result;
+  const notePath = note.notePath;
+  try {
+    if (!/^---\r?\n/u.test(markdown)) {
+      return result;
+    }
+    const frontmatter = /^---\r?\n(?<frontmatter>[\s\S]*?)^---[ \t]*(?:\r?\n|$)/mu.exec(markdown)?.groups?.['frontmatter'];
+    if (frontmatter === undefined) {
+      throw new Error('Unterminated frontmatter');
+    }
+    const document = parseDocument(frontmatter, { strict: true, uniqueKeys: true });
+    if (document.errors.length > 0) {
+      throw new Error('Invalid YAML');
+    }
+    const parsed: unknown = document.toJS({ mapAsMap: true, maxAliasCount: YAML_ALIAS_LIMIT });
+    if (parsed === null) {
+      return result;
+    }
+    if (!(parsed instanceof Map)) {
+      throw new Error('Frontmatter is not a mapping');
+    }
+    note.hasExnf = parsed.has('exnf');
+    if (!note.hasExnf) {
+      return result;
+    }
+    const value: unknown = parsed.get('exnf');
+    const mapping = { exnf: value };
+    note.value = typeof value === 'string' ? value : stringify(value).trimEnd();
+    const identity = getExnfFrontmatterValue(mapping);
+    if (identity.kind === 'valid') {
+      note.uuid = identity.uuid;
+      note.status = 'valid';
+    } else {
+      note.status = 'invalid-property';
+      result.issue = { kind: 'note', location: notePath, reason: 'exnf must be a canonical lowercase UUID string.', scope: 'vault', unchecked: false };
+    }
+  } catch {
+    note.status = 'unchecked-frontmatter';
+    result.issue = {
+      kind: 'note',
+      location: notePath,
+      reason: 'Note could not be read or its YAML frontmatter could not be parsed safely.',
+      scope: 'vault',
+      unchecked: true
+    };
+  }
+  return result;
+}
+
+async function readNoteResult(
+  notePath: string,
+  vaultRoot: string,
+  cache?: AdoptionNoteCache<NoteResult>,
+  work?: import('../core/auditTypes.ts').AuditWorkCounts,
+  signal?: AbortSignal
+): Promise<NoteResult> {
+  const note: AuditNote = {
+    hasExnf: false,
+    notePath,
+    relativePath: path.relative(vaultRoot, notePath).split(path.sep).join('/'),
+    status: 'missing-property',
+    uuid: '',
+    value: ''
+  };
+  const result: NoteResult = { note };
+  try {
+    if (work) {
+      work.notesRead++;
+    }
+    const content = await readFile(notePath, 'utf8');
+    signal?.throwIfAborted();
+    const cached = cache?.get(notePath, content);
+    if (cached) {
+      return cached;
+    }
+    const markdown = content.replace(/^\uFEFF/u, '');
+    if (work) {
+      work.notesParsed++;
+    }
+    const parsed = parseNote(markdown, result);
+    cache?.set(notePath, content, parsed);
+    return parsed;
+  } catch {
+    note.status = 'unchecked-frontmatter';
+    result.issue = {
+      kind: 'note',
+      location: notePath,
+      reason: 'Note could not be read or its YAML frontmatter could not be parsed safely.',
+      scope: 'vault',
+      unchecked: true
+    };
+    return result;
+  }
+}
+
+function recordEnumeration(scan: AuditScan, directory: string, entries: { name: string }[]): void {
+  if (scan.work) {
+    scan.work.directoriesEnumerated++;
+  }
+  scan.checkedDirectories?.push({ entries: entries.map((entry) => entry.name), path: directory });
+}
+
+function recordGitWork(scan: AuditScan, git: GitStatusIgnore | undefined): void {
+  if (scan.work) {
+    scan.work.gitProcesses = git?.processCount ?? 0;
   }
 }
 
@@ -294,64 +468,8 @@ async function scanMarker(markerPath: string, scan: AuditScan): Promise<void> {
   }
 }
 
-async function scanNote(notePath: string, scan: AuditScan): Promise<void> {
-  const note: AuditNote = {
-    hasExnf: false,
-    notePath,
-    relativePath: path.relative(scan.vaultRoot, notePath).split(path.sep).join('/'),
-    status: 'missing-property',
-    uuid: '',
-    value: ''
-  };
-  scan.notes.push(note);
-  try {
-    const markdown = (await readFile(notePath, 'utf8')).replace(/^\uFEFF/u, '');
-    if (!/^---\r?\n/u.test(markdown)) {
-      return;
-    }
-    const frontmatter = /^---\r?\n(?<frontmatter>[\s\S]*?)^---[ \t]*(?:\r?\n|$)/mu.exec(markdown)?.groups?.['frontmatter'];
-    if (frontmatter === undefined) {
-      throw new Error('Unterminated frontmatter');
-    }
-    const document = parseDocument(frontmatter, { strict: true, uniqueKeys: true });
-    if (document.errors.length > 0) {
-      throw new Error('Invalid YAML');
-    }
-    const parsed: unknown = document.toJS({ mapAsMap: true, maxAliasCount: YAML_ALIAS_LIMIT });
-    if (parsed === null) {
-      return;
-    }
-    if (!(parsed instanceof Map)) {
-      throw new Error('Frontmatter is not a mapping');
-    }
-    note.hasExnf = parsed.has('exnf');
-    if (!note.hasExnf) {
-      return;
-    }
-    const value: unknown = parsed.get('exnf');
-    const mapping = { exnf: value };
-    note.value = typeof value === 'string' ? value : stringify(value).trimEnd();
-    const identity = getExnfFrontmatterValue(mapping);
-    if (identity.kind === 'valid') {
-      note.uuid = identity.uuid;
-      note.status = 'valid';
-      registerUuidBinding(scan.vault.bindings, scan.vault.duplicatePaths, identity.uuid, note.relativePath);
-    } else {
-      note.status = 'invalid-property';
-      scan.vault.invalidFrontmatter.push({ location: note.relativePath, message: 'Invalid exnf property.' });
-      scan.issues.push({ kind: 'note', location: notePath, reason: 'exnf must be a canonical lowercase UUID string.', scope: 'vault', unchecked: false });
-    }
-  } catch {
-    note.status = 'unchecked-frontmatter';
-    scan.vault.invalidFrontmatter.push({ location: note.relativePath, message: 'Unreadable or invalid frontmatter.' });
-    scan.issues.push({
-      kind: 'note',
-      location: notePath,
-      reason: 'Note could not be read or its YAML frontmatter could not be parsed safely.',
-      scope: 'vault',
-      unchecked: true
-    });
-  }
+function scanModeFields(options: AuditScanOptions): Pick<AuditScan, 'repositoryRoots' | 'statusScanMode'> {
+  return options.statusScanMode ? { repositoryRoots: [], statusScanMode: options.statusScanMode } : {};
 }
 
 function skipAdoptionEntry(
@@ -367,7 +485,7 @@ async function walk(
   directory: string,
   scope: 'external' | 'vault',
   scan: AuditScan,
-  options: AuditScanOptions,
+  options: { enqueueNote: (notePath: string) => Promise<void> } & AuditScanOptions,
   matcher: ReturnType<typeof buildExternalRootIgnoreMatcher>,
   templates: ReturnType<typeof buildTemplateExclusionMatcher>,
   git?: GitStatusIgnore,
@@ -418,13 +536,14 @@ async function walkEntries(
   directory: string,
   scope: 'external' | 'vault',
   scan: AuditScan,
-  options: AuditScanOptions,
+  options: { enqueueNote: (notePath: string) => Promise<void> } & AuditScanOptions,
   matcher: ReturnType<typeof buildExternalRootIgnoreMatcher>,
   templates: ReturnType<typeof buildTemplateExclusionMatcher>,
   git?: GitStatusIgnore,
   repository: GitIgnoreRepository | null = null
 ): Promise<void> {
   const entries = await readdir(directory, { withFileTypes: true });
+  recordEnumeration(scan, directory, entries);
   if (
     scope === 'external'
     && entries.some((entry) => entry.name === '.git' && (entry.isDirectory() || entry.isFile()))
@@ -453,7 +572,7 @@ async function walkEntries(
       await walk(entryPath, scope, scan, options, matcher, templates, git, repository);
     } else if (entry.isFile()) {
       if (scope === 'vault' && entry.name.toLowerCase().endsWith('.md')) {
-        await scanNote(entryPath, scan);
+        await options.enqueueNote(entryPath);
       } else if (scope === 'external' && entry.name.toLowerCase().endsWith('.exnf')) {
         await scanMarker(entryPath, scan);
       }

@@ -450,3 +450,22 @@ matrix and with committed expected JSON.
 | Nested repo, worktree, submodule, external containing root | Nearest repository badge/context; metadata label does not imply health | Git scanner and sandbox |
 | Unfiltered scan without Git | Detect metadata without following gitfile pointers | Git scanner |
 | Labels with leaf navigation and offline HTML | Same ordering, branch expansion, physical counts, read-only offline controls | Core and sandbox |
+
+## Continuous selected-folder adoption (ADR-0032)
+
+| State | Expected behavior | Coverage |
+| --- | --- | --- |
+| Verified adoption or resumed adoption | New immutable working evidence; YAML/marker/status/counts update without full refresh | Controller/session; rendered consecutive adoptions |
+| Expected path versus different path | Healthy versus Path differs remains primary; unrelated optional rows keep their colors | Core/session/rendered |
+| Changed child under bound or unbound ancestor | Ancestor retains its primary description; secondary linked descendant history | Shared details; rendered |
+| Adopted selection leaves current filter | Temporarily reveal row without candidate count or export membership | Rendered navigation |
+| Narrow verification over unfiltered report | Preserve omitted discoveries and original scope/time | Core/session; two open report modes |
+| Unreadable, skipped, or absent evidence | Retain known evidence unless a successful check establishes replacement or absence | Evidence merge regressions |
+| Export dialog open during completion | Export uses one pinned revision; forensic exports use original scan | Session |
+| Duplicate, obsolete, disposed, or incompatible update | Do not republish or overwrite current report | Session |
+| Full scan overlapping adoption | Retain newer verified evidence; disclose superseded scan | Session |
+| Completed journal with failed presentation | No repeated mutation; read-only targeted retry | Controller/session |
+| Zero, one, multiple, blocked or unreadable suggestions | Local reads only; sole suitable candidate can preselect; ambiguity requires choice | Dialog/controller/rendered |
+| Preview cancellation and shared work | No writes; settle cancelled work; do not reuse completed authority | Preview/state tests |
+| Large vault and consecutive adoption | Eight reads maximum; deterministic evidence; bounded exact-content cache; five/six inspection budget | Scanner/cache/controller benchmark |
+| Legacy and partially completed journals | Retain existing validation and recovery safeguards | Existing controller/storage regressions |

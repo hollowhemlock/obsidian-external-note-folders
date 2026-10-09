@@ -17,11 +17,18 @@ const CANDIDATE_LIMIT = 50;
 let nextDialogId = 0;
 
 export class GroupAdoptionModal extends Modal {
+  private chooseSuggestion: ((path: string) => void) | undefined;
   private executing = false;
   private inspecting = false;
   private recovery: string | undefined;
   private refresh: (() => void) | undefined;
+  private renderChoices: (() => void) | undefined;
+  private readonly restrictions = new Map<string, string>();
+  private selectionChanged = false;
+
   private readonly state: AdoptionDialogState;
+
+  private suggestionAbort: AbortController | undefined;
 
   public constructor(app: App, private readonly adoption: GroupAdoptionController, private readonly folder: string, knownMarkerPaths: string[] = []) {
     super(app);
@@ -41,6 +48,7 @@ export class GroupAdoptionModal extends Modal {
 
   public override onClose(): void {
     this.state.stop();
+    this.suggestionAbort?.abort();
     if (!this.inspecting) {
       this.adoption.dismiss(this);
     }
@@ -53,7 +61,36 @@ export class GroupAdoptionModal extends Modal {
     this.contentEl.empty();
     this.contentEl.addClass('exnf-group-adoption');
     this.build();
-    this.state.start();
+    if (this.state.input || this.selectionChanged) {
+      this.state.start();
+    } else {
+      this.state.awaitSelection();
+      const control = new AbortController();
+      this.suggestionAbort = control;
+      this.adoption.suggestions(this.folder, control.signal).then((choices) => {
+        if (control.signal.aborted) {
+          return;
+        }
+        for (const choice of choices) {
+          this.restrictions.set(choice.path, choice.restriction);
+        }
+        this.renderChoices?.();
+        if (this.selectionChanged) {
+          return;
+        }
+        const exact = choices.filter((choice) => choice.reason === 'Exact path' || choice.reason === 'Same filename');
+        const suitable = exact.filter((choice) => !choice.restriction);
+        if (suitable.length === 1 && !exact.some((choice) => choice.unresolved)) {
+          this.chooseSuggestion?.(suitable[0]?.path ?? '');
+        } else if (!choices.length) {
+          this.state.select('');
+        }
+      }).catch((error: unknown) => {
+        if (!control.signal.aborted) {
+          this.state.fail(String(error));
+        }
+      });
+    }
   }
 
   private build(): void {
@@ -76,6 +113,7 @@ export class GroupAdoptionModal extends Modal {
     input.value = this.state.input;
     const clear = field.createEl('button', { attr: { 'aria-label': 'Clear note field to create a new note' }, text: 'Clear' });
     const open = field.createEl('button', { text: 'Open note' });
+    root.createEl('h3', { text: 'Suggested notes' });
     const suggestions = root.createDiv({ attr: { 'aria-label': 'Note suggestions', 'id': listId, 'role': 'listbox' }, cls: 'exnf-adoption-suggestions' });
     const help = root.createEl('p', { text: 'Clear the note field to create a new note at the matching folder path.' });
     const modes = root.createDiv({ attr: { 'aria-label': 'Adoption action', 'role': 'radiogroup' }, cls: 'exnf-adoption-modes' });
@@ -112,20 +150,25 @@ export class GroupAdoptionModal extends Modal {
     let candidates: string[] = [];
     let active = -1;
     function hideSuggestions(): void {
-      suggestions.hidden = true;
+      suggestions.hidden = false;
       input.setAttribute('aria-expanded', 'false');
       input.removeAttribute('aria-activedescendant');
       active = -1;
     }
     const select = (value: string): void => {
       input.value = value;
-      this.state.edit(value);
+      this.selectionChanged = true;
+      this.state.select(value);
       hideSuggestions();
       input.focus();
     };
     const renderSuggestions = (): void => {
       suggestions.empty();
-      const choices = this.adoption.choices().map((note) => ({ note, reason: noteMatchReason(note, this.folder, this.adoption.externalRoot(), input.value) }))
+      const choices = this.adoption.choices().map((note) => ({
+        note,
+        reason: noteMatchReason(note, this.folder, this.adoption.externalRoot())
+          ?? noteMatchReason(note, this.folder, this.adoption.externalRoot(), input.value)
+      }))
         .filter((choice) => choice.reason !== null).sort((a, b) =>
           Number(b.reason === 'Exact path') - Number(a.reason === 'Exact path') || a.note.path.localeCompare(b.note.path)
         );
@@ -133,7 +176,7 @@ export class GroupAdoptionModal extends Modal {
       for (const [index, choice] of choices.slice(0, CANDIDATE_LIMIT).entries()) {
         const option = suggestions.createDiv({
           attr: { 'aria-selected': 'false', 'id': `${listId}-${String(index)}`, 'role': 'option' },
-          text: `${choice.note.path} — ${choice.reason ?? ''}`
+          text: [choice.note.path, choice.reason, this.restrictions.get(choice.note.path)].filter(Boolean).join(' — ')
         });
         option.onmousedown = (event): void => {
           event.preventDefault();
@@ -154,6 +197,7 @@ export class GroupAdoptionModal extends Modal {
       input.removeAttribute('aria-activedescendant');
     };
     input.oninput = (): void => {
+      this.selectionChanged = true;
       this.state.edit(input.value);
       renderSuggestions();
     };
@@ -200,7 +244,12 @@ export class GroupAdoptionModal extends Modal {
     const values = ['create', 'bind', 'move'] as const;
     for (const [index, button] of buttons.entries()) {
       button.onclick = (): void => {
-        this.state.chooseMode(values[index] ?? 'create');
+        this.selectionChanged = true;
+        if (values[index] === 'create') {
+          select('');
+        } else {
+          this.state.chooseMode(values[index] ?? 'create');
+        }
       };
       button.onkeydown = (event): void => {
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
@@ -243,7 +292,7 @@ export class GroupAdoptionModal extends Modal {
       for (const control of controls) {
         control.disabled = locked;
       }
-      create.disabled ||= state.source !== null;
+
       bind.disabled ||= !state.source;
       move.disabled ||= !state.source;
       open.disabled ||= !state.source;
@@ -288,7 +337,9 @@ export class GroupAdoptionModal extends Modal {
         ? `UUID: ${plan.uuid}\nMarker: ${plan.folderPath}/${plan.uuid}.exnf\n${plan.aliases ? `Aliases after rename: ${plan.aliases.join(', ')}` : ''}`
         : 'Available after checks complete.';
     };
-    hideSuggestions();
+    this.renderChoices = renderSuggestions;
+    this.chooseSuggestion = select;
+    renderSuggestions();
   }
 
   private async confirm(): Promise<void> {

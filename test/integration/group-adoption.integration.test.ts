@@ -64,12 +64,12 @@ describe('folder group adoption in Obsidian', () => {
       const button=text=>Array.from(modal.querySelectorAll('button')).find(b=>b.textContent===text);
       const confirm=button('Confirm adoption');const input=modal.querySelector('input[type=search]');
       const wait=async()=>{for(let i=0;i<200 && confirm.disabled;i++)await new Promise(r=>setTimeout(r,50));};
-      const initial=confirm.disabled && !button('Preview adoption') && button('Create new note').getAttribute('aria-checked')==='true';
+      const initial=confirm.disabled && !button('Preview adoption') && !modal.querySelector('[role=listbox]').hidden;
       await wait();const automatic=!confirm.disabled && modal.querySelector('.exnf-adoption-footer').contains(confirm) && getComputedStyle(button('Retry checks')).display==='none' && getComputedStyle(button('Resume folder adoption…')).display==='none';
       input.value='missing-'+suffix;input.dispatchEvent(new Event('input'));
-      const invalid=confirm.disabled && button('Open note').disabled && Array.from(modal.querySelectorAll('[role=radio]')).every(b=>b.disabled);
+      const invalid=confirm.disabled && button('Open note').disabled && button('Bind without moving').disabled && button('Move note to match folder').disabled;
       input.value=note.slice(0,-3);input.dispatchEvent(new Event('input'));await wait();
-      const resolved=!confirm.disabled && !button('Open note').disabled && button('Create new note').disabled;
+      const resolved=!confirm.disabled && !button('Open note').disabled && !button('Create new note').disabled;
       button('Move note to match folder').click();const invalidated=confirm.disabled;await wait();
       const moved=modal.textContent.includes('Bind and move the note') && button('Move note to match folder').getAttribute('aria-checked')==='true';
       input.focus();input.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}));input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));

@@ -76,9 +76,44 @@ paths and affected links. Explicit verification can finish a move already comple
 after that inspection. No cleanup or rollback deletes user data. Closing the report
 does not interrupt an active mutation; interrupted runtime effects remain journaled.
 
-The report preserves browsing position and displays session overlays after mutation.
-Its counts and CSV exports describe the original scan and disclose staleness until
-refresh. No adoption action silently substitutes new data into the captured snapshot.
+### Verified report revisions (2026-10-08)
+
+The report preserves the original completed scan for forensic exports and publishes
+immutable working revisions after verified adoption and resume. This supersedes the
+original snapshot-only presentation contract. Completion includes the operation,
+roots, mutation revision, note paths, UUID, affected folders, and unmodified final
+verification evidence. The planner masks its own effects only in a derived view.
+Publish after journal completion and mutation-sequence advancement; presentation
+failure cannot turn a completed write into a pending journal.
+
+Merge positive checks and established absences only. Skipped and unreadable paths
+retain prior evidence. Rebuild derived status, indexes, counts, and navigation in
+memory. Filtered verification does not narrow an unfiltered report's discovery scope.
+Each report retains its original scan times and discloses later verification times.
+Current status exports pin one working revision at invocation, while raw forensic
+exports retain the original scan. CSV schemas and confidence meanings are unchanged.
+
+Selection, expansion, filters, and scroll position survive updates. An adopted row
+leaving an adoptable-only filter remains temporarily visible until navigation leaves
+it, without becoming a candidate or export match. Healthy or Path differs remains
+primary; session history is secondary and distinguishes direct from descendant
+changes. Temporary action disabling does not change unrelated evidence colors.
+Late, incompatible, duplicate, or superseded events cannot replace newer results.
+Failed presentation offers read-only targeted verification; broader refresh is needed
+only without a usable baseline or safe affected scope.
+
+Suggestions are visible on opening. Fresh local candidate reads can preselect one
+suitable exact-name candidate after competitors finish checking. Ambiguity and
+unreadable competitors require a choice; existing identity still requires its own
+checks. Selection starts preview immediately and defaults to binding without moving.
+Search does not scan the external tree. Explicit confirmation remains mandatory.
+
+Bound repeated work: no scan for a no-op move, shared in-flight previews, deduplicated
+inspection targets, and Git context shared within one inspection. Read notes through
+at most eight concurrent tasks and merge independent results in traversal order.
+Always reread bytes before using a workflow-local, byte-bounded 16 MiB parse cache.
+Cancellation settles outstanding work. No cross-operation filesystem cache, time-based
+authorization, dependencies, settings, or journal migration is introduced.
 
 ## Validation
 

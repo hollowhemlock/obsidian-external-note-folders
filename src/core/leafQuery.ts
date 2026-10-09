@@ -35,6 +35,7 @@ export interface LeafReportModel {
   externalRoot: string;
   finishedAt: string;
   mutationWarning: boolean;
+  revision?: number;
   rootFolder?: LeafTreeNode;
   rows: LeafRow[];
   scanMetrics?: ScanMetrics;
@@ -47,6 +48,7 @@ export interface LeafReportModel {
   uncheckedBindings?: string[];
   uncheckedCount: number;
   vaultRoot: string;
+  verifiedChanges?: { folders: string[]; operationId: string; verifiedAt: string }[];
 }
 export interface LeafRow {
   categories: LeafCategory[];

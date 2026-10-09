@@ -217,6 +217,27 @@ References:
 - [ADR-0009](../adr/0009-status-model.md)
 - [ADR-0026](../adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md)
 
+### 9. Continuous, Low-Friction Binding Workflow
+
+Users should be able to bind successive folders without manual refresh, repeated
+selection, or loss of browsing context. Completed actions must produce coherent,
+verified feedback across identity columns, status, counts, navigation, and exports.
+Keep evidence classification separate from temporary action availability, and
+distinguish changes to a selected folder from changes in its descendants.
+
+Verification should be proportionate to the action's safety requirements. Reuse
+verified evidence for presentation, avoid repeated work without removing fresh
+checks before effects, and measure performance rather than assuming fewer scans
+mean acceptable latency. Useful note suggestions reduce selection work; names
+remain suggestions and never establish identity.
+
+Automatic read-only verification and report updates support a confirmed mutation.
+They do not authorize automatic adoption, reconciliation, or other writes. Preserve
+the original discovery scope and forensic snapshot, and disclose later verification
+separately. Unchecked locations cannot establish absence or erase known conflicts.
+
+Reference: [ADR-0032](../adr/0032-explicit-folder-group-adoption.md).
+
 ## Command Intent
 
 | Command | Product intent | Mutation posture | Governing references |

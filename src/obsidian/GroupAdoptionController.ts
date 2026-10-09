@@ -10,10 +10,13 @@ import {
 } from 'obsidian';
 
 import type { AdoptionInspectionPolicy } from '../core/adoptionPolicy.ts';
+import type { AuditSnapshot } from '../core/auditTypes.ts';
 import type {
   AdoptionNoteChoice,
   GroupAdoptionPlan
 } from '../core/groupAdoption.ts';
+import type { VerifiedBindingChange } from '../core/verifiedBindingChange.ts';
+import type { NoteResult } from '../storage/auditScan.ts';
 import type { GroupAdoptionJournal } from '../storage/groupAdoptionJournal.ts';
 
 import { sameAdoptionScope } from '../core/adoptionPolicy.ts';
@@ -26,6 +29,7 @@ import { getExnfFrontmatterValue } from '../core/frontmatter.ts';
 import {
   buildGroupAdoptionPlan,
   matchingNotePath,
+  noteMatchReason,
   pathsOverlap
 } from '../core/groupAdoption.ts';
 import {
@@ -38,6 +42,7 @@ import {
 } from '../core/templateExclusions.ts';
 import { generateUnusedCanonicalUuid } from '../core/uuid.ts';
 import { inspectAdoption } from '../storage/adoptionInspection.ts';
+import { AdoptionNoteCache } from '../storage/adoptionNoteCache.ts';
 import { assertAuditRoots } from '../storage/auditPaths.ts';
 import { scanAdoptionAudit } from '../storage/auditScan.ts';
 import { writeMarkerToExistingUnmarkedFolder } from '../storage/boundExternalFolder.ts';
@@ -52,11 +57,13 @@ import {
 } from '../storage/groupAdoptionJournal.ts';
 import { buildJournalRootPath } from '../storage/journalPath.ts';
 import { executeReconcilePlan } from '../storage/reconcileExecutor.ts';
+import { InflightPreviews } from '../ui/inflightPreviews.ts';
 import { GroupAdoptionModal } from './GroupAdoptionModal.ts';
 
 export interface GroupAdoptionHost {
   assertNoPending?: (folder: string) => Promise<void>;
   changed: (folder: string, note: null | string) => void;
+  completed?: (change: VerifiedBindingChange) => Promise<void> | void;
   mutate: (operation: () => Promise<void>) => Promise<void>;
   sequence: () => number;
   settings: () => { externalRootIgnorePatterns: string[]; externalRootPath: string; templateExcludePatterns?: string[] };
@@ -81,9 +88,13 @@ class UnacknowledgedDescendantsError extends Error {
 }
 
 export class GroupAdoptionController {
+  private cacheScope = '';
+  private completion: undefined | VerifiedBindingChange;
   private readonly dialogs = new Set<Modal>();
   private disposed = false;
+  private readonly noteCache = new AdoptionNoteCache<NoteResult>();
   private readonly notices = new Set<Notice>();
+  private readonly previews = new InflightPreviews<{ content: null | string; plan: GroupAdoptionPlan }>();
   public constructor(private readonly app: App, private readonly pluginId: string, private readonly host: GroupAdoptionHost) {}
   public choices(): AdoptionNoteChoice[] {
     const templates = buildTemplateExclusionMatcher(this.host.settings().templateExcludePatterns);
@@ -95,10 +106,13 @@ export class GroupAdoptionController {
 
   public dismiss(dialog: Modal): void {
     this.dialogs.delete(dialog);
+    this.noteCache.clear();
   }
 
   public dispose(): void {
     this.disposed = true;
+    this.previews.clear();
+    this.noteCache.clear();
     for (const dialog of this.dialogs) {
       if (dialog instanceof GroupAdoptionModal) {
         dialog.cancel();
@@ -159,6 +173,7 @@ export class GroupAdoptionController {
         throw new PendingAdoptionError(file, error);
       }
     });
+    await this.publishCompletion();
   }
 
   public async executeForDialog(plan: GroupAdoptionPlan, content: null | string): Promise<
@@ -215,30 +230,8 @@ export class GroupAdoptionController {
     signal: AbortSignal,
     knownMarkerPaths: readonly string[] = []
   ): Promise<{ content: null | string; plan: GroupAdoptionPlan }> {
-    await this.host.assertNoPending?.(folder);
-    if (source) {
-      assertBindingNoteAllowed(source, this.host.settings().templateExcludePatterns);
-    }
-    const content = source ? await this.readNote(source) : null;
-    const identity = getExnfFrontmatterValue(frontmatter(content ?? ''));
-    const notePath = !source || move ? matchingNotePath(this.externalRoot(), folder) : source;
-    const expected = deriveExternalFolderPath(notePath, this.externalRoot());
-    await this.host.assertNoPending?.(expected);
-    await this.assertNoOverlappingAdoption([folder, expected]);
-    const checked = identity.kind === 'missing' ? await this.scopedScan(folder, expected, knownMarkerPaths, signal) : undefined;
-    const snapshot = checked?.snapshot ?? await this.scan(signal);
-    const plan = buildGroupAdoptionPlan({
-      folderPath: folder,
-      ignorePatterns: this.host.settings().externalRootIgnorePatterns,
-      ...(checked ? { inspectionPolicy: checked.inspectionPolicy } : {}),
-      move,
-      mutationSequence: this.host.sequence(),
-      note: source ? { aliases: frontmatter(content ?? '')['aliases'], path: source } : null,
-      snapshot,
-      uuid: generateUnusedCanonicalUuid(new Set([...snapshot.notes.map((note) => note.uuid), ...snapshot.markers.map((marker) => marker.uuid)]))
-    });
-    await this.assertDestination(plan);
-    return { content, plan };
+    const key = JSON.stringify([folder, source, move, this.roots(), this.host.settings(), [...knownMarkerPaths].sort(), this.host.sequence()]);
+    return this.previews.run(key, signal, async (shared) => this.inspectPreview(folder, source, move, shared, knownMarkerPaths));
   }
 
   public async repair(folder: string, direction: 'external' | 'note'): Promise<void> {
@@ -364,6 +357,7 @@ export class GroupAdoptionController {
 
   public async resume(file: string, acknowledgedDescendants: readonly string[] = [], confirmedScope?: AdoptionInspectionPolicy): Promise<void> {
     await this.host.mutate(async () => this.executeJournal(file, true, acknowledgedDescendants, confirmedScope));
+    await this.publishCompletion();
   }
 
   public async showRecovery(journalFile?: string): Promise<void> {
@@ -443,7 +437,8 @@ export class GroupAdoptionController {
             current.attempted = false;
             await saveGroupJournal(file, current);
             await this.executeJournal(file);
-          }).then(() => {
+          }).then(async () => {
+            await this.publishCompletion();
             modal.close();
           }).catch((error: unknown) => {
             showError(error);
@@ -453,6 +448,41 @@ export class GroupAdoptionController {
       }
     }
     modal.open();
+  }
+
+  public async suggestions(folder: string, signal: AbortSignal): Promise<{ path: string; reason: string; restriction: string; unresolved: boolean }[]> {
+    const candidates = this.choices().map((note) => ({ note, reason: noteMatchReason(note, folder, this.externalRoot()) }))
+      .filter((item): item is { note: AdoptionNoteChoice; reason: string } => item.reason !== null);
+    const results: { path: string; reason: string; restriction: string; unresolved: boolean }[] = [];
+    for (
+      const {
+        note,
+        reason
+      } of candidates
+    ) {
+      signal.throwIfAborted();
+      let restriction = '';
+      let unresolved = false;
+      try {
+        const content = await this.readNote(note.path);
+        if (/^\uFEFF?---\r?\n/u.test(content) && !FRONTMATTER_PATTERN.test(content)) {
+          throw new Error('Invalid frontmatter');
+        }
+        const identity = getExnfFrontmatterValue(frontmatter(content));
+        if (identity.kind === 'invalid') {
+          restriction = 'Invalid external folder identifier';
+        }
+        if (identity.kind === 'valid') {
+          restriction = 'Existing identifier — identity checks required';
+        }
+      } catch {
+        restriction = 'Note could not be checked';
+        unresolved = true;
+      }
+      results.push({ path: note.path, reason, restriction, unresolved });
+    }
+    signal.throwIfAborted();
+    return results;
   }
 
   public trackNotice(notice: Notice): void {
@@ -525,6 +555,7 @@ export class GroupAdoptionController {
   ): Promise<void> {
     const journal = await readGroupJournal(file);
     const plan = journal.plan;
+    let verified: AuditSnapshot | undefined;
     async function save(): Promise<void> {
       await saveGroupJournal(file, journal);
     }
@@ -545,6 +576,9 @@ export class GroupAdoptionController {
           }
         },
         move: async (interrupted) => {
+          if (!plan.sourcePath || plan.sourcePath === plan.notePath) {
+            return;
+          }
           if (plan.inspectionPolicy) {
             await this.preflightResume(journal, acknowledgedDescendants);
           }
@@ -614,18 +648,66 @@ export class GroupAdoptionController {
           if (plan.aliases !== null && JSON.stringify(metadata['aliases']) !== JSON.stringify(plan.aliases)) {
             throw new Error('Final note aliases changed.');
           }
-          await this.preflightResume(journal);
+          verified = await this.preflightResume(journal);
           if (!await inspectGroupMarker(plan.externalRoot, plan.folderPath, plan.uuid)) {
             throw new Error('Marker is missing.');
           }
         }
       }, save);
-      this.host.changed(plan.folderPath, plan.notePath);
+      if (verified) {
+        this.completion = {
+          affectedFolders: [plan.folderPath],
+          evidence: verified,
+          externalRoot: plan.externalRoot,
+          ignorePatterns: [...plan.ignorePatterns],
+          mutationRevision: this.host.sequence(),
+          newNotePath: plan.notePath,
+          oldNotePath: plan.sourcePath,
+          operationId: file,
+          templatePatterns: [...(plan.templateExcludePatterns ?? [])],
+          uuid: plan.uuid,
+          vaultRoot: plan.vaultRoot,
+          verifiedAt: verified.finishedAt
+        };
+      }
       new Notice(`Adopted ${plan.folderPath}. Note: ${plan.notePath}`);
     } catch (error) {
       this.host.changed(plan.folderPath, null);
       throw new Error(`${error instanceof Error ? error.message : String(error)} Journal: ${file}. Use Resume folder adoption.`, { cause: error });
     }
+  }
+
+  private async inspectPreview(
+    folder: string,
+    source: null | string,
+    move: boolean,
+    signal: AbortSignal,
+    knownMarkerPaths: readonly string[] = []
+  ): Promise<{ content: null | string; plan: GroupAdoptionPlan }> {
+    await this.host.assertNoPending?.(folder);
+    if (source) {
+      assertBindingNoteAllowed(source, this.host.settings().templateExcludePatterns);
+    }
+    const content = source ? await this.readNote(source) : null;
+    const identity = getExnfFrontmatterValue(frontmatter(content ?? ''));
+    const notePath = !source || move ? matchingNotePath(this.externalRoot(), folder) : source;
+    const expected = deriveExternalFolderPath(notePath, this.externalRoot());
+    await this.host.assertNoPending?.(expected);
+    await this.assertNoOverlappingAdoption([folder, expected]);
+    const checked = identity.kind === 'missing' ? await this.scopedScan(folder, expected, knownMarkerPaths, signal) : undefined;
+    const snapshot = checked?.snapshot ?? await this.scan(signal);
+    const plan = buildGroupAdoptionPlan({
+      folderPath: folder,
+      ignorePatterns: this.host.settings().externalRootIgnorePatterns,
+      ...(checked ? { inspectionPolicy: checked.inspectionPolicy } : {}),
+      move,
+      mutationSequence: this.host.sequence(),
+      note: source ? { aliases: frontmatter(content ?? '')['aliases'], path: source } : null,
+      snapshot,
+      uuid: generateUnusedCanonicalUuid(new Set([...snapshot.notes.map((note) => note.uuid), ...snapshot.markers.map((marker) => marker.uuid)]))
+    });
+    await this.assertDestination(plan);
+    return { content, plan };
   }
 
   private async inspectResumeNote(journal: GroupAdoptionJournal): Promise<{ content: null | string; currentPath: string }> {
@@ -672,7 +754,7 @@ export class GroupAdoptionController {
     journal: GroupAdoptionJournal,
     acknowledgedDescendants: readonly string[] = [],
     confirmedScope?: AdoptionInspectionPolicy
-  ): Promise<void> {
+  ): Promise<AuditSnapshot> {
     await this.assertPendingRepair(journal.plan);
     const plan = journal.plan;
     this.assertTemplateScope(plan);
@@ -685,7 +767,8 @@ export class GroupAdoptionController {
       throw new Error('Roots or ignore settings changed; restore them before resuming.');
     }
     const checked = plan.inspectionPolicy ? await this.scopedScan(plan.folderPath, plan.expectedFolder, plan.inspectionPolicy.knownMarkerPaths) : undefined;
-    const scan = checked?.snapshot ?? await this.scan();
+    const evidence = checked?.snapshot ?? await this.scan();
+    const scan = structuredClone(evidence);
     if (plan.inspectionPolicy) {
       await inspectGroupMarker(plan.externalRoot, plan.folderPath, plan.uuid);
     }
@@ -723,6 +806,26 @@ export class GroupAdoptionController {
     // The executor persists acknowledged scope with its next intent record, before effects.
     plan.descendants.push(...additions);
     plan.descendants.sort();
+    return evidence;
+  }
+
+  private async publishCompletion(): Promise<void> {
+    const change = this.completion;
+    this.completion = undefined;
+    this.noteCache.clear();
+    if (!change) {
+      return;
+    }
+    change.mutationRevision = this.host.sequence();
+    try {
+      if (this.host.completed) {
+        await this.host.completed(change);
+      } else {
+        this.host.changed(change.affectedFolders[0] ?? '', change.newNotePath);
+      }
+    } catch {
+      new Notice('Adoption completed; status update needs verification.');
+    }
   }
 
   private async readNote(notePath: string): Promise<string> {
@@ -757,10 +860,16 @@ export class GroupAdoptionController {
     signal?: AbortSignal
   ): Promise<Awaited<ReturnType<typeof inspectAdoption>>> {
     const roots = this.roots();
+    const scope = JSON.stringify([roots, folder, this.host.settings()]);
+    if (scope !== this.cacheScope) {
+      this.noteCache.clear();
+      this.cacheScope = scope;
+    }
     return inspectAdoption({
       externalRoot: roots.external,
       ignorePatterns: this.host.settings().externalRootIgnorePatterns,
       knownMarkerPaths,
+      noteCache: this.noteCache,
       ...(signal ? { signal } : {}),
       targets: [...new Set([expected, folder])],
       templatePatterns: this.host.settings().templateExcludePatterns ?? [],

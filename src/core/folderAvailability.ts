@@ -34,7 +34,7 @@ export function* folderAvailabilitySteps(
     const tone = folderAttention(node, change);
     let attention = tone;
     if (tone === 'neutral' || tone === 'optional') {
-      attention = adoptable ? 'optional' : 'neutral';
+      attention = optionalNode(node, model) ? 'optional' : tone;
     }
     result.set(node.id, {
       adoptable,
@@ -77,7 +77,6 @@ function key(folder: string, caseSensitive: boolean): string {
 function markerRepairAvailability(node: LeafTreeNode, model: LeafReportModel, operation: FolderOperation | undefined): { markerRepair?: boolean } {
   return missingMarkerNote(node) ? { markerRepair: !model.stale && !operation && !node.inspection?.subtreeMarkers } : {};
 }
-
 function mergeOperation(map: Map<string, FolderOperation>, id: string, operation: FolderOperation | undefined): void {
   const value = strongest(map.get(id), operation);
   if (value) {
@@ -119,6 +118,10 @@ function* operationIndexSteps(
   }
   const ordered = yield* sortAuditSteps(all, (a, b) => a.segments.length - b.segments.length);
   return yield* propagateOperations(ordered, direct, nested, rootId);
+}
+
+function optionalNode(node: LeafTreeNode, model: LeafReportModel): boolean {
+  return availableNode(node, model.rootFolder?.id) && !missingMarkerNote(node);
 }
 
 function* propagateOperations(

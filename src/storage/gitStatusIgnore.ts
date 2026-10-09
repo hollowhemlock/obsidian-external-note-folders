@@ -181,6 +181,7 @@ export class GitRepositoryValidationError extends GitFilteringError {
 }
 
 export class GitStatusIgnore {
+  public processCount = 0;
   private readonly repositories = new Map<string, GitIgnoreRepository>();
   public constructor(private readonly signal?: AbortSignal) {}
 
@@ -204,6 +205,7 @@ export class GitStatusIgnore {
   }
 
   public async initialize(root: string): Promise<GitIgnoreRepository | null> {
+    this.processCount++;
     await git(root, ['--version'], 'version', this.signal);
     const repository = await findRepositoryRoot(root);
     return repository ? this.repository(repository) : null;
@@ -215,8 +217,11 @@ export class GitStatusIgnore {
       return existing;
     }
     // Validate gitfiles and worktrees before starting an interactive query process.
+    this.processCount++;
     await git(root, ['rev-parse', '--show-toplevel'], 'repository', this.signal);
+    this.processCount++;
     const tracked = await git(root, ['ls-files', '--cached', '-z'], 'index', this.signal);
+    this.processCount++;
     const repository = new GitIgnoreRepository(root, tracked.split('\0'), this.signal);
     this.repositories.set(root, repository);
     return repository;

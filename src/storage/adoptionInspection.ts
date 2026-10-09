@@ -2,6 +2,8 @@ import path from 'node:path';
 
 import type { AdoptionInspectionPolicy } from '../core/adoptionPolicy.ts';
 import type { AuditSnapshot } from '../core/auditTypes.ts';
+import type { AdoptionNoteCache } from './adoptionNoteCache.ts';
+import type { NoteResult } from './auditScan.ts';
 
 import { isIntentionalExclusion } from '../core/adoptionPolicy.ts';
 import { pathsOverlap } from '../core/groupAdoption.ts';
@@ -13,6 +15,7 @@ export async function inspectAdoption(input: {
   externalRoot: string;
   ignorePatterns: readonly string[];
   knownMarkerPaths: readonly string[];
+  noteCache?: AdoptionNoteCache<NoteResult>;
   signal?: AbortSignal;
   targets: readonly string[];
   templatePatterns: readonly string[];
@@ -25,7 +28,10 @@ export async function inspectAdoption(input: {
   const knownMarkerPaths = [...new Set(input.knownMarkerPaths.filter((marker) => input.targets.some((target) => pathsOverlap(path.dirname(marker), target))))]
     .sort();
   const snapshot = await scanAdoptionAudit(input.vaultRoot, root, {
-    adoptionTargets: input.targets,
+    ...(input.noteCache ? { noteCache: input.noteCache } : {}),
+    adoptionTargets: input.targets.filter((target, index, all) =>
+      !all.some((other, otherIndex) => otherIndex !== index && (target === other ? otherIndex < index : target.startsWith(other + path.sep)))
+    ),
     ignorePatterns: input.ignorePatterns,
     knownMarkerPaths,
     ...(input.signal ? { signal: input.signal } : {}),
