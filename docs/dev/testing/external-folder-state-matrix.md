@@ -142,6 +142,25 @@ Maintenance guidance lives in [Testing Strategy](README.md).
 | R27 | Imported marker UUID also occurs elsewhere in the checked root | Restoration blocker |
 | R28 | Restoration scan has skipped or inaccessible evidence | Uniqueness cannot be proven; block |
 | R29 | Restoration scan excludes configured ignored directories | Intentional blind spot disclosed in confirmation |
+| R30 | Status scan excludes directories using Git rules and shared patterns | Hidden branches retain coverage, binding warnings, and adoption restrictions |
+| R31 | Git filtering fails or is unavailable | Nested repository/index validation exits skip that branch with explicit unchecked coverage; root validation, launch, timeout, output-limit, and runtime failures retain the previous snapshot; explicit unfiltered scan remains available |
+
+Status presentation checks for R30/R31 keep Scan totals and outcomes separate from
+Filter matches and action feedback. Cover unknown versus zero metrics, ignored
+branches versus unavailable repositories, collapsed matches, context ancestors,
+and temporary navigation reveals. Sandbox checks cover section and export
+placement, rescan controls, root inspection, and selectable passive text.
+
+Status binding health for R30/R31 and G7 is independent of exhaustive coverage:
+checked matching note/marker identity at the expected path is green despite
+unrelated vault gaps, exclusions, skipped links/repositories, or unreadable
+descendants. Local directory/note/marker uncertainty prevents green, including a
+matching marker beside an unreadable second marker. Drift remains orange;
+observed valid nested markers make all overlapping marked participants red,
+without recoloring unmarked containers. Ancestor descriptions, binding counts,
+review navigation, and offline HTML use the same rule. Expected omissions are
+informational; actual failures have a compact warning and grouped diagnostics.
+Adoption/repair safeguards, forensic classifications, and CSV schemas are unchanged.
 
 ### Journal And Execution State
 

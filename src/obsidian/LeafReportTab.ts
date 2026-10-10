@@ -98,6 +98,10 @@ export class LeafReportTab extends ItemView {
           );
         });
       },
+      initialContext: {
+        externalRoot: this.options.externalRoot(),
+        vaultRoot: (this.app.vault.adapter as { getBasePath?: () => string }).getBasePath?.() ?? ''
+      },
       openFolder: async (folderPath) => {
         await openExistingAuditFolder(folderPath);
       },
@@ -108,9 +112,11 @@ export class LeafReportTab extends ItemView {
         }
         await this.app.workspace.getLeaf('tab').openFile(file);
       },
-      refresh: async () => this.session?.refresh()
+      refresh: async () => this.session?.refresh(),
+      rescanUnfiltered: async () => this.session?.refresh('unfiltered')
     });
     this.session = new AuditSession({
+      actionStatus: (message, busy): void => this.report?.status(message, busy, 'action'),
       analyze: async (snapshot, signal): Promise<import('../core/leafQuery.ts').LeafReportModel> => runAuditSteps(buildLeafReportSteps(snapshot), { signal }),
       mutationState: this.options.mutationState,
       scan: async (control): Promise<import('../core/auditTypes.ts').AuditSnapshot> => {
@@ -124,7 +130,12 @@ export class LeafReportTab extends ItemView {
           templateExcludePatterns: [...(this.options.templatePatterns?.() ?? [])]
         });
       },
-      status: (message, busy): void => this.report?.status(message, busy),
+      scanContext: (): import('../ui/scanFailure.ts').ScanContext => ({
+        externalRoot: this.options.externalRoot(),
+        vaultRoot: (this.app.vault.adapter as { getBasePath?: () => string }).getBasePath?.() ?? ''
+      }),
+      scanFailure: (failure): void => this.report?.scanFailure(failure),
+      status: (message, busy): void => this.report?.status(message, busy, 'scan'),
       update: async (model, signal): Promise<void> => this.report?.update(model, signal)
     });
     await this.session.refresh();

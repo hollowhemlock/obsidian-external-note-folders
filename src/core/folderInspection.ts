@@ -8,6 +8,8 @@ export interface AdoptionBlocker {
   nodeId?: string;
 }
 export interface CoverageIssue {
+  code?: import('./auditTypes.ts').AuditIssue['code'];
+  exclusionSource?: import('./auditTypes.ts').AuditIssue['exclusionSource'];
   id: string;
   kind: 'directory' | 'excluded' | 'link' | 'marker' | 'note';
   location: string;
@@ -115,11 +117,11 @@ export function descendantMarkerExplanation(node: LeafTreeNode): string {
   }
   const marked = `${String(counts.markedFolders)} marked ${counts.markedFolders === 1 ? 'subfolder' : 'subfolders'}`;
   const bound = counts.boundFolders
-    ? `, including ${String(counts.boundFolders)} confirmed ${counts.boundFolders === 1 ? 'binding' : 'bindings'}`
-    : '; no descendant binding is confirmed by this scan';
+    ? `, including ${String(counts.boundFolders)} observed ${counts.boundFolders === 1 ? 'binding' : 'bindings'}`
+    : '; no descendant binding was checked successfully';
   const restriction = counts.boundFolders
     ? 'Adopting this parent would create a nested binding.'
-    : 'Descendant marker evidence blocks parent adoption, even when those bindings are unconfirmed.';
+    : 'Descendant marker evidence blocks parent adoption, even when those bindings could not be checked.';
   return `This folder contains ${marked}${bound}. It cannot be adopted as a whole. ${restriction} `
     + 'It can remain an ordinary container. Inspect the marked subfolders; descendant markers do not activate this folder’s local marker tag.';
 }
@@ -164,15 +166,13 @@ export function* markedAncestors(index: InspectionIndex, node: LeafTreeNode): Ge
 
 export function shortFolderStatus(node: LeafTreeNode): string {
   const status = node.evidence?.status ?? 'Unchecked';
-  if (status.startsWith('Bound at ') && node.evidence?.confidence === 'provisional') {
-    return 'Binding match · provisional';
-  }
   const labels: Record<string, string> = {
     'Ambiguous or invalid evidence': 'Ambiguous / invalid',
-    'Bound at different path': 'Bound · different path',
+    'Bound at different path': 'Path differs',
     'Bound at expected path': 'Already bound',
     'Inside a marked folder': 'Content subfolder',
-    'Possible adoption candidate': 'Possible adoption'
+    'Possible adoption candidate': 'Possible adoption',
+    'Unchecked': 'Binding could not be checked'
   };
   return labels[status] ?? status;
 }

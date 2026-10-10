@@ -1,6 +1,13 @@
 import type { AuditSnapshot } from '../core/auditTypes.ts';
 import type { LeafReportModel } from '../core/leafQuery.ts';
 import type { AuditScanOptions } from '../storage/auditScan.ts';
+import type {
+  ScanContext,
+  ScanFailure
+} from './scanFailure.ts';
+
+import { scanProblemSummary } from '../core/scanCoveragePresentation.ts';
+import { createScanFailure } from './scanFailure.ts';
 
 const PROGRESS_INTERVAL_MS = 100;
 
@@ -10,14 +17,18 @@ export interface AuditMutationState {
   sequence: number;
 }
 export interface AuditSessionHost {
+  actionStatus?: (message: string, busy: boolean) => void;
   analyze: (snapshot: AuditSnapshot, signal: AbortSignal) => Promise<LeafReportModel>;
   mutationState: () => AuditMutationState;
   scan: (options: AuditScanOptions) => Promise<AuditSnapshot>;
+  scanContext?: () => ScanContext;
+  scanFailure?: (failure: null | ScanFailure) => void;
   status: (message: string, busy: boolean) => void;
   update: (model: LeafReportModel, signal: AbortSignal) => Promise<void>;
 }
 
 export class AuditSession {
+  public failure: null | ScanFailure = null;
   public model: LeafReportModel | undefined;
   public snapshot: AuditSnapshot | undefined;
   private controller: AbortController | undefined;
@@ -35,7 +46,7 @@ export class AuditSession {
     this.cancel();
   }
 
-  public async refresh(): Promise<void> {
+  public async refresh(statusScanMode: import('../core/auditTypes.ts').StatusScanMode = 'filtered'): Promise<void> {
     if (this.controller || this.isDisposed()) {
       return;
     }
@@ -43,8 +54,10 @@ export class AuditSession {
     this.controller = controller;
     const before = this.host.mutationState();
     let lastProgress = 0;
+    let context: ScanContext = {};
     this.host.status('Scanning physical roots…', true);
     try {
+      context = this.host.scanContext?.() ?? {};
       const snapshot = await this.host.scan({
         onProgress: (counts) => {
           if (this.disposed || performance.now() - lastProgress < PROGRESS_INTERVAL_MS) {
@@ -56,11 +69,13 @@ export class AuditSession {
             true
           );
         },
-        signal: controller.signal
+        signal: controller.signal,
+        statusScanMode
       });
       controller.signal.throwIfAborted();
-      if (snapshot.issues.some((issue) => issue.unchecked && (issue.location === snapshot.vaultRoot || issue.location === snapshot.externalRoot))) {
-        throw new Error('A source root could not be inspected.');
+      const rootIssue = snapshot.issues.find((issue) => issue.unchecked && (issue.location === snapshot.vaultRoot || issue.location === snapshot.externalRoot));
+      if (rootIssue) {
+        throw Object.assign(new Error(`A source root could not be inspected. ${rootIssue.reason}`), { path: rootIssue.location });
       }
       this.host.status('Analyzing leaf folders…', true);
       const model = await this.host.analyze(snapshot, controller.signal);
@@ -73,13 +88,20 @@ export class AuditSession {
       await this.host.update(model, controller.signal);
       this.snapshot = snapshot;
       this.model = model;
-      this.host.status('Scan complete. Results describe the recorded scan time.', false);
+      this.setFailure(null);
+      this.host.status(
+        scanProblemSummary(snapshot.issues)
+          ? 'Scan complete with warnings. See Scan details for scan problems.'
+          : 'Scan complete. Results describe the recorded scan time.',
+        false
+      );
     } catch (error: unknown) {
       if (!this.isDisposed()) {
+        this.setFailure(controller.signal.aborted ? null : createScanFailure(error, context, statusScanMode, !!this.snapshot));
         this.host.status(
           controller.signal.aborted
-            ? 'Scan cancelled. Previous results retained.'
-            : `Scan failed. Previous results retained. ${error instanceof Error ? error.message : ''}`,
+            ? `Scan cancelled. ${this.snapshot ? 'Previous results retained.' : 'No completed scan.'}`
+            : `Scan failed. ${this.snapshot ? 'Previous results retained.' : 'No completed scan.'} See Scan details.`,
           false
         );
       }
@@ -96,16 +118,19 @@ export class AuditSession {
     }
     const controller = new AbortController();
     this.controller = controller;
-    this.host.status('Preparing export…', true);
+    this.exportStatus('Preparing export…', true);
     try {
       const directory = await operation(this.snapshot, this.model, controller.signal);
       controller.signal.throwIfAborted();
       if (!this.isDisposed()) {
-        this.host.status(directory ? `Exported to ${directory}` : 'Export cancelled.', false);
+        this.exportStatus(directory ? `Exported to ${directory}` : 'Export cancelled.', false);
       }
     } catch (error: unknown) {
       if (!this.isDisposed()) {
-        this.host.status(controller.signal.aborted ? 'Export cancelled.' : `Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`, false);
+        this.exportStatus(
+          controller.signal.aborted ? 'Export cancelled.' : `Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          false
+        );
       }
     } finally {
       if (this.controller === controller) {
@@ -114,7 +139,16 @@ export class AuditSession {
     }
   }
 
+  private exportStatus(message: string, busy: boolean): void {
+    (this.host.actionStatus ?? this.host.status)(message, busy);
+  }
+
   private isDisposed(): boolean {
     return this.disposed;
+  }
+
+  private setFailure(failure: null | ScanFailure): void {
+    this.failure = failure;
+    this.host.scanFailure?.(failure);
   }
 }

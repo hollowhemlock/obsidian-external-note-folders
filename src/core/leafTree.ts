@@ -21,6 +21,7 @@ export interface LeafTreeNode extends LeafRow {
   covered: boolean;
   descendantIssues: number;
   evidence?: import('./folderStatusTypes.ts').FolderEvidence;
+  hiddenByCoverage?: boolean;
   id: string;
   inspection?: import('./folderInspection.ts').FolderInspection;
   issues: string[];
@@ -58,7 +59,7 @@ export const DEFAULT_TREE_QUERY: TreeQuery = { category: 'all', mode: 'all', sea
 export const TREE_PAGE_SIZE = 100;
 const names = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
 export function availableTreeStatuses(tree: readonly LeafTreeNode[]): string[] {
-  return [...new Set(tree.map((node) => node.evidence?.status ?? 'Unchecked'))].sort();
+  return [...new Set(tree.filter((node) => !node.hiddenByCoverage).map((node) => node.evidence?.status ?? 'Unchecked'))].sort();
 }
 /** Inspect physical descendants even when display filters hide their branches. */
 export function* descendantIssueSteps(result: TreeResult, id: string): Generator<void, LeafTreeNode[]> {
@@ -230,7 +231,7 @@ function* aggregateMatches(ordered: LeafTreeNode[], visible: Set<string>, metric
   }
 }
 function allowedNode(node: LeafTreeNode, query: TreeQuery, availability: FolderAvailability | undefined): boolean {
-  return matchesCategory(node, query) && (node.kind !== 'virtual' || query.includeExpected === true)
+  return !node.hiddenByCoverage && matchesCategory(node, query) && (node.kind !== 'virtual' || query.includeExpected === true)
     && (!query.adoptableOnly || isAdoptableLeaf(node, availability))
     && (!query.status || node.evidence?.status === query.status)
     && (!query.needsReview || availability?.attention === 'review' || availability?.attention === 'conflict');

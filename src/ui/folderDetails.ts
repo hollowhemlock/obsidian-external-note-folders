@@ -15,6 +15,7 @@ import {
   markedAncestors,
   shortFolderStatus
 } from '../core/folderInspection.ts';
+import { hasObservedBinding } from '../core/observedBinding.ts';
 import {
   ATTENTION_LABELS,
   detailExplanations
@@ -107,9 +108,6 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
   paged(explanations, detailExplanations(node).filter((text) => text !== statusDescription(node)), (text) => {
     reportElement(explanations, 'p', text, 'leaf-context');
   });
-  if (node.evidence?.confidence === 'provisional') {
-    reportElement(technical, 'p', 'Incomplete identity coverage may conceal another use of a UUID. Found evidence remains useful; uniqueness is provisional.');
-  }
 
   function button(target: HTMLElement, label: string, callback: () => Promise<void> | void): HTMLButtonElement {
     const control = reportAction(target, label, callback, options.onError);
@@ -151,7 +149,7 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
   function renderRelationship(target: HTMLElement): void {
     const binding = node.evidence?.bindingNote;
     if (binding) {
-      reportElement(target, 'h3', 'This folder’s binding');
+      reportElement(target, 'h3', hasObservedBinding(node) ? 'This folder’s binding' : 'Associated identity evidence');
       reportElement(target, 'p', `Associated note: ${binding}`);
       if (host.openNote) {
         button(target, 'Open associated note', () => host.openNote?.(binding));
@@ -189,13 +187,13 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
     if (ancestor.evidence?.marker !== 'present') {
       reportElement(card, 'p', evidenceExplanation(ancestor, 'marker'), 'leaf-context');
     }
-    const confirmed = ancestor.evidence?.confidence === 'checked' && !!ancestor.evidence.bindingNote;
+    const confirmed = hasObservedBinding(ancestor);
     reportElement(
       card,
       'p',
       confirmed
         ? `This is content inside the folder bound to ${ancestor.evidence?.bindingNote ?? ''}. It does not need a separate binding.`
-        : 'Ancestor marker found; its binding is unresolved or provisional. Inspect its evidence before treating it as bound.'
+        : 'Ancestor marker found; its binding could not be checked successfully. Inspect its evidence before treating it as bound.'
     );
     button(card, 'Select marked ancestor', () => options.select(ancestor));
     if (host.openFolder && ancestor.kind === 'directory') {
@@ -213,8 +211,17 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
     const stale = !!model.stale;
     const pending = options.overlay?.[1] === null;
     const blocked = stale || !options.availability?.adoptable;
+    let adoptionTarget = target;
+    if (hasObservedBinding(node)) {
+      if (!stale && !options.overlay) {
+        reportElement(target, 'p', 'Already bound; adoption is not needed.');
+      }
+      const restrictions = section(target, 'Adoption restrictions', 'adoption');
+      restrictions.open = false;
+      adoptionTarget = restrictions;
+    }
     if (host.adopt) {
-      const adopt = button(target, 'Adopt this folder…', () => host.adopt?.(node.folderPath));
+      const adopt = button(adoptionTarget, 'Adopt this folder…', () => host.adopt?.(node.folderPath));
       adopt.disabled = options.busy || blocked;
       adopt.dataset['adoptionBlocked'] = String(blocked);
       if (node.conflict) {
@@ -235,7 +242,7 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
         button(target, 'Refresh status', host.refresh);
       }
     }
-    const blockers = reportElement(target, 'div', '', 'leaf-blockers');
+    const blockers = reportElement(adoptionTarget, 'div', '', 'leaf-blockers');
     runAuditSteps(adoptionBlockerSteps(index, node), { signal: options.signal }).then((items) => {
       if (options.signal.aborted) {
         return;
@@ -273,6 +280,13 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
     renderRepairActions(stale, target);
   }
   function renderRepairActions(stale: boolean, target: HTMLElement): void {
+    if (host.repair && hasObservedBinding(node) && node.evidence?.status === 'Bound at different path' && node.evidence.confidence !== 'checked') {
+      reportElement(
+        target,
+        'p',
+        'Moving this binding requires complete checked coverage. Current scan gaps prevent offering a move; they do not change the observed UUID match.'
+      );
+    }
     if (host.repair && node.evidence?.status === 'Bound at different path' && node.evidence.confidence === 'checked') {
       for (const direction of ['external', 'note'] as const) {
         const label = direction === 'external' ? 'Move external folder to match note…' : 'Move note to match external folder…';
@@ -307,8 +321,8 @@ function statusDescription(node: LeafTreeNode): string {
   if (node.evidence?.status === 'Contains bound subfolders' || node.evidence?.status === 'Contains descendant markers') {
     return descendantMarkerExplanation(node);
   }
-  if (node.evidence?.status.startsWith('Bound at ') && node.evidence.confidence === 'provisional') {
-    return 'The note and marker UUIDs match. Scan gaps prevent proving that this binding is unique; see scan details.';
+  if (hasObservedBinding(node) && node.evidence?.status === 'Bound at expected path') {
+    return `${node.evidence.bindingNote ?? ''} and this folder’s marker contain the same UUID at the expected path.`;
   }
   const descriptions: Record<string, string> = {
     'Bound at different path': 'The note and local marker match by UUID; their paths differ.',

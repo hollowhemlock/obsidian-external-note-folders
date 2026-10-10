@@ -39,10 +39,13 @@ describe('folder attention presentation', () => {
   ])('maps %s to %s independently of blocked adoption', (status, expected) => {
     const row = node();
     row.evidence!.status = status;
+    if (status === 'Bound at expected path') {
+      Object.assign(row.evidence!, { bindingNote: 'folder-0.md', marker: 'present', uuid: '11111111-1111-4111-8111-111111111111', yaml: 'present' });
+    }
     row.blocked = true;
     expect(folderAttention(row)).toBe(expected);
   });
-  it('keeps ordinary containers neutral under incomplete identity coverage', () => {
+  it('does not infer a healthy binding from status text without checked identity evidence', () => {
     const row = node();
     row.evidence!.confidence = 'provisional';
     expect(folderAttention(row)).toBe('neutral');
