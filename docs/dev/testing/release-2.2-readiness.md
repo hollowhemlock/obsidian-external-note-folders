@@ -1,7 +1,7 @@
 # 2.2 release readiness
 
-Status: preparing; the maintainer accepted deferring the beta.8 reconciliation
-presentation issue to a future update. Stable publication is not authorized by this task. Leave the
+Status: validation complete for integration; the maintainer accepted deferring the
+beta.8 reconciliation presentation issue to a future update. Stable publication is not authorized by this task. Leave the
 Release Please PR unmerged and do not enable auto-merge on it.
 
 ## Ownership and approved evidence exception
@@ -32,7 +32,9 @@ OVERRIDE_APPLIED. No branch protections are bypassed or changed.
 - [#50](https://github.com/hollowhemlock/obsidian-external-note-folders/pull/50): missing-marker repair, merged into dev as `463d9ae4f3ab5cfc705105ef9176e76b7f249cc5` after fresh CI.
 - [#51](https://github.com/hollowhemlock/obsidian-external-note-folders/pull/51): scoped and continuous adoption, retargeted and merged into dev as `4e281c571507d3af5c9a2b438560f8cd59d5473c` after fresh CI.
 - Readiness changes: bounded reload readiness, remaining safety tests, Windows adapter CI, onboarding, and this evidence record.
-- Final candidate, artifact hashes, dev/main integration, and stable release PR: pending.
+- [#52](https://github.com/hollowhemlock/obsidian-external-note-folders/pull/52): readiness changes; runtime candidate `5ad9454bf2fe2c640d31369a862aa4707865968b`.
+- [2.2.0-beta.9](https://github.com/hollowhemlock/obsidian-external-note-folders/releases/tag/external-note-folders-2.2.0-beta.9) points to that exact runtime candidate; [build/publication](https://github.com/hollowhemlock/obsidian-external-note-folders/actions/runs/38020662070) passed. Later readiness commits change CI or this evidence record only.
+- Dev/main integration and the generated stable PR are linked from #52. Stable remains withheld pending a separate publication request.
 
 Use merge commits into dev, then a conventional feature squash merge into main as
 required by its linear-history policy. Compare the tested candidate's tree with
@@ -104,8 +106,8 @@ not authorization to remove the command or relax safety checks in this release.
   backgrounded and passed alone and as a nine-test file. Those checks now explicitly
   focus the sandbox and assert focus before exercising navigation, with failure
   diagnostics retained. The next full run passed those checks but timed out in
-  continuous adoption (29/30). Additional timeout diagnostics and a clean-fixture
-  final run are required before accepting the GUI gate.
+  continuous adoption (29/30). Additional timeout diagnostics were added before
+  the clean-fixture final run below.
 - Agent-executed onboarding walkthrough created `Projects/Example.md`, its matching
   empty marker, and a green Healthy row using the README steps. Folder-opening was
   captured through the same adapter used by integration tests.
@@ -119,7 +121,17 @@ not authorization to remove the command or relax safety checks in this release.
   The intermittent timeout is retained as validation-friction follow-up, not claimed
   as a diagnosed runtime defect or a fixed product bug.
 - Actual onboarding screenshot: `docs/images/status-2.2.png`, visually inspected.
-- Packaged fresh/upgrade smoke and remote CI: pending.
+- [Cross-platform CI](https://github.com/hollowhemlock/obsidian-external-note-folders/actions/runs/38020953632) passed on `20e9310`: Linux lint, format, build, metadata/assets and 662 tests (one platform-specific skip); Windows 317 tests / 28 files, with no skips. The first Windows run exposed fixture paths using the runner's 8.3 TEMP alias. CI now uses the canonical runner-owned temporary directory; no tests or production path checks were weakened.
+- Downloaded beta.9 assets were checked against GitHub SHA-256 digests:
+
+  | Asset | SHA-256 |
+  | --- | --- |
+  | `main.js` | `37c81e45c6964a5f2617c0b15eeb24e81476a5cfbe5816ecca62810b7ce503be` |
+  | `manifest.json` | `c3431c95a598823c11b3390dbd92a04158992c3e846c8b062c8ec83764a15b06` |
+  | `styles.css` | `2d8eb5589ce5364535ccf922dda7d92191fded7a93cba37a4523db510a288a89` |
+
+- Packaged upgrade: installed downloaded 2.1.0 assets into a clean disposable sandbox, interrupted setup after marker creation, then installed downloaded beta.9 assets without resetting data. At 2026-10-10T03:34:08Z the same legacy journal completed with its original UUID; settings bytes, note body, and marker modification time were preserved. The initial smoke helper stubbed the wrong opening method, so its opening assertion is excluded; the separate GUI setup checks cover opening. Logs/state: `tmp/stable-22-upgrade-before.json`, `tmp/stable-22-upgrade-after.json`, `tmp/stable-22-upgrade-verified.log`.
+- Packaged fresh installation: reset the disposable sandbox, installed downloaded beta.9 assets, confirmed the loaded manifest version, and completed the README setup walkthrough with a healthy binding. The sandbox external root was initialized as its own Git context so the enclosing development checkout's sandbox ignore rule did not hide the fixture. Continuous-adoption smoke passed. A leftover filtered onboarding report interfered with the first marker-repair smoke; after closing it, the marker-repair test passed across setup, recovery, status, and offline-report entry points at 2026-10-10T03:36:22Z. Logs: `tmp/stable-22-packaged-onboarding.log`, `tmp/stable-22-packaged-gui.log`, `tmp/stable-22-packaged-marker.log`.
 
 Data-integrity defects, unsafe mutation eligibility, broken recovery, misleading
 success, incomplete core journeys, and failed required checks block readiness.
