@@ -2,6 +2,50 @@
 
 This is a plugin for [Obsidian](https://obsidian.md/) that associates Obsidian vault notes with lazily created folders under an external root using UUIDs, preserving stable associations across moves and reorganizations.
 
+## Start here
+
+Install and enable the plugin through [BRAT](#installation). For a reproducible
+beta trial, pin the version you are testing. In **Settings → External Note
+Folders**, set **External root path** to the directory that will hold your
+external folders.
+
+### Your first binding in five minutes
+
+1. Create and open a note named `Projects/Example.md` in your vault.
+2. Run **Set up external folder** from Obsidian's command palette. When the
+   expected folder is absent, the plugin creates `<external root>/Projects/Example`
+   and opens it. If that folder already contains files, review and confirm the
+   adoption preview first.
+3. The note now has an `exnf` property. The external folder contains an empty
+   `<same UUID>.exnf` file. Keep both: they identify the relationship even if a
+   path changes later.
+4. Run **External folder status** and select `Projects/Example`. A matching
+   checked binding is green **Healthy**. The coverage notice explains locations
+   the scan skipped; green does not require an exhaustive root scan.
+5. Run **Open external folder** from the note whenever you need its files.
+
+![A checked Example binding is green, with matching YAML and marker columns.](docs/images/status-2.2.png)
+
+To bind a folder that already exists, select it in **External folder status** and
+choose **Adopt this folder…**. Choose a suggested note or create one, inspect the
+preview, and confirm. Selecting a suggestion alone writes nothing. **Bind without
+moving** preserves a selected note's location; a different expected path is
+shown as **Path differs**. After adoption, the status and identity columns update
+automatically so you can continue to the next folder without refreshing.
+
+If an identified note's expected folder has lost its marker, use **Create missing
+marker**. Review the existing UUID and proposed marker path, then confirm
+**Create marker**. Do not assign a replacement UUID. If an operation was
+interrupted, choose **Review pending operation** before trying another change.
+
+Path-drift moves retain stricter checks: incomplete scan coverage can disable a
+move even when the note and local marker match. The scoped adoption and missing-marker
+repair policies do not authorize moving an existing binding.
+
+For details, see [the command reference](#commands),
+[External folder status](#external-folder-status), and
+[the safety model](#pragmatic-solution).
+
 ## What It Does
 
 External Note Folders links a markdown note to an external folder by storing a canonical UUID in the note's `exnf` frontmatter field and creating an empty `<uuid>.exnf` marker file in the external folder. The canonical filename is the marker's complete identity; its contents are never read. Legacy fixed `.exnf` markers remain readable for migration and should be migrated with the explicit migration command.
@@ -1055,6 +1099,10 @@ The plugin does not use `window.DEBUG`.
 - `npm run test:integration` builds the plugin, fully resets the sandbox, installs the plugin
   artifacts, reloads Obsidian, and runs the integration tests. The GitHub integration workflow is
   manual-only and requires an online self-hosted runner labeled `obsidian-cli`.
+  The post-reload preflight waits up to 30 seconds for the exact sandbox vault,
+  loaded plugin, and registered commands, then checks the supported app version.
+  It fails immediately on a different vault and never writes a probe into it.
+  Headless Windows filesystem/process/controller tests also run in pull-request CI.
 - Integration watch is intentionally unavailable because reruns reused mutated fixtures and
   stale plugin builds. Setup tests record folder-opening requests without launching Explorer;
   the [integration guide](test/integration/README.md#file-manager-launch-coverage) describes an

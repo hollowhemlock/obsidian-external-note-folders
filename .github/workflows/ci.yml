@@ -45,3 +45,20 @@ jobs:
 
       - name: Test
         run: npm run test
+
+  windows-adapters:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Filesystem, process, and recovery tests
+        # The runner's default TEMP uses an 8.3 alias; fixtures compare canonical paths.
+        env:
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
+        run: npx vitest run src/storage scripts src/Plugin.setup.test.ts src/obsidian/GroupAdoptionController.test.ts src/obsidian/MarkerRepairController.test.ts

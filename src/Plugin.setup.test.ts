@@ -11,6 +11,7 @@ import {
   mkdir,
   mkdtemp,
   readdir,
+  readFile,
   realpath,
   rm,
   writeFile
@@ -64,12 +65,16 @@ interface SetupCommands {
   buildAdoptionExecutionOperations: (root: string) => AdoptionExecutionOperations;
   buildSetupExecutionOperations: () => SetupExecutionOperations;
   buildSetupPlanForFile: (file: TFile) => Promise<SetupPlan>;
-  getActiveMarkdownFile: () => TFile;
+  checkScopedSetup: (notePath: string, journal?: SetupJournal) => Promise<SetupPlan>;
+  getActiveMarkdownFile: () => null | TFile;
+  mutationSequence: number;
   openRecoveryModal: (plan: OpenExternalFolderRecoveryPlan, opened: null | string) => void;
+  runMutatingCommand: (action: string, operation: () => Promise<unknown>) => Promise<void>;
   runOpenExternalFolderCommand: () => Promise<void>;
   runReconcileExecuteCommand: (plan: ReconcilePlan) => Promise<void>;
   runSetupExecuteCommand: (plan: SetupPlan) => Promise<void>;
-  runSetupResumeCommand: (journal: { journalPath: string } & SetupJournal) => Promise<void>;
+  runSetupExternalFolderCommand: () => Promise<void>;
+  runSetupResumeCommand: (journal: { journalPath: string } & SetupJournal, confirmed?: SetupPlan) => Promise<void>;
   withProgressModal: <T>(title: string, description: string, operation: () => Promise<T>) => Promise<T>;
 }
 
@@ -91,6 +96,84 @@ describe('setup command safety', () => {
   afterEach(async () => {
     vi.clearAllMocks();
     await Promise.all(roots.splice(0).map((root) => rm(root, { force: true, recursive: true })));
+  });
+
+  it.each(['no active file', 'image'])('does not scan or mutate for %s at the command boundary', async (active) => {
+    const fixture = await createFixture();
+    fixture.file.extension = 'png';
+    fixture.plugin.app.workspace.getActiveFile = (): null | TFile => active === 'image' ? fixture.file : null;
+    const read = vi.spyOn(fixture.plugin.app.vault.adapter, 'read');
+    await fixture.commands.runSetupExternalFolderCommand();
+    await fixture.commands.runOpenExternalFolderCommand();
+    expect(read).not.toHaveBeenCalled();
+    expect(fixture.writeNote).not.toHaveBeenCalled();
+    expect(await readdir(fixture.targetPath)).toEqual([]);
+  });
+
+  it('rejects a stale plan without advancing mutation sequence or writing', async () => {
+    const fixture = await createFixture();
+    const plan = await fixture.commands.buildSetupPlanForFile(fixture.file);
+    fixture.commands.mutationSequence += 1;
+    const revision = fixture.commands.mutationSequence;
+    await fixture.commands.runSetupExecuteCommand(plan);
+    expect(fixture.commands.mutationSequence).toBe(revision);
+    expect(fixture.writeNote).not.toHaveBeenCalled();
+    expect(await readdir(fixture.targetPath)).toEqual([]);
+  });
+
+  it('blocks a concurrent mutation while the first command owns the lock', async () => {
+    const fixture = await createFixture();
+    let finish: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const first = fixture.commands.runMutatingCommand('first', async () => pending);
+    const second = vi.fn(async () => undefined);
+    await fixture.commands.runMutatingCommand('second', second);
+    expect(second).not.toHaveBeenCalled();
+    expect(fixture.commands.mutationSequence).toBe(0);
+    finish?.();
+    await first;
+    expect(fixture.commands.mutationSequence).toBe(1);
+  });
+
+  it('preserves an interrupted journal when its external root is unavailable', async () => {
+    const fixture = await createFixture();
+    const journal = await interruptBeforeNote(fixture);
+    journal.externalRootPath = path.join(fixture.root, 'unavailable');
+    journal.targetPath = path.join(journal.externalRootPath, 'Alpha');
+    await writeFile(journal.journalPath, JSON.stringify(journal));
+    await expect(fixture.commands.runSetupResumeCommand(journal)).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(await readSetupJournal(journal.journalPath)).toMatchObject(journal);
+    expect(fixture.writeNote).not.toHaveBeenCalled();
+    expect(openExternalFolderInFileManager).not.toHaveBeenCalled();
+  });
+
+  it('keeps scoped resume complete when opening the successfully bound folder fails', async () => {
+    const fixture = await createFixture();
+    fixture.plugin.app.vault.adapter.read = async (): Promise<string> => readFile(path.join(fixture.root, 'Alpha.md'), 'utf8');
+    const plan = { ...await fixture.commands.buildSetupPlanForFile(fixture.file), uuid: UUID };
+    expect(plan.inspectionPolicy).toBeDefined();
+    fixture.writeNote.mockRejectedValueOnce(new Error('simulated interruption'));
+    const interrupted = await executeSetupPlan({
+      journalRootPath: path.join(fixture.root, 'journals'),
+      operations: fixture.commands.buildSetupExecutionOperations(),
+      plan
+    });
+    expect(interrupted.journal.stage).toBe('frontmatter-write');
+    expect(interrupted.succeeded).toBe(false);
+    const journal = { ...interrupted.journal, journalPath: interrupted.journalPath };
+    const confirmed = await fixture.commands.checkScopedSetup(journal.notePath, journal);
+    fixture.writeNote.mockImplementation(async (_note, update) => {
+      update(fixture.frontmatter);
+      await writeFile(path.join(fixture.root, 'Alpha.md'), `---\nexnf: ${UUID}\n---\nnote without identity`);
+    });
+    vi.mocked(openExternalFolderInFileManager).mockRejectedValueOnce(new Error('file manager unavailable'));
+    await expect(fixture.commands.runSetupResumeCommand(journal, confirmed)).resolves.toBeUndefined();
+    expect(await readSetupJournal(journal.journalPath)).toMatchObject({ outcome: 'success', stage: 'complete', uuid: UUID });
+    expect(fixture.frontmatter['exnf']).toBe(UUID);
+    expect(await readdir(fixture.targetPath)).toEqual([`${UUID}.exnf`]);
+    expect(fixture.writeNote).toHaveBeenCalledTimes(2);
   });
 
   it('rejects setup and recovery for notes excluded by template patterns', async () => {

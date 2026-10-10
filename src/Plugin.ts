@@ -786,6 +786,16 @@ export class Plugin extends ObsidianPlugin {
     });
   }
 
+  private async openCompletedSetup(journal: SetupJournal, journalPath: string): Promise<void> {
+    try {
+      await this.openExternalFolder(journal.targetPath);
+      new Notice(`Resumed setup and opened external folder for ${journal.notePath}.`);
+    } catch (error: unknown) {
+      new Notice(`External folder setup completed, but the folder could not be opened. Journal: ${journalPath}`);
+      this.logError('resumed setup completed but open failed', error, { journal, journalPath });
+    }
+  }
+
   private async openExternalFolder(folderPath: string): Promise<void> {
     await openExternalFolderInFileManager(folderPath);
   }
@@ -1578,7 +1588,7 @@ export class Plugin extends ObsidianPlugin {
         await updateSetupAdoptionJournal(journal.journalPath, fresh);
         const result = await resumeSetupJournal({ journalPath: journal.journalPath, operations: this.buildSetupExecutionOperations() });
         if (result.succeeded) {
-          await this.openExternalFolder(result.journal.targetPath);
+          await this.openCompletedSetup(result.journal, result.journalPath);
         } else {
           new Notice(`Adoption remains pending: ${result.journal.message ?? ''}. Review pending operation.`);
         }
@@ -1628,13 +1638,7 @@ export class Plugin extends ObsidianPlugin {
         new Notice(`External folder setup resume stopped after a failure. Journal: ${result.journalPath}`);
         return true;
       }
-      try {
-        await this.openExternalFolder(result.journal.targetPath);
-        new Notice(`Resumed setup and opened external folder for ${result.journal.notePath}.`);
-      } catch (error: unknown) {
-        new Notice(`External folder setup completed, but the folder could not be opened. Journal: ${result.journalPath}`);
-        this.logError('resumed setup completed but open failed', error, { result });
-      }
+      await this.openCompletedSetup(result.journal, result.journalPath);
       return true;
     });
   }

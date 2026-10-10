@@ -27,7 +27,7 @@ describe('continuous adoption in the shared report', () => {
       await app.vault.createFolder(parent+'/Blocked');
       await app.vault.create(parent+'/Blocked/'+names[0]+'.md','---\\nexnf: invalid\\n---\\nKeep blocked candidate');
       const pause=()=>new Promise(r=>setTimeout(r,30));
-      const wait=async(test)=>{for(let i=0;i<500;i++){if(test())return;await pause();}throw Error('Timed out waiting for continuous adoption UI');};
+      const wait=async(test)=>{for(let i=0;i<500;i++){if(test())return;await pause();}throw Error('Timed out waiting for continuous adoption UI: '+test.toString()+'; '+Array.from(document.querySelectorAll('.exnf-group-adoption')).at(-1)?.textContent);};
       let view,second;
       try {
         await p.openLeafReport();view=app.workspace.getLeavesOfType('external-note-folders-leaf-report')[0].view;

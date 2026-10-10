@@ -9,6 +9,7 @@ import {
 import type { ObsidianCliResult } from './obsidian-cli.ts';
 
 import {
+  hasObsidianCliError,
   isRuntimeUnavailable,
   isSupportedObsidianVersion,
   parseObsidianVersion,
@@ -68,6 +69,11 @@ describe('Obsidian CLI version support', () => {
 });
 
 describe('Obsidian CLI runtime availability', () => {
+  it('rejects explicit CLI errors even when the process exits successfully', () => {
+    expect(hasObsidianCliError(buildCliResult({ stdout: 'Error: Command "command" not found.' }))).toBe(true);
+    expect(hasObsidianCliError(buildCliResult({ stderr: 'Error: startup failed' }))).toBe(true);
+    expect(hasObsidianCliError(buildCliResult({ stdout: 'Executed: app:reload' }))).toBe(false);
+  });
   it('reports a missing configured executable without trimming absent output', () => {
     vi.stubEnv('OBSIDIAN_CLI_BIN', '__missing_obsidian_cli_for_test__');
 

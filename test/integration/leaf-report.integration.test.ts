@@ -39,6 +39,16 @@ function evaluate(code: string): string {
   return result.stdout;
 }
 
+function focusSandboxForKeyboardChecks(): void {
+  const result = evaluate(`(async()=>{
+    const win=require('electron').remote.getCurrentWindow();
+    win.focus();
+    for(let i=0;i<20&&!document.hasFocus();i++)await new Promise(r=>setTimeout(r,50));
+    return document.hasFocus()?'SANDBOX_FOCUSED':'SANDBOX_NOT_FOCUSED';
+  })()`);
+  expect(result).toContain('SANDBOX_FOCUSED');
+}
+
 describe('shared leaf report integration', () => {
   beforeEach(async () => {
     await closeSandboxModals();
@@ -372,6 +382,7 @@ describe('shared leaf report integration', () => {
   }, 60_000);
 
   it('preserves a selected anchor beyond 100 siblings and handles hidden, removed and cancelled selections', async () => {
+    focusSandboxForKeyboardChecks();
     const pluginId = await readSandboxPluginId();
     runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
     await waitForSandboxModalText('Scan complete', REPORT_SELECTOR);
@@ -416,6 +427,7 @@ describe('shared leaf report integration', () => {
       const scrollFocus=document.activeElement===tree;
       document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}));
       const resumedKeyboard=document.activeElement.getAttribute('role')==='treeitem';
+      const focusDiagnostic={active:document.activeElement.outerHTML.slice(0,300),inert:!!tree.closest('[inert]'),height:tree.clientHeight,scroll:tree.scrollTop};
       tree.focus();tree.dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true}));
       tree.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));await wait();
       const paged=document.activeElement.textContent.includes('b-99');
@@ -441,7 +453,7 @@ describe('shared leaf report integration', () => {
       const layout=el.querySelector('.leaf-layout');
       const narrow=getComputedStyle(layout).gridTemplateColumns.split(' ').length===1;
       report.style.removeProperty('width');
-      return JSON.stringify({anchored,hidden,retained,cancelled,removed,keyboard,paged,narrow,selectWithoutExpand,selectWithoutCollapse,collapseSelected,expansionOrder,sortOrder,scrollFocus,resumedKeyboard,statusReset});
+      return JSON.stringify({focusDiagnostic,anchored,hidden,retained,cancelled,removed,keyboard,paged,narrow,selectWithoutExpand,selectWithoutCollapse,collapseSelected,expansionOrder,sortOrder,scrollFocus,resumedKeyboard,statusReset});
     })()`);
     for (
       const key of [
@@ -468,6 +480,7 @@ describe('shared leaf report integration', () => {
   }, 60_000);
 
   it('reveals marked ancestors without changing filters, restores Back, and supports disclosure controls', async () => {
+    focusSandboxForKeyboardChecks();
     const pluginId = await readSandboxPluginId();
     runSandboxCli(['command', `id=${pluginId}:explore-unmarked-external-leaf-folders`]);
     await waitForSandboxModalText('Scan complete', REPORT_SELECTOR);
