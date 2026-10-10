@@ -72,6 +72,7 @@ export interface LeafReportHost {
   adopt?: (folder: string) => Promise<void> | void;
   cancel?: () => void;
   copy: (text: string) => Promise<void>;
+  createMissingMarker?: (notePath: string, folderPath: string) => Promise<void>;
   csvBaseUrl?: string;
   exportLeaves: (rows: readonly LeafRow[], filtered: boolean) => Promise<void>;
   exportReport?: (name: string) => Promise<void>;

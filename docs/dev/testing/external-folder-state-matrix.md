@@ -419,3 +419,19 @@ Coverage tracking lives in
 every canonical state ID in this matrix as either covered by a committed scenario or planned for a
 specific future fixture group. `npm run test` validates that the ledger stays synchronized with this
 matrix and with committed expected JSON.
+
+## Missing-marker repair (ADR-0031)
+
+| State | Expected behavior | Coverage |
+| --- | --- | --- |
+| Exact identified note; checked unmarked target; .git/references/node_modules/dist omitted | Enabled preview, existing UUID, collapsed omissions; marker-only confirmation | Controller and availability regression tests; sandbox UI |
+| Missing metadata-cache entry | Fresh note bytes select the repair workflow; no replacement UUID | Setup and controller regressions |
+| Duplicate UUID owner, overlapping identified reservation, nested/local conflict | Block creation | Core and controller regressions |
+| Unrelated invalid parsed UUID or ordinary descendant note | Does not independently block | Core/controller regressions |
+| Required read/parse/enumeration failure or unsafe known location | Block without writes | Controller regressions |
+| Git policy or omission scope changes after preview | Re-preview required; tracked markers remain conflicts | Controller regressions |
+| Matching marker appears concurrently | Verify and complete without rewriting | Controller regression |
+| Interruption immediately after marker creation | Pending operation survives restart; original identity required; resume verifies output | Controller and journal regressions |
+| Completed repair, refresh succeeds | Green observed binding; filters/selection retained | Sandbox UI |
+| Failed/cancelled refresh after mutation | Preserve stale snapshot | Audit session regressions |
+| Old setup journals | Existing stages remain readable/resumable | Existing setup/journal regressions |

@@ -32,6 +32,53 @@ function fixture() {
 }
 
 describe('audit tab session', () => {
+  it.each(['scan', 'export'] as const)('queues repair refresh behind an active %s without publishing pre-repair evidence', async (kind) => {
+    const { host, session, snapshot } = fixture();
+    await session.refresh('unfiltered');
+    let finish: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    if (kind === 'scan') {
+      host.scan.mockImplementationOnce(async () => {
+        await gate;
+        return snapshot;
+      });
+    }
+    let active: Promise<void>;
+    if (kind === 'scan') {
+      active = session.refresh('unfiltered');
+    } else {
+      active = session.runExport(async () => {
+        await gate;
+        return null;
+      });
+    }
+    await session.refreshAfterMutation('unfiltered');
+    await session.refreshAfterMutation('unfiltered');
+    expect(session.model?.stale).toBe(true);
+    finish?.();
+    await active;
+    expect(host.scan).toHaveBeenCalledTimes(kind === 'scan' ? 3 : 2);
+    expect(host.scan).toHaveBeenLastCalledWith(expect.objectContaining({ statusScanMode: 'unfiltered' }));
+    expect(host.update).toHaveBeenCalledTimes(2);
+    expect(session.model?.stale).not.toBe(true);
+  });
+  it.each(['failure', 'cancel'] as const)('preserves stale completed evidence when required repair refresh ends in %s', async (outcome) => {
+    const { host, session, snapshot } = fixture();
+    await session.refresh();
+    const previous = session.model;
+    host.scan.mockImplementationOnce(async () => {
+      if (outcome === 'cancel') {
+        session.cancel();
+      }
+      throw new Error('refresh failed');
+    });
+    await session.refreshAfterMutation('filtered');
+    expect(session.snapshot).toBe(snapshot);
+    expect(session.model).toBe(previous);
+    expect(session.model?.stale).toBe(true);
+  });
   it('retains first-failure diagnostics during retries and clears them only when an attempt finishes', async () => {
     const { host, session, snapshot } = fixture();
     host.scan.mockRejectedValueOnce(Object.assign(new Error('Git diagnostic\nsecond line'), { root: '/broken/repository' }));

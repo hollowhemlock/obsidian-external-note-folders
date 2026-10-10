@@ -171,6 +171,7 @@ export function shortFolderStatus(node: LeafTreeNode): string {
     'Bound at different path': 'Path differs',
     'Bound at expected path': 'Already bound',
     'Inside a marked folder': 'Content subfolder',
+    'Marker absent here': 'Missing marker',
     'Possible adoption candidate': 'Possible adoption',
     'Unchecked': 'Binding could not be checked'
   };

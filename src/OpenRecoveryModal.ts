@@ -189,8 +189,8 @@ export class OpenRecoveryModal extends Modal {
       return;
     }
 
-    if (this.input.plan.canAdoptExpected) {
-      this.renderAsyncButton(actionsEl, 'Write expected <uuid>.exnf and open', async () => {
+    if (this.input.plan.expectedState.kind === 'unmarked') {
+      this.renderAsyncButton(actionsEl, 'Create missing marker', async () => {
         await this.input.onAdoptExpected();
         this.close();
       });

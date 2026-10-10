@@ -33,6 +33,7 @@ export class AuditSession {
   public snapshot: AuditSnapshot | undefined;
   private controller: AbortController | undefined;
   private disposed = false;
+  private pendingRefresh: import('../core/auditTypes.ts').StatusScanMode | undefined;
 
   public constructor(private readonly host: AuditSessionHost) {
   }
@@ -82,10 +83,11 @@ export class AuditSession {
       controller.signal.throwIfAborted();
       const after = this.host.mutationState();
       model.mutationWarning = before.active || after.active || before.sequence !== after.sequence || before.activity !== after.activity;
-      if (this.disposed) {
+      if (this.disposed || this.pendingRefresh) {
         return;
       }
       await this.host.update(model, controller.signal);
+      this.markPendingResultStale(model);
       this.snapshot = snapshot;
       this.model = model;
       this.setFailure(null);
@@ -109,7 +111,17 @@ export class AuditSession {
       if (this.controller === controller) {
         this.controller = undefined;
       }
+      await this.flushPendingRefresh();
     }
+  }
+
+  /** Coalesce a required refresh after active scans or exports finish. */
+  public async refreshAfterMutation(statusScanMode: import('../core/auditTypes.ts').StatusScanMode): Promise<void> {
+    if (this.model) {
+      this.model.stale = true;
+    }
+    this.pendingRefresh = statusScanMode;
+    await this.flushPendingRefresh();
   }
 
   public async runExport(operation: (snapshot: AuditSnapshot, model: LeafReportModel, signal: AbortSignal) => Promise<null | string>): Promise<void> {
@@ -136,6 +148,7 @@ export class AuditSession {
       if (this.controller === controller) {
         this.controller = undefined;
       }
+      await this.flushPendingRefresh();
     }
   }
 
@@ -143,8 +156,23 @@ export class AuditSession {
     (this.host.actionStatus ?? this.host.status)(message, busy);
   }
 
+  private async flushPendingRefresh(): Promise<void> {
+    if (this.controller || this.disposed || !this.pendingRefresh) {
+      return;
+    }
+    const mode = this.pendingRefresh;
+    this.pendingRefresh = undefined;
+    await this.refresh(mode);
+  }
+
   private isDisposed(): boolean {
     return this.disposed;
+  }
+
+  private markPendingResultStale(model: LeafReportModel): void {
+    if (this.pendingRefresh) {
+      model.stale = true;
+    }
   }
 
   private setFailure(failure: null | ScanFailure): void {

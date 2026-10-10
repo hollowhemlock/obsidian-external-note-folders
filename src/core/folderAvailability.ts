@@ -4,10 +4,12 @@ import type { LeafTreeNode } from './leafTree.ts';
 
 import { sortAuditSteps } from './auditSteps.ts';
 import { folderAttention } from './folderAttention.ts';
+import { missingMarkerNote } from './missingMarker.ts';
 
 export interface FolderAvailability {
   adoptable: boolean;
   attention: FolderAttention;
+  markerRepair?: boolean;
   operation?: FolderOperation;
 }
 export type FolderOperation = [string, null | string];
@@ -34,7 +36,12 @@ export function* folderAvailabilitySteps(
     if (tone === 'neutral' || tone === 'optional') {
       attention = adoptable ? 'optional' : 'neutral';
     }
-    result.set(node.id, { adoptable, attention, ...(operation ? { operation } : {}) });
+    result.set(node.id, {
+      adoptable,
+      attention,
+      ...(operation ? { operation } : {}),
+      ...markerRepairAvailability(node, model, operation)
+    });
     yield;
   }
   return result;
@@ -67,6 +74,10 @@ function key(folder: string, caseSensitive: boolean): string {
   const normalized = folder.normalize('NFC').replaceAll('\\', '/').replace(/\/$/u, '');
   return caseSensitive ? normalized : normalized.toLowerCase();
 }
+function markerRepairAvailability(node: LeafTreeNode, model: LeafReportModel, operation: FolderOperation | undefined): { markerRepair?: boolean } {
+  return missingMarkerNote(node) ? { markerRepair: !model.stale && !operation && !node.inspection?.subtreeMarkers } : {};
+}
+
 function mergeOperation(map: Map<string, FolderOperation>, id: string, operation: FolderOperation | undefined): void {
   const value = strongest(map.get(id), operation);
   if (value) {

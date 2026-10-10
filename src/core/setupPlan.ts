@@ -40,6 +40,7 @@ export interface SetupTargetInspection {
   externalRootPath: string;
   ignoredDirectories: string[];
   legacyMarkerPaths: string[];
+  omissions?: import('./markerRepair.ts').MarkerRepairOmission[];
   skippedDirectories: string[];
   targetIgnored: boolean;
   targetKind: 'directory' | 'missing';
