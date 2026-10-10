@@ -261,7 +261,7 @@ from external-folder ignore settings. Refresh **External folder status** after
 changing it. Scan details and exports disclose the configured patterns and count
 of excluded files or directory subtrees; coverage refers to eligible notes only.
 Ordinary unreadable or malformed notes still restrict adoption. Changing the
-patterns invalidates previews; pending group-adoption recovery requires restoring
+patterns invalidates previews; legacy group-adoption recovery requires restoring
 its original patterns. Removing a pattern restores normal checks for those notes.
 Standalone audit commands continue to scan all notes by default.
 
@@ -372,6 +372,8 @@ and run `npm run docs:adr:index` rather than editing the index by hand.
 - `npm run dev`
 - `npm run build`
 - `npm run build:clean`
+- `npm run sandbox:refresh` (build and reload the existing sandbox plugin without
+  resetting notes, external files, settings, or journals; primary checkout only)
 - `npm run lint`
 - `npm run format:check`
 - `npm run test`
@@ -383,6 +385,20 @@ and run `npm run docs:adr:index` rather than editing the index by hand.
 - `npm run release:check-metadata`
 - `npm run release:check-assets`
 - `npm run fixtures:new-sandbox`
+
+After validated runtime/UI changes, the agent workflow runs `npm run sandbox:refresh`
+automatically. This uses the successful `dist/build` artifacts and reloads only this
+plugin in the sandbox; it does not reload the whole app window or reset fixtures.
+The sandbox must already be initialized with the plugin enabled. A reload failure
+is reported separately from copying the artifacts. Builds used by CI and worktrees
+remain independent of the local Obsidian runtime. `npm run dev` remains available
+for continuous watch builds.
+
+Integration tests still use a real Obsidian runtime and reset the disposable sandbox.
+They can open notes and modals within that vault. The existing runner may open/reload
+its window; it does not guarantee a desktop without interruptions. Use an isolated
+desktop session or test machine for that guarantee. See the
+[integration guide](test/integration/README.md#desktop-interruption-and-background-runs).
 
 ### Standalone read-only adoption audit
 
@@ -397,9 +413,11 @@ npx --no-install jiti scripts/audit-adoption.ts `
 
 These are also the default source roots; the default output parent is the system
 temporary directory under `external-note-folders-audit`. Each run writes a fresh
-timestamped directory and prints its absolute path. The command uses the locally
-installed `jiti` and `yaml` packages from the current dependency tree; it does not
-install packages or require a running Obsidian instance. Use `--help` for options.
+timestamped directory and prints its absolute path. The command uses the project's
+declared `jiti` development dependency and `yaml` runtime dependency; it does not
+install packages or require a running Obsidian instance. The YAML parser is also
+bundled into the plugin's `main.js`, so plugin users need no separate YAML package,
+Obsidian plugin, Node.js, or npm installation. Use `--help` for options.
 
 The audit reads actual files recursively, without using Obsidian's cache or plugin
 ignore settings. Under `cabin`, it reads markdown files and parses top-level YAML
@@ -601,7 +619,8 @@ uniqueness or absence in unchecked locations, and is disclosed separately.
 
 The details panel leads with the relationship and available actions. Adoption
 stays visible but disabled for known restrictions, naming local, ancestor, or
-descendant markers and excluded, linked, or unreadable paths. When note restrictions
+descendant markers, excluded targets, and required linked or unreadable paths. Intentional
+exclusions beneath an included target alone do not restrict selected-folder adoption. When note restrictions
 could come from intentional template frontmatter, **Open template exclusion settings** opens
 and focuses the plugin's pattern setting. Configure deliberate exclusions and
 refresh; the shortcut does not exclude anything itself. Offline reports show the
@@ -714,10 +733,20 @@ checked for all `.exnf` markers, regardless of file-level Git ignore rules.
 Ignored, unreadable, and linked branches are hidden from the normal tree, with
 counts and reasons retained in **Scan details**. Git exclusions name the source
 file, line, and rule. Identified notes pointing into unchecked branches remain
-visible in a warning summary. Excluded topology still restricts adoption and
+visible in a warning summary. Excluded targets remain unavailable and excluded topology preserves
 physical-leaf counts. Incomplete coverage limits exhaustive uniqueness and absence
 claims without downgrading checked bindings. Display filters never rescan, and each new scan reloads Git rules.
-Standalone audits and mutation preflights retain their existing scan behavior.
+Standalone audits, bulk adoption, and other repairs retain their existing scan behavior.
+
+Detected repository roots show **git**, including nested repositories,
+worktrees, and submodules. Descendant details show **Inside repository**, linking
+to the nearest root when it is in the displayed tree. A containing root outside
+the tree is shown as a path. These labels describe discovered `.git` metadata,
+not repository health or eligibility. Unfiltered scans detect directories and
+gitfiles without invoking Git or following their pointers. Normal filtered browsing
+keeps `.git` hidden. Labels do not change colors, leaf counts, expansion, navigation,
+or candidate selection; users can choose an eligible outer, repository, or inner folder.
+All tree rows use normal font weight, including marked folders and selected rows.
 
 **Export filtered status** and **Export all status** write `filtered-folder-status.csv`
 and `folder-status.csv`, including evidence, confidence, note paths, and explanations.
@@ -728,9 +757,10 @@ Filtered exports include matching folders in collapsed branches, but exclude
 contextual tree ancestors and temporary navigation reveals. Displayed-folder
 counts in Filter likewise count actual filter matches. All-status exports include virtual
 expected paths. Existing audit CSVs and unmarked-leaf exports retain their meanings.
-Status fields describe the captured scan. If session mutations affect filtering,
-status exports append that context to the existing explanation field; they do not
-replace captured evidence with an assumed post-mutation state.
+Status fields and current status exports include verified adoption updates. Each
+export pins one report revision when invoked, even while its destination dialog is
+open. Summaries preserve the original scan scope/time and list later verification.
+Raw forensic audit exports continue to describe the original completed scan.
 
 For a drifted binding with complete checked coverage, selected-folder details offer **Move external folder
 to match note** or **Move note to match external folder**. Both require a preview
@@ -746,8 +776,12 @@ conflict repair is offered.
 
 In Obsidian, **Adopt this folder…** in the selected folder details binds that directory and its
 entire subtree to one note, including content hidden by filters. It opens a
-dialog; nothing changes until **Confirm adoption**. Suggestions include exact
-derived paths, matching filenames, and aliases. Search the vault for other
+dialog; nothing changes until **Confirm adoption**. A persistent **Suggested notes**
+list shows full paths, exact-path matches, same-name candidates, aliases, and local
+restrictions. One locally suitable exact-name candidate is preselected after all
+competing candidates have been checked; multiple or unresolved choices require
+selection. Suggestions never prove eligibility. Clicking or keyboard-selecting a
+suggestion immediately prepares a preview and defaults to **Bind without moving**. Search the vault for other
 notes in the autocomplete field and choose a suggestion, or enter an exact vault-relative
 note path (the `.md` extension is optional). Empty input selects **Create new note**;
 a valid existing note enables **Bind without moving** and **Move note to match folder**.
@@ -772,8 +806,21 @@ External folders never move during adoption. Future reconciliation remains
 note-driven. Hidden vault paths and paths that cannot round-trip through the
 plugin's path rules cannot be new-note or move destinations.
 
-Adoption respects ignore settings and checks the entire selected subtree for
-markers and unsafe evidence, including physically present ignored descendants.
+Selected-folder adoption that creates a new UUID inspects the target, ancestors,
+and included descendants using the same configured/Git exclusions, tracked-path
+exceptions, and metadata exclusions as filtered status scans. It checks every marker
+in included directories regardless of file-level ignore rules. Excluded targets or
+targets under excluded ancestors remain unavailable; intentional excluded descendants
+alone do not block the parent. Existing-unmarked-folder setup uses this same policy.
+The preview's collapsed **Excluded from checks** retains paths, reasons, and Git rule
+provenance. No exclusion acknowledgment is required. Excluded locations may contain
+undiscovered markers; these checks do not establish exhaustive uniqueness.
+
+Fresh vault identity, note-content, destination, and reservation checks still apply.
+Known overlapping marker evidence from completed reports is rechecked even under
+excluded directories; unreadable known evidence blocks. Unrelated external failures
+do not veto adoption, but failures in a containing repository needed to inspect the
+target do. A different note-derived expected path receives the same topology checks.
 Existing bindings prevent nested adoption. Matching unassigned child notes require
 acknowledgment; they remain unchanged but cannot have separate nested bindings.
 An existing UUID is reused only after fresh uniqueness checks. Alias problems,
@@ -788,16 +835,33 @@ Resume checks saved note content before writing markers or note properties. Edit
 source notes block further writes. Newly discovered descendant notes are listed
 in the recovery dialog and require acknowledgment before resuming; further
 additions require acknowledgment again.
+New-policy journals retain their inspection scope and known marker evidence. If
+omissions change after a partial write, **Review pending operation** offers updated
+checks for confirmation and resumes the same journal, preserving identity and completed
+effects. Older journals retain their original strict rules without migration.
 An interrupted rename is never blindly repeated. Once the note is at the intended
 destination and links have been checked manually, **I checked links — verify
 completion** validates the binding and finishes the journal without another move.
 No rollback deletes notes, directories, or markers.
 
-After adoption, stay in the report and use **Open note** if desired. Affected
-folders are marked adopted or pending recovery. Counts and exports remain a
-historical snapshot, with a stale warning until **Refresh**. Standalone HTML has
-no adoption controls. Single-folder writes avoid creating unwanted notes, but
-safety checks can still require full-root scans.
+After verified adoption or resume, YAML and marker columns, binding status, counts,
+and navigation update automatically without another filesystem traversal or manual
+refresh. The report retains selection, expansion, filters, and scroll position.
+An adopted row leaving **Adoptable only** remains temporarily visible until you
+navigate away; it is no longer an adoptable candidate. Healthy and Path differs
+remain primary. Secondary history distinguishes **Binding changed this session**
+from **Binding changed in a subfolder** and links to affected descendants.
+
+Updates preserve unrelated conflicts and unchecked evidence. Each report retains its
+own discovery scope, including unfiltered evidence omitted by adoption's narrower
+checks. Original scan times remain visible beside later verification times. A scan
+overlapping a mutation cannot replace newer verified results. If presentation fails,
+**Adoption completed; status update needs verification** offers a read-only retry;
+a completed adoption is not repeated. Pending writes retain recovery controls.
+Standalone HTML presents the supplied working revision with no adoption controls. Single-folder writes avoid creating unwanted notes, but
+safety checks for reuse of an existing UUID still require full-root scans. Imported
+restoration, bulk exact adoption, and reconcile/move checks remain unchanged. Missing-folder
+setup retains its targeted fast path; exact missing-marker repair uses its separate workflow.
 
 The tab labels its scope **Physical audit — scan and template exclusions are disclosed below**.
 It defaults to filtered external scanning; eligible vault notes are still fully
@@ -836,6 +900,12 @@ CSV slice durations, and export time in `tmp/audit-performance.json`. The sandbo
 integration suite also measures shared-interface rendering and filtering with
 20,000 leaves. Performance varies with hardware, path depth, and file sizes;
 one filesystem response or individual YAML document cannot be interrupted midway.
+Selected adoption verifies the target, ancestors, included descendants, the relevant
+expected path, and all eligible vault identities. Fresh bytes remain mandatory.
+Bounded note reads and workflow-local parse reuse reduce repeated work; confirmation
+still repeats required safety checks. The controller benchmark records preview and
+confirmation separately, with inspection/read/parse/Git work counts. A no-op move
+performs no inspection; final verification also supplies report evidence.
 
 ### Commit conventions
 

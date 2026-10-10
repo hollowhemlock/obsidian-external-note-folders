@@ -80,6 +80,7 @@ export async function inspectSetupTarget(input: {
   externalRootPath: string;
   ignorePatterns: readonly string[];
   notePath: string;
+  shallow?: boolean;
   signal?: AbortSignal;
 }): Promise<SetupTargetInspection> {
   const externalRootPath = await resolveExternalRootPath(input.externalRootPath);
@@ -140,7 +141,7 @@ export async function inspectSetupTarget(input: {
     Object.assign(inspection, { targetIgnored: true });
   }
   if (!inspection.targetIgnored) {
-    await walkTarget(targetPath, targetPath, inspection, ignoreMatcher, policy);
+    await walkTarget(targetPath, targetPath, inspection, ignoreMatcher, policy, input.shallow ?? false);
   }
   inspection.ancestorMarkerPaths.sort();
   inspection.descendantMarkerPaths.sort();
@@ -270,7 +271,8 @@ async function walkTarget(
   targetPath: string,
   inspection: SetupTargetInspection,
   ignoreMatcher: ReturnType<typeof buildExternalRootIgnoreMatcher>,
-  policy: (directory: string) => Promise<boolean>
+  policy: (directory: string) => Promise<boolean>,
+  shallow = false
 ): Promise<void> {
   let entries: Dirent[];
   try {
@@ -292,6 +294,9 @@ async function walkTarget(
     inspection.descendantMarkerPaths.push(...markers.map((marker) => marker.markerPath));
   }
 
+  if (shallow) {
+    return;
+  }
   for (const entry of [...entries].sort((left, right) => left.name.localeCompare(right.name))) {
     if (!entry.isDirectory() && !entry.isSymbolicLink()) {
       continue;

@@ -4,6 +4,10 @@ import type {
 } from 'obsidian';
 
 import {
+  mkdirSync,
+  writeFileSync
+} from 'node:fs';
+import {
   mkdir,
   mkdtemp,
   readdir,
@@ -266,7 +270,8 @@ describe('setup command safety', () => {
     fixture.addOwner('Alpha/Alpha.md');
     await fixture.commands.runSetupExecuteCommand(plan);
     expect(fixture.writeNote).not.toHaveBeenCalled();
-    expect(await readdir(fixture.targetPath)).toEqual([]);
+    // This fixture shares its physical vault/root, including the newly reserved note.
+    expect(await readdir(fixture.targetPath)).toEqual(['Alpha.md']);
   });
 
   it('refreshes vault UUID ownership after the imported marker scan', async () => {
@@ -372,6 +377,7 @@ describe('setup command safety', () => {
     roots.push(root);
     const targetPath = path.join(root, 'Alpha');
     await mkdir(targetPath);
+    await writeFile(path.join(root, 'Alpha.md'), 'note without identity');
     const file = new TFile();
     file.path = 'Alpha.md';
     const files = [file];
@@ -392,7 +398,8 @@ describe('setup command safety', () => {
         getAbstractFileByPath: (notePath: string) => files.find((note) => note.path === notePath),
         getMarkdownFiles: () => files,
         read: async () => `---\nexnf: ${String(frontmatter['exnf'])}\n---\n`
-      }
+      },
+      workspace: { getLeavesOfType: () => [] }
     } as unknown as App;
     const plugin = new Plugin(app, { id: 'external-note-folders' } as PluginManifest);
     plugin.settings = { ...DEFAULT_SETTINGS, externalRootPath: root };
@@ -404,6 +411,8 @@ describe('setup command safety', () => {
         owner.path = notePath;
         files.push(owner);
         metadata.set(owner, { exnf: uuid });
+        mkdirSync(path.dirname(path.join(root, notePath)), { recursive: true });
+        writeFileSync(path.join(root, notePath), `---\nexnf: ${uuid}\n---\n`);
       },
       commands,
       file,

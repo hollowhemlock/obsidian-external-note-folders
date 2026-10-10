@@ -181,6 +181,7 @@ export class GitRepositoryValidationError extends GitFilteringError {
 }
 
 export class GitStatusIgnore {
+  public processCount = 0;
   private readonly repositories = new Map<string, GitIgnoreRepository>();
   public constructor(private readonly signal?: AbortSignal) {}
 
@@ -204,18 +205,10 @@ export class GitStatusIgnore {
   }
 
   public async initialize(root: string): Promise<GitIgnoreRepository | null> {
+    this.processCount++;
     await git(root, ['--version'], 'version', this.signal);
-    let current = root;
-    for (;;) {
-      if (await hasRepository(current)) {
-        return this.repository(current);
-      }
-      const parent = path.dirname(current);
-      if (parent === current) {
-        return null;
-      }
-      current = parent;
-    }
+    const repository = await findRepositoryRoot(root);
+    return repository ? this.repository(repository) : null;
   }
 
   private async repository(root: string): Promise<GitIgnoreRepository> {
@@ -224,11 +217,29 @@ export class GitStatusIgnore {
       return existing;
     }
     // Validate gitfiles and worktrees before starting an interactive query process.
+    this.processCount++;
     await git(root, ['rev-parse', '--show-toplevel'], 'repository', this.signal);
+    this.processCount++;
     const tracked = await git(root, ['ls-files', '--cached', '-z'], 'index', this.signal);
+    this.processCount++;
     const repository = new GitIgnoreRepository(root, tracked.split('\0'), this.signal);
     this.repositories.set(root, repository);
     return repository;
+  }
+}
+
+/** Recognize metadata without executing Git or following gitfile pointers. */
+export async function findRepositoryRoot(root: string): Promise<null | string> {
+  let current = root;
+  for (;;) {
+    if (await hasRepository(current)) {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
   }
 }
 

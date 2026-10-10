@@ -49,6 +49,28 @@ reused mutated fixtures and could run against an older installed plugin. Use
 `npm run test:watch` for rapid unit feedback, and prepare a fresh integration run
 after changing plugin code or exercising mutation scenarios.
 
+## Desktop interruption and background runs
+
+Use `npm run sandbox:refresh` for ordinary development refreshes. It rebuilds and
+copies only the plugin artifacts, preserves sandbox settings/journals/fixtures, and
+reloads only the plugin after checking the runtime's vault path. It refuses to reload
+a disabled plugin or one with a mutation in progress. It does not deliberately
+open/focus a window or use the whole-window reload command. The CLI itself may launch
+Obsidian when it is not running, so keep the sandbox open for background refreshes.
+
+The integration suite requires the desktop app: Obsidian's
+[CLI](https://help.obsidian.md/cli) is not a headless plugin runtime. Running the suite
+against an already-open background sandbox avoids manual mouse/keyboard control,
+but tests still open notes, status tabs, and modals inside that vault. Preparation
+can open or reload its window. Hidden-window timer throttling can also cause rendered
+tests to time out. Windows CLI child processes suppress extra console windows;
+that does not hide or isolate the Obsidian UI.
+
+For a strict no-interruption guarantee, run the GUI suite in a separate desktop
+session or test machine with its own primary checkout, sandbox, and Obsidian/CLI
+runtime. That isolated runner is not configured by this repository. Unit and adapter
+tests (`npm run test`) already run without the desktop app.
+
 ## File-manager launch coverage
 
 Routine integration tests do not need to open Explorer or another file manager.

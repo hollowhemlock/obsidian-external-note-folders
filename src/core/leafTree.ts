@@ -28,6 +28,7 @@ export interface LeafTreeNode extends LeafRow {
   kind: 'directory' | 'excluded' | 'link' | 'virtual';
   markers: string[];
   parent: null | string;
+  repositoryRoot?: string;
   total: number;
   unchecked: boolean;
 }

@@ -64,6 +64,24 @@ async function put(root: string, name: string, content = ''): Promise<void> {
 
 // ADR-0034: status exclusions retain unchecked evidence and never narrow mutation scans.
 describe('repository-aware status scanning', () => {
+  it('records repository roots and nearest containing repositories without requiring Git for unfiltered labels', async () => {
+    const { external, vault } = await fixture();
+    await put(external, 'app/src/file.txt');
+    await run('git', ['init', path.join(external, 'app')]);
+    for (const statusScanMode of ['filtered', 'unfiltered'] as const) {
+      const scan = await scanAdoptionAudit(vault, external, { statusScanMode });
+      expect(scan.repositoryRoots).toEqual(expect.arrayContaining([external, path.join(external, 'app')]));
+      const model = buildLeafReport(scan);
+      expect(model.tree?.find((node) => node.relativePath === path.join('app', 'src'))?.repositoryRoot).toBe(path.join(external, 'app'));
+    }
+    vi.stubEnv('PATH', '');
+    try {
+      const scan = await scanAdoptionAudit(vault, path.join(external, 'app', 'src'), { statusScanMode: 'unfiltered' });
+      expect(scan.repositoryRoots).toContain(path.join(external, 'app'));
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
   it('uses nested, global and local rules, preserves tracked descendants and scans included markers', async () => {
     const { external, vault } = await fixture();
     await put(external, '.gitignore', 'output/*\n!output/keep/\ntracked/\n*.exnf\n');
@@ -234,11 +252,13 @@ describe('repository-aware status scanning', () => {
     await put(worktree, `visible/${UUID}.exnf`);
     const worktreeScan = await scanAdoptionAudit(vault, worktree, { statusScanMode: 'filtered' });
     expect(worktreeScan.markers.map((marker) => marker.folderPath)).toEqual([path.join(worktree, 'visible')]);
+    expect(worktreeScan.repositoryRoots).toContain(worktree);
     await run('git', ['-C', external, '-c', 'protocol.file.allow=always', 'submodule', 'add', worktree, 'sub']);
     await put(external, `sub/generated/${UUID}.exnf`);
     await put(external, `sub/visible/${UUID}.exnf`);
     const submoduleScan = await scanAdoptionAudit(vault, external, { statusScanMode: 'filtered' });
     expect(submoduleScan.markers.map((marker) => marker.folderPath)).toEqual([path.join(external, 'sub/visible')]);
+    expect(submoduleScan.repositoryRoots).toContain(path.join(external, 'sub'));
   });
 
   it('preserves shared exclusions, template scope, and safe link handling in both modes', async () => {

@@ -67,12 +67,22 @@ on them. The shared pattern setting retains its documented restricted syntax.
 
 Unchecked branches remain in the internal topology and coverage model, then are
 hidden in the normal tree. Virtual expected paths inherit unchecked ancestor
-coverage. Hiding cannot create physical leaves or relax adoption restrictions.
+coverage. Hiding cannot create physical leaves. Intentional descendant omissions
+alone do not block scoped new-UUID adoption under ADR-0032; excluded targets remain blocked.
 Known note identities under hidden boundaries remain in a visible warning summary.
 Scan details and exports retain exclusion reasons and Git rule provenance.
 
-This policy changes only status scans. Standalone audits and mutation preflights
-retain their current defaults and authoritative safety checks.
+Standalone audits and strict mutation preflights retain their defaults. ADR-0032's
+scoped new-UUID adoption explicitly reuses the Git-aware exclusion policy.
+
+Detected repository roots carry optional shared report metadata for a **git**
+badge. Descendants link to their nearest containing root in details, or show its path
+when outside the tree. Nested repositories, worktrees, and submodules are labeled.
+Unfiltered scans recognize `.git` files/directories without Git or pointer traversal.
+Badges signal metadata presence, not health or eligibility; `.git` stays hidden in
+filtered browsing. Leaf semantics, navigation, colors, and CSV schemas are unchanged.
+Older models without repository metadata render without badges. Offline HTML shares
+the presentation and remains read-only.
 
 ### Observed binding health (2026-10-04)
 
@@ -120,6 +130,11 @@ the responsible rule. Results are live observations, not atomic filesystem or
 Git snapshots. New scans reload rules rather than maintaining a watcher.
 
 ## Validation
+
+Selected-folder adoption can incrementally update the shared report under ADR-0032's
+verified-revision contract. Its narrower filtered checks preserve an unfiltered
+baseline's discovery scope and omitted evidence. Original forensic exports remain
+separate from current status exports; local verification times are explicit.
 
 Storage tests exercise real Git pattern syntax, global/local rules, tracked
 paths, nested repositories, worktrees, submodules, and failures. Protocol tests

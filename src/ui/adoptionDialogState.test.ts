@@ -37,6 +37,21 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('adoption dialog state', () => {
+  it('waits for suggestion choice, previews immediately, and defaults a new selection to bind', async () => {
+    const { check, state } = setup();
+    state.awaitSelection();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(check).not.toHaveBeenCalled();
+    state.select('A.md');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(check).toHaveBeenCalledOnce();
+    state.chooseMode('move');
+    state.select('B.md');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state.mode).toBe('bind');
+    expect(check).toHaveBeenLastCalledWith('B.md', false, expect.any(AbortSignal));
+    state.stop();
+  });
   it('resolves exact paths, rejects incomplete names, and preserves existing-note mode', () => {
     const { state } = setup();
     state.edit('A');

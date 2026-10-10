@@ -41,6 +41,17 @@ If a matching expected marker coexists with other UUID markers, opening remains
 available but warns about the additional identities. No command overwrites or
 chooses among competing markers.
 
+## Scoped adoption of an existing unmarked folder
+
+Existing unmarked targets for unassigned notes now use ADR-0032's scoped new-UUID
+adoption policy. Fresh vault reads and target topology checks run at preview, every
+effect, and completion. Intentional excluded descendants alone do not block adoption.
+The setup journal optionally captures the original note bytes and validated inspection
+context. Changed scope on recovery requires an updated preview and confirmation for
+the same journal; completed writes and UUID remain intact. Absent context preserves
+legacy resume behavior; malformed context fails closed. Missing-folder setup's fast
+path and Git requirements, imported restoration, and identified-note repair are unchanged.
+
 ## Marker-only repair for an identified note
 
 Status, Setup, and Open recovery share a marker-only preview and executor. Fresh

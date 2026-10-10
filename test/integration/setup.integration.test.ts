@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import {
   access,
   readdir,
@@ -34,6 +35,7 @@ describe('external folder setup integration', () => {
   let pluginId = '';
 
   beforeAll(async () => {
+    execFileSync('git', ['init', '-q', resolveRepoPath('test/fixtures/sandbox/external-root')]);
     pluginId = await readSandboxPluginId();
     await assertSandboxPluginInstalled(pluginId);
     assertCliAvailable(await waitForPluginCommands(pluginId));

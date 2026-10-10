@@ -63,6 +63,18 @@ describe('group adoption recovery', () => {
     await writeFile(file, '{"kind":"group-adoption","schemaVersion":99}');
     await expect(readGroupJournal(file)).rejects.toThrow('Invalid');
   });
+  it('accepts absent legacy context but rejects malformed optional inspection context', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'exnf-group-policy-'));
+    roots.push(root);
+    const original = journal();
+    const file = await createGroupJournal(root, original.plan, null);
+    await expect(readGroupJournal(file)).resolves.toMatchObject({ plan: original.plan });
+    for (const inspectionPolicy of [null, {}, { kind: 'other-version' }]) {
+      await writeFile(file, JSON.stringify({ ...original, plan: { ...original.plan, inspectionPolicy } }));
+      await expect(readGroupJournal(file)).rejects.toThrow('Invalid');
+    }
+  });
+
   it('verifies markers without changing folder contents and detects ancestor evidence', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'exnf-group-marker-'));
     roots.push(root);

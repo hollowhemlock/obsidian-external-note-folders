@@ -34,7 +34,6 @@ vi.mock('../storage/boundExternalFolder.ts', async (original) => {
   const actual = await original<typeof import('../storage/boundExternalFolder.ts')>();
   return { ...actual, writeExpectedMarkerIfMissingOrMatching: vi.fn(actual.writeExpectedMarkerIfMissingOrMatching) };
 });
-// eslint-disable-next-line import-x/no-extraneous-dependencies -- Exercise the real YAML parser already supplied by development tooling.
 vi.mock('obsidian', async (original) => ({ ...await original<object>(), parseYaml: (await import('yaml')).parse }));
 const roots: string[] = [];
 afterEach(async () => {

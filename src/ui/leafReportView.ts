@@ -69,7 +69,7 @@ export const AUDIT_CSV_NAMES = [
   'unmarked-leaf-folders.csv'
 ];
 export interface LeafReportHost {
-  adopt?: (folder: string) => Promise<void> | void;
+  adopt?: (folder: string, knownMarkerPaths: string[]) => Promise<void> | void;
   cancel?: () => void;
   copy: (text: string) => Promise<void>;
   createMissingMarker?: (notePath: string, folderPath: string) => Promise<void>;
@@ -119,6 +119,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
   let busy = false;
   let inspection: InspectionIndex | undefined;
   let jump: { navigation: TreeNavigation; targetId: string } | undefined;
+  let verifiedReveal: string | undefined;
   const adoptions = new Map<string, null | string>();
   function element<K extends keyof HTMLElementTagNameMap>(tag: K, text: string, parent: HTMLElement, cls = ''): HTMLElementTagNameMap[K] {
     const node = doc.createElement(tag);
@@ -471,6 +472,14 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     }
   }
   function selected(node: LeafTreeNode | undefined, hidden: boolean, userInitiated: boolean): void {
+    if (userInitiated && verifiedReveal && node?.id !== verifiedReveal) {
+      verifiedReveal = undefined;
+      if (result) {
+        tree.update(result, query.search).catch(() => {
+          setStatus('Unable to finish navigation.');
+        });
+      }
+    }
     if (userInitiated && jump) {
       jump = undefined;
       if (result) {
@@ -574,7 +583,8 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     renderReportMetrics(stats, filterMetricEntries(filtered));
     renderActiveFilters();
     emptyState.hidden = filtered.matched.size > 0;
-    await tree.update(jump ? revealTreePath(filtered, jump.targetId, query.sort) : filtered, query.search, reset);
+    const reveal = jump?.targetId ?? verifiedReveal;
+    await tree.update(reveal ? revealTreePath(filtered, reveal, query.sort) : filtered, query.search, reset);
     if (result === filtered) {
       refreshControls();
     }
@@ -685,12 +695,29 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     query.sort = sort.value as TreeQuery['sort'];
     changed(true);
   });
+  function retainVerifiedSelection(next: LeafReportModel, filtered: TreeResult, reset: boolean): void {
+    if (!reset && selectedId && next.verifiedChanges?.length !== model?.verifiedChanges?.length && !filtered.matched.has(selectedId)) {
+      verifiedReveal = selectedId;
+    }
+    if (reset) {
+      verifiedReveal = undefined;
+    }
+  }
+  function renderScanTime(next: LeafReportModel): void {
+    const completedAt = new Date(next.finishedAt);
+    scanTimestamp.textContent = `${scanLabel(next)} · Last scanned: ${Number.isNaN(completedAt.getTime()) ? next.finishedAt : completedAt.toLocaleString()}`;
+    if (next.verifiedChanges?.length) {
+      scanTimestamp.textContent += ` · Last binding verified: ${next.verifiedChanges.at(-1)?.verifiedAt ?? ''}`;
+    }
+  }
   function retainedOperations(next: LeafReportModel, initialOperations: number): Map<string, null | string> {
     const sameRoots = !model || (model.externalRoot === next.externalRoot && model.vaultRoot === next.vaultRoot);
     if (sameRoots && initialOperations !== operationRevision) {
       next.stale = true;
     }
-    return new Map([...adoptions].filter(([, note]) => sameRoots && (note === null || !!next.stale)));
+    const previous = new Set((model?.verifiedChanges ?? []).map((change) => change.operationId));
+    const verified = new Set((next.verifiedChanges ?? []).filter((change) => !previous.has(change.operationId)).flatMap((change) => change.folders));
+    return new Map([...adoptions].filter(([folder, note]) => sameRoots && !verified.has(folder) && (note === null || !!next.stale)));
   }
   async function prepareUpdate(next: LeafReportModel, signal?: AbortSignal): Promise<{
     adoptable: IssueOrder;
@@ -726,8 +753,8 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
     adopted(folder, note): void {
       operationRevision++;
       adoptions.set(folder, note);
-      if (model) {
-        model.stale = true;
+      if (model && note !== null) {
+        model = { ...model, stale: true };
       }
       warning.hidden = false;
       warning.textContent = 'This snapshot predates mutations. Refresh to update results and counts. Pending operations can be resumed.';
@@ -773,10 +800,12 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
         return;
       }
       filterRevision++;
-      querying = false;
-      root.setAttribute('aria-busy', 'false');
+      querying = true;
+      root.setAttribute('aria-busy', 'true');
+      refreshControls();
       queryAbort?.abort();
       const reset = !!model && (model.externalRoot !== next.externalRoot || model.vaultRoot !== next.vaultRoot);
+      retainVerifiedSelection(next, filtered, reset);
       model = next;
       query.status = nextStatus;
       inspection = createInspectionIndex(next);
@@ -793,8 +822,7 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       if (!host.refresh) {
         scanStatus.textContent = 'Completed snapshot loaded.';
       }
-      const completedAt = new Date(next.finishedAt);
-      scanTimestamp.textContent = `${scanLabel(next)} · Last scanned: ${Number.isNaN(completedAt.getTime()) ? next.finishedAt : completedAt.toLocaleString()}`;
+      renderScanTime(next);
       adoptions.clear();
       for (const [folder, note] of retained) {
         adoptions.set(folder, note);
@@ -811,6 +839,9 @@ export function mountLeafReport(container: HTMLElement, host: LeafReportHost): L
       ].filter(Boolean).join(' ');
       warning.hidden = warning.textContent.length === 0;
       await applyResult(filtered, order, adoptable, reset);
+      querying = false;
+      root.setAttribute('aria-busy', 'false');
+      refreshControls();
     }
   };
 }

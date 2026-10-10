@@ -28,6 +28,29 @@ function fixture(): {
   return { a, b, model, parent };
 }
 describe('shared folder availability', () => {
+  it('allows an included parent around intentional exclusions without inventing leaves', () => {
+    const scan = auditFixture();
+    const parent = path.join(scan.externalRoot, 'Project');
+    const excluded = path.join(parent, 'build');
+    scan.folders.push(parent, excluded);
+    scan.external.ignoredDirectories.push({ folderPath: excluded, relativePath: 'Project/build' });
+    scan.issues.push({
+      exclusionSource: 'git',
+      kind: 'directory',
+      location: excluded,
+      reason: 'Git rule .gitignore:1: build/',
+      scope: 'external',
+      unchecked: true
+    });
+    const model = buildLeafReport(scan);
+    const node = model.tree!.find((item) => item.folderPath === parent)!;
+    const availability = finishAuditSteps(folderAvailabilitySteps(model, model.tree!));
+    expect(availability.get(node.id)?.adoptable).toBe(true);
+    expect(node.evidence?.physicalLeaf).toBe(false);
+    expect(model.coverage!.issues).toHaveLength(1);
+    const hidden = model.tree!.find((item) => item.folderPath === excluded)!;
+    expect(availability.get(hidden.id)?.adoptable).toBe(false);
+  });
   it('offers missing-marker preview through intentional omissions but not stale or pending evidence', () => {
     const scan = auditFixture();
     const uuid = '123e4567-e89b-42d3-a456-426614174000';

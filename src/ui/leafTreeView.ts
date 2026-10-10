@@ -119,6 +119,13 @@ export function mountLeafTree(
       describeItem(item, node, rowLabel.textContent);
       return;
     }
+    if (node.repositoryRoot === node.folderPath) {
+      const badge = doc.createElement('span');
+      badge.className = 'leaf-repository-badge';
+      // eslint-disable-next-line obsidianmd/ui/sentence-case -- Repository badges intentionally use the lowercase git label.
+      badge.textContent = 'git';
+      rowLabel.append(badge);
+    }
     if (node.covered) {
       const inherited = doc.createElement('span');
       inherited.className = 'leaf-inherited';

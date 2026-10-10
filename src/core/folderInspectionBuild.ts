@@ -11,6 +11,7 @@ import type {
 } from './folderInspection.ts';
 import type { LeafTreeNode } from './leafTree.ts';
 
+import { isIntentionalExclusion } from './adoptionPolicy.ts';
 import { sortAuditSteps } from './auditSteps.ts';
 import { normalizePathForIdentity as identity } from './pathPolicy.ts';
 
@@ -39,7 +40,7 @@ export function* folderInspectionSteps(scan: AuditSnapshot, tree: LeafTreeNode[]
   }
   const coverage = yield* attachIssues(scan, nodes);
   const ordered = yield* sortAuditSteps(tree, (a, b) => a.segments.length - b.segments.length);
-  yield* linkInspections(ordered, nodes, root);
+  yield* linkInspections(ordered, nodes, root, coverage);
   yield* aggregateInspections(ordered, nodes, root);
   return coverage;
 }
@@ -50,10 +51,12 @@ function* aggregateInspections(ordered: LeafTreeNode[], nodes: Map<string, LeafT
     const parent = node === root ? undefined : nodes.get(node?.parent ?? root?.id ?? '');
     if (parent?.inspection && node?.inspection) {
       parent.inspection.subtreeIssues += node.inspection.subtreeIssues;
+      parent.inspection.subtreeOmissions = (parent.inspection.subtreeOmissions ?? 0) + (node.inspection.subtreeOmissions ?? 0);
+      parent.inspection.subtreeReservations = (parent.inspection.subtreeReservations ?? 0) + (node.inspection.subtreeReservations ?? 0);
       parent.inspection.subtreeMarkers += node.inspection.subtreeMarkers;
     }
     if (node?.inspection) {
-      node.blocked ||= node.inspection.subtreeIssues > 0;
+      node.blocked = hasAdoptionBlocker(node);
     }
     yield;
   }
@@ -83,15 +86,35 @@ function* attachIssues(scan: AuditSnapshot, nodes: Map<string, LeafTreeNode>): G
   return { issues, vaultIdentityIssueIds, vaultPathsComplete };
 }
 
-function* linkInspections(ordered: LeafTreeNode[], nodes: Map<string, LeafTreeNode>, root: LeafTreeNode | undefined): Generator<void, void> {
+function hasAdoptionBlocker(node: LeafTreeNode): boolean {
+  const inspection = node.inspection;
+  return node.covered || node.unchecked || node.kind === 'link' || !inspection || inspection.subtreeMarkers > 0
+    || !!inspection.ancestorReserved || !!inspection.subtreeReservations
+    || inspection.subtreeIssues > (inspection.subtreeOmissions ?? 0);
+}
+
+function* linkInspections(
+  ordered: LeafTreeNode[],
+  nodes: Map<string, LeafTreeNode>,
+  root: LeafTreeNode | undefined,
+  coverage: ReportCoverage
+): Generator<void, void> {
+  const omissions = new Set(coverage.issues.filter(isIntentionalExclusion).map((issue) => issue.id));
   for (const node of ordered) {
     const inspection = node.inspection;
     const parent = node === root ? undefined : nodes.get(node.parent ?? root?.id ?? '');
     if (inspection) {
       inspection.ancestorMarkerId = parent?.markers.length ? parent.id : (parent?.inspection?.ancestorMarkerId ?? null);
       inspection.subtreeIssues = inspection.issueIds.length;
+      inspection.subtreeOmissions = inspection.issueIds.filter((id) => omissions.has(id)).length;
+      inspection.subtreeReservations = Number(reservesTarget(node));
+      inspection.ancestorReserved = !!parent && (!!parent.inspection?.ancestorReserved || reservesTarget(parent));
       inspection.subtreeMarkers = inspection.markers.length;
     }
     yield;
   }
+}
+
+function reservesTarget(node: LeafTreeNode): boolean {
+  return node.notes.some((note) => (note.association === 'exact' || note.association === 'exact+uuid') && note.status !== 'missing-property');
 }

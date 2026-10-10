@@ -78,7 +78,21 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
     button(navigation, 'Open folder', () => host.openFolder?.(node.folderPath));
   }
   const relationship = section(parent, 'Binding relationship', 'relationship');
+  if (node.repositoryRoot) {
+    if (node.repositoryRoot === node.folderPath) {
+      reportElement(relationship, 'p', 'git', 'leaf-repository-badge');
+    } else {
+      const repository = [...index.nodes.values()].find((item) => item.folderPath === node.repositoryRoot);
+      const context = reportElement(relationship, 'p', 'Inside repository: ');
+      if (repository) {
+        button(context, repository.segments.at(-1) ?? repository.folderPath, () => options.select(repository));
+      } else {
+        reportElement(context, 'span', node.repositoryRoot, 'leaf-context');
+      }
+    }
+  }
   reportElement(relationship, 'p', statusDescription(node));
+  renderBindingHistory(relationship, node, options);
   renderRelationship(relationship);
   if (!isRoot && node.kind !== 'virtual') {
     renderActions(section(parent, 'Available actions', 'actions'));
@@ -224,7 +238,20 @@ export function renderFolderDetails(parent: HTMLElement, node: LeafTreeNode, opt
       adoptionTarget = restrictions;
     }
     if (host.adopt) {
-      const adopt = button(adoptionTarget, 'Adopt this folder…', () => host.adopt?.(node.folderPath));
+      const adopt = button(
+        adoptionTarget,
+        'Adopt this folder…',
+        () =>
+          host.adopt?.(
+            node.folderPath,
+            [...index.nodes.values()].flatMap((item) => item.inspection?.markers.map((marker) => marker.markerPath) ?? [])
+              .concat(
+                [...index.issues.values()].filter((issue) =>
+                  issue.scope === 'external' && (issue.kind === 'marker' || issue.location.toLowerCase().endsWith('.exnf'))
+                ).map((issue) => issue.location)
+              )
+          )
+      );
       adopt.disabled = options.busy || blocked;
       adopt.dataset['adoptionBlocked'] = String(blocked);
       if (node.conflict) {
@@ -353,6 +380,27 @@ function noteIdentityLabel(status: string): string {
     'valid': 'Valid exnf UUID'
   };
   return labels[status] ?? status;
+}
+
+function renderBindingHistory(relationship: HTMLElement, node: LeafTreeNode, options: FolderDetailsOptions): void {
+  const { index, model } = options;
+  function button(parent: HTMLElement, label: string, callback: () => Promise<void>): void {
+    reportAction(parent, label, callback, options.onError);
+  }
+  const changedFolders = [...new Set((model.verifiedChanges ?? []).flatMap((change) => change.folders))];
+  if (changedFolders.includes(node.folderPath)) {
+    reportElement(relationship, 'p', 'Binding changed this session.', 'leaf-context');
+  }
+  const children = changedFolders.filter((folder) => folder.replaceAll('\\', '/').startsWith(`${node.folderPath.replaceAll('\\', '/').replace(/\/$/u, '')}/`));
+  if (children.length) {
+    const history = reportDisclosure(relationship, `Binding changed in ${children.length === 1 ? 'a subfolder' : `${String(children.length)} subfolders`}`);
+    for (const folder of children) {
+      const child = [...index.nodes.values()].find((item) => item.folderPath === folder);
+      if (child) {
+        button(history, child.relativePath, () => options.select(child));
+      }
+    }
+  }
 }
 
 function statusDescription(node: LeafTreeNode): string {

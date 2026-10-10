@@ -13,7 +13,8 @@ export class SetupPlanModal extends Modal {
     app: Modal['app'],
     private readonly plan: SetupPlan,
     private readonly onConfirm: () => Promise<void>,
-    private readonly reportContext: ReportContext
+    private readonly reportContext: ReportContext,
+    private readonly resuming = false
   ) {
     super(app);
   }
@@ -26,6 +27,18 @@ export class SetupPlanModal extends Modal {
     renderReportContext(contentEl, this.reportContext);
     contentEl.createEl('p', { text: `Vault file: ${this.plan.notePath}` });
     contentEl.createEl('p', { text: `Expected external folder: ${this.plan.targetPath}` });
+    if (this.plan.inspectionPolicy) {
+      contentEl.createEl('p', { text: `UUID: ${this.plan.uuid ?? ''}\nMarker: ${this.plan.targetPath}/${this.plan.uuid ?? ''}.exnf` });
+      if (this.resuming) {
+        contentEl.createEl('p', { text: 'Continue the same pending operation. Its UUID, target, and completed writes remain unchanged.' });
+      }
+      const exclusions = contentEl.createEl('details');
+      exclusions.createEl('summary', { text: 'Excluded from checks' });
+      exclusions.createEl('p', { text: 'Excluded locations may contain undiscovered markers.' });
+      exclusions.createEl('pre', {
+        text: this.plan.inspectionPolicy.omissions.map((item) => `${item.location}\n${item.reason}`).join('\n\n') || 'No intentional omissions.'
+      });
+    }
 
     if (this.plan.errors.length > 0) {
       contentEl.createEl('h3', { text: 'Blocked' });
@@ -52,7 +65,7 @@ export class SetupPlanModal extends Modal {
       });
     }
 
-    if (this.plan.ignoredDirectoryCount > 0) {
+    if (this.plan.ignoredDirectoryCount > 0 && !this.plan.inspectionPolicy) {
       contentEl.createEl('p', {
         cls: 'setting-item-description',
         text: `${String(this.plan.ignoredDirectoryCount)} configured ignored director${
@@ -61,8 +74,9 @@ export class SetupPlanModal extends Modal {
       });
     }
 
+    const label = this.plan.action === 'confirm-marker-restore' ? 'Restore identifier and open' : 'Bind folder and open';
     new ButtonComponent(contentEl)
-      .setButtonText(this.plan.action === 'confirm-marker-restore' ? 'Restore identifier and open' : 'Bind folder and open')
+      .setButtonText(this.resuming ? 'Confirm updated checks and resume' : label)
       .setCta()
       .onClick(() => {
         this.close();

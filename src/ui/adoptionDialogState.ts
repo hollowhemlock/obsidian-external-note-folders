@@ -38,6 +38,15 @@ export class AdoptionDialogState {
     this.active = true;
   }
 
+  public awaitSelection(): void {
+    this.activate();
+    this.invalidate();
+    this.source = undefined;
+    this.phase = 'invalid';
+    this.message = 'Choose a suggested note or create a new note.';
+    this.changed();
+  }
+
   public chooseMode(mode: AdoptionMode): void {
     if (this.source === undefined || (mode === 'create') !== (this.source === null)) {
       return;
@@ -72,6 +81,12 @@ export class AdoptionDialogState {
     this.edit(this.input);
   }
 
+  public select(input: string): void {
+    this.lastMode = 'bind';
+    this.edit(input);
+    this.schedule(0);
+  }
+
   public start(): void {
     this.active = true;
     this.edit(this.input);
@@ -93,7 +108,7 @@ export class AdoptionDialogState {
     return !this.active || revision !== this.generation;
   }
 
-  private schedule(): void {
+  private schedule(delay = DEBOUNCE_MS): void {
     this.invalidate();
     this.phase = this.source === undefined ? 'invalid' : 'checking';
     this.message = '';
@@ -134,6 +149,6 @@ export class AdoptionDialogState {
         }
         this.changed();
       });
-    }, DEBOUNCE_MS);
+    }, delay);
   }
 }

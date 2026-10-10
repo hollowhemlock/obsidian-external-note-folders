@@ -1,8 +1,10 @@
 // eslint-disable-next-line import-x/no-nodejs-modules -- Pure path computation follows ADR-0016.
 import path from 'node:path';
 
+import type { AdoptionInspectionPolicy } from './adoptionPolicy.ts';
 import type { AuditSnapshot } from './auditTypes.ts';
 
+import { isIntentionalExclusion } from './adoptionPolicy.ts';
 import { buildExternalRootIgnoreMatcher } from './externalRootIgnore.ts';
 import {
   assertPathIsWithinRoot,
@@ -22,6 +24,7 @@ export interface GroupAdoptionPlan {
   externalRoot: string;
   folderPath: string;
   ignorePatterns: string[];
+  inspectionPolicy?: AdoptionInspectionPolicy;
   mutationSequence: number;
   notePath: string;
   repair?: boolean;
@@ -47,6 +50,7 @@ export function aliasesWithPreviousName(value: unknown, basename: string): strin
 export function buildGroupAdoptionPlan(input: {
   folderPath: string;
   ignorePatterns: string[];
+  inspectionPolicy?: AdoptionInspectionPolicy;
   move: boolean;
   mutationSequence: number;
   note: AdoptionNoteChoice | null;
@@ -73,7 +77,7 @@ export function buildGroupAdoptionPlan(input: {
   }
   const { reusing, uuid } = resolveNoteIdentity(scan, note, input.uuid);
   const targets = [folderPath, expectedFolder];
-  validateEvidence(scan, targets, uuid, reusing);
+  validateEvidence(scan, targets, uuid, reusing, !!input.inspectionPolicy);
   const descendants = validateReservedTargets(scan, targets, note?.path, expectedFolder, folderPath);
   const warnings: string[] = [];
   if (normalizePathForIdentity(expectedFolder) !== normalizePathForIdentity(folderPath)) {
@@ -91,6 +95,7 @@ export function buildGroupAdoptionPlan(input: {
     externalRoot: scan.externalRoot,
     folderPath,
     ignorePatterns: [...input.ignorePatterns],
+    ...(input.inspectionPolicy ? { inspectionPolicy: input.inspectionPolicy } : {}),
     mutationSequence: input.mutationSequence,
     notePath,
     sourcePath: note?.path ?? null,
@@ -148,13 +153,24 @@ function resolveNoteIdentity(scan: AuditSnapshot, note: AdoptionNoteChoice | nul
   }
   return { reusing: !!selected?.uuid, uuid };
 }
-function validateEvidence(scan: AuditSnapshot, targets: string[], uuid: string, reusing: boolean): void {
+function validateEvidence(scan: AuditSnapshot, targets: string[], uuid: string, reusing: boolean, filtered = false): void {
+  if (reusing && filtered) {
+    throw new Error('Existing UUID adoption requires the original complete checks.');
+  }
   for (const marker of scan.markers) {
     if (marker.uuid === uuid || targets.some((target) => pathsOverlap(marker.folderPath, target))) {
       throw new Error(`Conflicting marker: ${marker.markerPath}`);
     }
   }
   for (const issue of scan.issues.filter((entry) => entry.unchecked)) {
+    if (
+      filtered && isIntentionalExclusion(issue) && !targets.some((target) =>
+        normalizePathForIdentity(target) === normalizePathForIdentity(issue.location)
+        || normalizePathForIdentity(target).startsWith(normalizePathForIdentity(issue.location) + path.sep)
+      )
+    ) {
+      continue;
+    }
     if (reusing || pathsOverlap(issue.location, scan.vaultRoot) || targets.some((target) => pathsOverlap(issue.location, target))) {
       throw new Error(`Unchecked evidence: ${issue.location}`);
     }

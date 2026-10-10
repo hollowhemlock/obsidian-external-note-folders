@@ -1,3 +1,4 @@
+import path from 'node:path';
 import {
   describe,
   expect,
@@ -5,9 +6,36 @@ import {
   vi
 } from 'vitest';
 
+import type { AuditSnapshot } from '../core/auditTypes.ts';
+import type { VerifiedBindingChange } from '../core/verifiedBindingChange.ts';
+
 import { auditFixture } from '../../test/support/auditFixture.ts';
 import { buildLeafReport } from '../core/leafReport.ts';
 import { AuditSession } from './auditSession.ts';
+
+function completedChange(snapshot: AuditSnapshot): VerifiedBindingChange {
+  const evidence = structuredClone(snapshot);
+  const folder = evidence.folders[0]!;
+  const uuid = 'd03a808c-92b4-47be-825a-13fa489a11dc';
+  const relativePath = `${path.relative(evidence.externalRoot, folder).replaceAll('\\', '/')}.md`;
+  evidence.notes = [{ hasExnf: true, notePath: path.join(evidence.vaultRoot, relativePath), relativePath, status: 'valid', uuid, value: uuid }];
+  evidence.markers = [{ folderPath: folder, format: 'uuid-named', markerPath: path.join(folder, `${uuid}.exnf`), status: 'valid', uuid }];
+  evidence.checkedDirectories = [{ entries: [`${uuid}.exnf`], path: folder }];
+  return {
+    affectedFolders: [folder],
+    evidence,
+    externalRoot: evidence.externalRoot,
+    ignorePatterns: [],
+    mutationRevision: 1,
+    newNotePath: relativePath,
+    oldNotePath: null,
+    operationId: 'first',
+    templatePatterns: [],
+    uuid,
+    vaultRoot: evidence.vaultRoot,
+    verifiedAt: '2026-10-08T23:00:00Z'
+  };
+}
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type -- Preserve inferred Vitest mock signatures in this test helper.
 function fixture() {
@@ -17,7 +45,7 @@ function fixture() {
 
   const host = {
     actionStatus: vi.fn(),
-    analyze: vi.fn(async () => buildLeafReport(snapshot)),
+    analyze: vi.fn(async (input: import('../core/auditTypes.ts').AuditSnapshot) => buildLeafReport(input)),
     mutationState: (): { active: boolean; activity: number; sequence: number } => ({ ...state }),
     scan: vi.fn(async () => snapshot),
     scanContext: (): { externalRoot: string; vaultRoot: string } => ({ externalRoot: snapshot.externalRoot, vaultRoot: snapshot.vaultRoot }),
@@ -32,6 +60,94 @@ function fixture() {
 }
 
 describe('audit tab session', () => {
+  it.each(['filtered', 'unfiltered'] as const)('publishes immutable %s revisions with identities, idempotence, and pinned exports', async (mode) => {
+    const { host, session, snapshot } = fixture();
+    snapshot.statusScanMode = mode;
+    await session.refresh(mode);
+    const original = session.model;
+    let finish!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const exporting = session.runExport(async (captured, model) => {
+      await gate;
+      expect(captured).toBe(snapshot);
+      expect(model).toBe(original);
+      expect(model.verifiedChanges).toBeUndefined();
+      return null;
+    });
+    const change = completedChange(snapshot);
+    await session.applyVerified(change);
+    expect(session.snapshot).toBe(snapshot);
+    expect(session.model).not.toBe(original);
+    expect(session.model?.finishedAt).toBe(original?.finishedAt);
+    expect(session.model?.tree?.find((node) => node.folderPath === change.affectedFolders[0])?.evidence).toMatchObject({ marker: 'present', yaml: 'present' });
+    expect(session.workingSnapshot?.statusScanMode).toBe(mode);
+    const revision = session.model;
+    await session.applyVerified(change);
+    expect(session.model).toBe(revision);
+    expect(host.scan).toHaveBeenCalledTimes(1);
+    finish();
+    await exporting;
+  });
+  it('compares effective scope without rejecting comments in configured exclusions', async () => {
+    const { host, snapshot } = fixture();
+    const configuration = { ignorePatterns: ['# comment'], templatePatterns: ['# templates'] };
+    const session = new AuditSession({ ...host, configuration: (): typeof configuration => configuration });
+    await session.refresh();
+    await session.applyVerified({
+      ...completedChange(snapshot),
+      ignorePatterns: configuration.ignorePatterns,
+      templatePatterns: configuration.templatePatterns
+    });
+    expect(session.model?.verifiedChanges).toHaveLength(1);
+  });
+  it('retains a committed revision after presentation failure and permits a read-only retry', async () => {
+    const { host, session, snapshot } = fixture();
+    await session.refresh();
+    const previous = session.model;
+    host.update.mockRejectedValueOnce(new Error('render failed'));
+    const change = completedChange(snapshot);
+    await expect(session.applyVerified(change)).rejects.toThrow('render failed');
+    expect(session.model).toBe(previous);
+    expect(session.workingSnapshot).toBe(snapshot);
+    await session.applyVerified(change);
+    expect(session.model?.verifiedChanges).toHaveLength(1);
+    expect(host.scan).toHaveBeenCalledTimes(1);
+  });
+  it('rejects incompatible configurations and ignores obsolete or disposed completions', async () => {
+    const { session, snapshot } = fixture();
+    await session.refresh();
+    const change = completedChange(snapshot);
+    await expect(session.applyVerified({ ...change, externalRoot: 'different' })).rejects.toThrow('roots');
+    await expect(session.applyVerified({ ...change, ignorePatterns: ['new'] })).rejects.toThrow('configuration');
+    await session.applyVerified(change);
+    const previous = session.model;
+    await session.applyVerified({ ...change, mutationRevision: 0, operationId: 'late' });
+    expect(session.model).toBe(previous);
+    session.dispose();
+    await session.applyVerified({ ...change, mutationRevision: 2, operationId: 'closed' });
+    expect(session.model).toBe(previous);
+  });
+  it('retains unrelated stale conditions and supersedes a full scan overlapping a verified update', async () => {
+    const { host, session, snapshot } = fixture();
+    await session.refresh();
+    session.model = { ...session.model!, stale: true };
+    let finish!: () => void;
+    host.scan.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      return snapshot;
+    });
+    const scan = session.refresh();
+    await session.applyVerified(completedChange(snapshot));
+    const current = session.model;
+    finish();
+    await scan;
+    expect(session.model).toBe(current);
+    expect(session.model.stale).toBe(true);
+  });
   it.each(['scan', 'export'] as const)('queues repair refresh behind an active %s without publishing pre-repair evidence', async (kind) => {
     const { host, session, snapshot } = fixture();
     await session.refresh('unfiltered');
@@ -76,7 +192,8 @@ describe('audit tab session', () => {
     });
     await session.refreshAfterMutation('filtered');
     expect(session.snapshot).toBe(snapshot);
-    expect(session.model).toBe(previous);
+    expect(session.model).toEqual({ ...previous, stale: true });
+    expect(previous?.stale).not.toBe(true);
     expect(session.model?.stale).toBe(true);
   });
   it('retains first-failure diagnostics during retries and clears them only when an attempt finishes', async () => {
@@ -235,10 +352,10 @@ describe('audit tab session', () => {
     expect(session.model?.mutationWarning).toBe(false);
 
     state.active = true;
-
+    const previous = session.model;
     await session.refresh();
-
-    expect(session.model?.mutationWarning).toBe(true);
+    expect(session.model).toBe(previous);
+    expect(host.status).toHaveBeenLastCalledWith(expect.stringContaining('superseded'), false);
   });
 
   it('prevents overlapping work and disposes pending scans without publishing', async () => {
