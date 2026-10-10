@@ -28,8 +28,12 @@ npm run test:integration
 
 The lane requires Obsidian 1.12.7 or newer with its CLI installed and enabled. Integration
 preparation builds the plugin, fully resets the sandbox, installs the plugin artifacts, and reloads
-Obsidian with the sandbox vault as the CLI target. It then verifies the Obsidian version before tests
-run. If no CLI runtime is available, preparation opens the sandbox vault before retrying reload.
+Obsidian with the sandbox vault as the CLI target. A bounded, read-only preflight
+waits up to 30 seconds for the exact vault, loaded plugin, and setup/status commands,
+then checks the supported Obsidian version. Startup failures are retried within that
+deadline; a different vault fails immediately. Timeout diagnostics retain the final
+CLI response. If no CLI runtime is available, preparation opens the sandbox vault
+before retrying reload.
 
 Preparation then probes the live runtime through the Obsidian CLI and fails before any test runs if
 the runtime is unavailable or the active vault is not the sandbox vault, so the lane never reports
@@ -66,10 +70,23 @@ can open or reload its window. Hidden-window timer throttling can also cause ren
 tests to time out. Windows CLI child processes suppress extra console windows;
 that does not hide or isolate the Obsidian UI.
 
+The status-tree keyboard/focus checks explicitly focus the sandbox window and
+verify that it has focus before asserting native focus behavior. Keep that window
+undisturbed during those checks. Background-only runs can pass the other GUI
+checks while failing these focus assertions; a retry without recording that
+environmental difference is not sufficient release evidence.
+
 For a strict no-interruption guarantee, run the GUI suite in a separate desktop
 session or test machine with its own primary checkout, sandbox, and Obsidian/CLI
 runtime. That isolated runner is not configured by this repository. Unit and adapter
 tests (`npm run test`) already run without the desktop app.
+
+For the 2.2 release sequence, the maintainer approved local GUI evidence instead of
+provisioning a desktop runner. Record the exact revision, environment, commands,
+results, and screenshots in the [2.2 readiness record](../../docs/dev/testing/release-2.2-readiness.md).
+Automated headless checks remain CI-backed; this exception does not waive failing
+tests or convert automated results into maintainer normal-use feedback. Its expiry
+and follow-up are recorded there.
 
 ## File-manager launch coverage
 

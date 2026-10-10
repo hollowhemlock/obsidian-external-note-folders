@@ -420,6 +420,14 @@ every canonical state ID in this matrix as either covered by a committed scenari
 specific future fixture group. `npm run test` validates that the ledger stays synchronized with this
 matrix and with committed expected JSON.
 
+The 2.2 readiness pass adds command-boundary coverage for absent/non-Markdown active
+files, stale plans, the mutation lock, unavailable roots during resume, and completed
+scoped setup followed by a file-manager failure. The latter preserves the completed
+journal and binding and reports opening as a separate failure. Parent-read failures
+use injected storage errors rather than OS-dependent permission changes. Existing
+controller tests cover completed writes followed by presentation failure; these are
+now reflected in the coverage ledger.
+
 ## Missing-marker repair (ADR-0031)
 
 | State | Expected behavior | Coverage |

@@ -4,6 +4,7 @@ import type { ObsidianCliResult } from './obsidian-cli.ts';
 
 import {
   formatObsidianCliResult,
+  hasObsidianCliError,
   isRuntimeUnavailable,
   runObsidianCli
 } from './obsidian-cli.ts';
@@ -29,7 +30,7 @@ function formatReloadError(
 
 function isRuntimeStarting(result: ReturnType<typeof runReload>): boolean {
   const isTimedOut = result.errorMessage.includes('ETIMEDOUT');
-  return isRuntimeUnavailable(result) || isTimedOut;
+  return isRuntimeUnavailable(result) || isTimedOut || result.stdout.includes('Command "command" not found');
 }
 
 async function main(): Promise<void> {
@@ -49,9 +50,11 @@ async function main(): Promise<void> {
     console.log('Obsidian runtime not found; opening the sandbox vault before retrying reload.');
     await openVaultUri(sandboxVaultPath);
     result = await waitForReload(sandboxVaultPath);
+  } else if (isRuntimeStarting(result)) {
+    result = await waitForReload(sandboxVaultPath);
   }
 
-  if (result.errorMessage || result.status !== 0) {
+  if (hasObsidianCliError(result)) {
     throw new Error(formatReloadError(result));
   }
 

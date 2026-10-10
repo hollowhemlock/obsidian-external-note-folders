@@ -6,7 +6,13 @@
       "domain": "status",
       "scenario": "observed-binding-health",
       "testPath": "src/core/folderStatus.test.ts",
-      "stateIds": ["G7", "T4", "T25", "R30", "R31"],
+      "stateIds": [
+        "G7",
+        "T4",
+        "T25",
+        "R30",
+        "R31"
+      ],
       "notes": "Matching checked bindings remain healthy through unrelated scan gaps; local uncertainty and known nested conflicts prevent healthy classification while repair guards remain unchanged."
     },
     {
@@ -14,7 +20,13 @@
       "domain": "status",
       "scenario": "healthy-bindings-with-scan-gaps",
       "testPath": "test/integration/leaf-report.integration.test.ts",
-      "stateIds": ["G7", "T4", "T25", "R30", "R31"],
+      "stateIds": [
+        "G7",
+        "T4",
+        "T25",
+        "R30",
+        "R31"
+      ],
       "notes": "Checks green rows, review navigation, coverage notices, grouped diagnostics, collapsed adoption restrictions, and offline HTML with filtered and unfiltered coverage gaps."
     },
     {
@@ -22,7 +34,17 @@
       "domain": "open-recovery",
       "scenario": "recovery-explanations",
       "testPath": "src/openRecoveryPresentation.test.ts",
-      "stateIds": ["T0", "T2", "T7", "T8", "T9", "R0", "R2", "R3", "R15"],
+      "stateIds": [
+        "T0",
+        "T2",
+        "T7",
+        "T8",
+        "T9",
+        "R0",
+        "R2",
+        "R3",
+        "R15"
+      ],
       "notes": "Covers readable initial failure reasons, actual search paths and marker filename, blocking-error precedence, confirmed opening, duplicate matches, and same-name candidates requiring review."
     },
     {
@@ -30,7 +52,10 @@
       "domain": "open-recovery",
       "scenario": "pending-search-and-results",
       "testPath": "test/integration/open-recovery.integration.test.ts",
-      "stateIds": ["T0", "R0"],
+      "stateIds": [
+        "T0",
+        "R0"
+      ],
       "notes": "Holds a sandbox recovery scan pending to inspect the actual progress modal, full selectable wrapping paths, marker filename, ignore disclosure, and subsequent no-match result."
     },
     {
@@ -465,35 +490,43 @@
         "V14"
       ],
       "notes": "ADR-0034: real Git rules, tracked descendants, repository boundaries, broken worktree and index recovery, hidden coverage, and fatal root/runtime failures. Structured validation classification, protocol cleanup, and snapshot retention also have co-located unit tests."
-    }
-  ],
-  "plannedCoverage": [
+    },
     {
-      "target": "active-note command precondition integration fixtures",
+      "kind": "unit-test",
+      "domain": "setup-command",
+      "scenario": "command-preconditions-and-recovery-faults",
+      "testPath": "src/Plugin.setup.test.ts",
       "stateIds": [
         "V0",
-        "V1"
-      ],
-      "reason": "No-active-file and active-non-Markdown-file behavior lives at the Obsidian workspace command boundary and needs CLI or adapter-level command tests."
-    },
-    {
-      "target": "expected-folder-state semantic fixtures",
-      "stateIds": [
-        "T21"
-      ],
-      "reason": "Unreadable expected-folder parent behavior is OS-permission dependent and needs a focused storage/integration fixture or test adapter before it can be asserted reliably."
-    },
-    {
-      "target": "journal-and-resume mutation fixtures",
-      "stateIds": [
+        "V1",
         "J6",
         "J9",
         "J13",
         "J14",
-        "J15",
         "J19"
       ],
-      "reason": "Remaining journal states require command-boundary or deliberately fault-injected integration coverage: missing external root during resume, impossible frontmatter-without-marker recovery, stale preflight plans, concurrent mutating commands, UI failure after successful external write, and setup completion followed by an opener failure."
+      "notes": "Command-boundary checks for no active Markdown note, unavailable external root, impossible marker state, stale confirmation, concurrent mutation, and completed scoped resume with a failed file-manager launch."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "setup-target",
+      "scenario": "parent-enumeration-failure",
+      "testPath": "src/storage/setupTarget.test.ts",
+      "stateIds": [
+        "T21"
+      ],
+      "notes": "Injected EACCES during ancestor enumeration blocks setup without depending on platform permission semantics."
+    },
+    {
+      "kind": "unit-test",
+      "domain": "group-adoption",
+      "scenario": "completed-journal-presentation-failure",
+      "testPath": "src/obsidian/GroupAdoptionController.test.ts",
+      "stateIds": [
+        "J15"
+      ],
+      "notes": "Existing regression keeps completed journals complete after report publication fails; read-only retry does not repeat adoption."
     }
-  ]
+  ],
+  "plannedCoverage": []
 }
