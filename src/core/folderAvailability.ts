@@ -4,10 +4,12 @@ import type { LeafTreeNode } from './leafTree.ts';
 
 import { sortAuditSteps } from './auditSteps.ts';
 import { folderAttention } from './folderAttention.ts';
+import { missingMarkerNote } from './missingMarker.ts';
 
 export interface FolderAvailability {
   adoptable: boolean;
   attention: FolderAttention;
+  markerRepair?: boolean;
   operation?: FolderOperation;
 }
 export type FolderOperation = [string, null | string];
@@ -24,7 +26,7 @@ export function* folderAvailabilitySteps(
   const blockedGlobally = !!model.stale || !!model.coverage?.vaultIdentityIssueIds.length;
   for (const node of all) {
     const operation = changes.get(node.id);
-    const adoptable = !blockedGlobally && !operation && availableNode(node, model.rootFolder?.id);
+    const adoptable = !blockedGlobally && !operation && !missingMarkerNote(node) && availableNode(node, model.rootFolder?.id);
     let change: 'changed' | 'pending' | undefined;
     if (operation) {
       change = operation[1] === null ? 'pending' : 'changed';
@@ -32,12 +34,21 @@ export function* folderAvailabilitySteps(
     const tone = folderAttention(node, change);
     let attention = tone;
     if (tone === 'neutral' || tone === 'optional') {
-      attention = adoptable ? 'optional' : 'neutral';
+      attention = optionalNode(node, model) ? 'optional' : tone;
     }
-    result.set(node.id, { adoptable, attention, ...(operation ? { operation } : {}) });
+    result.set(node.id, {
+      adoptable,
+      attention,
+      ...(operation ? { operation } : {}),
+      ...markerRepairAvailability(node, model, operation)
+    });
     yield;
   }
   return result;
+}
+
+export function isAdoptableLeaf(node: LeafTreeNode | undefined, availability: FolderAvailability | undefined): boolean {
+  return node?.evidence?.physicalLeaf === true && availability?.adoptable === true;
 }
 
 /** Preserve captured evidence while disclosing session-dependent export membership. */
@@ -57,11 +68,14 @@ export function statusExportNode(node: LeafTreeNode, availability: FolderAvailab
 function availableNode(node: LeafTreeNode, rootId: string | undefined): boolean {
   return node.id !== rootId && node.kind === 'directory' && !!node.inspection?.directoryChecked
     && !node.blocked && !node.conflict && !node.covered && !node.markers.length
-    && !node.inspection.subtreeIssues && !node.inspection.subtreeMarkers;
+    && node.inspection.subtreeIssues === (node.inspection.subtreeOmissions ?? 0) && !node.inspection.subtreeMarkers;
 }
 function key(folder: string, caseSensitive: boolean): string {
   const normalized = folder.normalize('NFC').replaceAll('\\', '/').replace(/\/$/u, '');
   return caseSensitive ? normalized : normalized.toLowerCase();
+}
+function markerRepairAvailability(node: LeafTreeNode, model: LeafReportModel, operation: FolderOperation | undefined): { markerRepair?: boolean } {
+  return missingMarkerNote(node) ? { markerRepair: !model.stale && !operation && !node.inspection?.subtreeMarkers } : {};
 }
 function mergeOperation(map: Map<string, FolderOperation>, id: string, operation: FolderOperation | undefined): void {
   const value = strongest(map.get(id), operation);
@@ -104,6 +118,10 @@ function* operationIndexSteps(
   }
   const ordered = yield* sortAuditSteps(all, (a, b) => a.segments.length - b.segments.length);
   return yield* propagateOperations(ordered, direct, nested, rootId);
+}
+
+function optionalNode(node: LeafTreeNode, model: LeafReportModel): boolean {
+  return availableNode(node, model.rootFolder?.id) && !missingMarkerNote(node);
 }
 
 function* propagateOperations(

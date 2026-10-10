@@ -1,3 +1,5 @@
+import type { ReportMetric } from './reportMetrics.ts';
+
 export function installReportMenus(container: HTMLElement, menus: HTMLDetailsElement[]): () => void {
   const doc = container.ownerDocument;
   function close(menu: HTMLDetailsElement): void {
@@ -33,6 +35,19 @@ export function installReportMenus(container: HTMLElement, menus: HTMLDetailsEle
   };
 }
 
+export function renderReportMetrics(parent: HTMLElement, metrics: ReportMetric[]): void {
+  parent.replaceChildren();
+  for (const metric of metrics) {
+    const item = reportElement(parent, 'div');
+    item.dataset['metric'] = metric.key;
+    reportElement(item, 'dt', metric.label);
+    const value = reportElement(item, 'dd', metric.value === undefined ? '—' : metric.value.toLocaleString());
+    if (metric.value === undefined) {
+      value.setAttribute('aria-label', 'Unavailable');
+    }
+  }
+}
+
 export function reportAction(parent: HTMLElement, label: string, callback: () => Promise<void> | void, onError: (message: string) => void): HTMLButtonElement {
   const button = reportElement(parent, 'button', label);
   button.type = 'button';
@@ -49,7 +64,6 @@ export function reportDisclosure(parent: HTMLElement, label: string): HTMLDetail
   reportElement(section, 'summary', label);
   return section;
 }
-
 export function reportElement<K extends keyof HTMLElementTagNameMap>(parent: HTMLElement, tag: K, text = '', cls = ''): HTMLElementTagNameMap[K] {
   const node = parent.ownerDocument.createElement(tag);
   node.textContent = text;

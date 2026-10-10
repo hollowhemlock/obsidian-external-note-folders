@@ -8,6 +8,7 @@
   "scripts": {
     "build": "obsidian-dev-utils build",
     "build:clean": "obsidian-dev-utils build:clean",
+    "sandbox:refresh": "jiti scripts/assert-primary-checkout.ts && npm run build && jiti scripts/refresh-sandbox.ts",
     "dev": "obsidian-dev-utils dev",
     "format": "obsidian-dev-utils format",
     "format:check": "obsidian-dev-utils format:check",
@@ -17,7 +18,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "npm run integration:prepare && vitest run --config vitest.integration.config.ts",
-    "test:integration:watch": "jiti scripts/check-obsidian-cli.ts && vitest --config vitest.integration.config.ts",
     "integration:prepare": "jiti scripts/assert-primary-checkout.ts && npm run build && jiti scripts/fixtures.ts --full && jiti scripts/install-plugin-to-sandbox.ts && jiti scripts/reload-sandbox.ts && jiti scripts/check-obsidian-cli.ts",
     "fixtures:new-sandbox": "jiti scripts/fixtures.ts --full && jiti scripts/reload-sandbox.ts && jiti scripts/check-obsidian-cli.ts",
     "vault:open": "jiti scripts/open-vault.ts",
@@ -29,7 +29,8 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "ignore": "^7.0.5"
+    "ignore": "^7.0.5",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@codemirror/state": "latest",

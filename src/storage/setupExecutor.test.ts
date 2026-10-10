@@ -1,7 +1,9 @@
 import {
   mkdtemp,
   readdir,
-  rm
+  readFile,
+  rm,
+  writeFile
 } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -20,7 +22,8 @@ import {
   executeSetupPlan,
   listIncompleteSetupJournals,
   readSetupJournal,
-  resumeSetupJournal
+  resumeSetupJournal,
+  updateSetupAdoptionJournal
 } from './setupExecutor.ts';
 
 const UUID = '123e4567-e89b-42d3-a456-426614174000';
@@ -54,6 +57,40 @@ describe('setup execution journal', () => {
       kind: 'external-folder-setup',
       stage: 'complete'
     });
+  });
+
+  it('repairs only the marker and resumes verification without writing frontmatter', async () => {
+    const calls: string[] = [];
+    const first = await executeSetupPlan({
+      journalRootPath: await tempRoot(),
+      operations: {
+        ...operations(calls),
+        assertComplete: async () => {
+          throw new Error('interrupted verification');
+        }
+      },
+      plan: {
+        ...plan('confirm-unmarked-adoption'),
+        action: 'create-missing-marker',
+        knownMatches: [],
+        markerPresent: false,
+        omissions: [],
+        repairContext: {
+          externalRootPath: path.resolve('external'),
+          ignorePatterns: [],
+          knownFolders: [],
+          notePath: 'Alpha.md',
+          targetPath: path.resolve('external/Alpha'),
+          templatePatterns: [],
+          uuid: UUID
+        },
+        uuid: UUID
+      }
+    });
+    expect(first.journal.stage).toBe('complete');
+    expect(calls).toEqual(['marker']);
+    await resumeSetupJournal({ journalPath: first.journalPath, operations: operations(calls) });
+    expect(calls).toEqual(['marker', 'complete']);
   });
 
   it.each(
@@ -98,6 +135,42 @@ describe('setup execution journal', () => {
     expect(resumed.journal.uuid).toBe(first.journal.uuid);
     expect(calls).toEqual(['note', 'complete']);
     await expect(listIncompleteSetupJournals(journalRootPath)).resolves.toEqual([]);
+  });
+
+  it('updates only confirmed inspection context and rejects malformed context without falling back to legacy', async () => {
+    const original = {
+      ...plan('confirm-unmarked-adoption'),
+      adoptionSourceContent: 'Original',
+      inspectionPolicy: {
+        externalRoot: path.resolve('External'),
+        ignorePatterns: [],
+        kind: 'filtered-adoption-v1' as const,
+        knownMarkerPaths: [],
+        omissions: [],
+        templatePatterns: [],
+        vaultRoot: path.resolve('Vault')
+      }
+    };
+    const first = await executeSetupPlan({
+      journalRootPath: await tempRoot(),
+      operations: {
+        ...operations([]),
+        writeNoteUuid: async () => {
+          throw new Error('Interrupted');
+        }
+      },
+      plan: original
+    });
+    const updated = { ...original, inspectionPolicy: { ...original.inspectionPolicy, ignorePatterns: ['build/'] } };
+    await updateSetupAdoptionJournal(first.journalPath, updated);
+    const saved = await readSetupJournal(first.journalPath);
+    expect(saved).toEqual({ ...first.journal, inspectionPolicy: updated.inspectionPolicy });
+    await expect(updateSetupAdoptionJournal(first.journalPath, { ...updated, uuid: '11111111-1111-4111-8111-111111111111' })).rejects.toThrow('identity');
+    const savedBytes = JSON.parse(await readFile(first.journalPath, 'utf8')) as Record<string, unknown>;
+    for (const malformed of [null, {}, { ...updated.inspectionPolicy, knownMarkerPaths: [42] }]) {
+      await writeFile(first.journalPath, JSON.stringify({ ...savedBytes, inspectionPolicy: malformed }));
+      await expect(readSetupJournal(first.journalPath)).rejects.toThrow('Invalid setup journal');
+    }
   });
 
   it('does not return an incomplete journal belonging to another note', async () => {

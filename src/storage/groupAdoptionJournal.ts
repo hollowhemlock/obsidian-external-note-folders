@@ -12,6 +12,7 @@ import path from 'node:path';
 
 import type { GroupAdoptionPlan } from '../core/groupAdoption.ts';
 
+import { isAdoptionInspectionPolicy } from '../core/adoptionPolicy.ts';
 import { assertPathIsWithinRoot } from '../core/pathPolicy.ts';
 import { isCanonicalUuid } from '../core/uuid.ts';
 
@@ -180,6 +181,9 @@ function isGroupPlan(value: unknown): value is GroupAdoptionPlan {
   if (!isRecord(value)) {
     return false;
   }
+  if ('inspectionPolicy' in value && !isAdoptionInspectionPolicy(value['inspectionPolicy'])) {
+    return false;
+  }
   for (const key of ['folderPath', 'vaultRoot', 'externalRoot', 'notePath', 'expectedFolder', 'uuid']) {
     if (typeof value[key] !== 'string') {
       return false;
@@ -192,6 +196,9 @@ function isGroupPlan(value: unknown): value is GroupAdoptionPlan {
     return false;
   }
   if (value['aliases'] !== null && !isStringArray(value['aliases'])) {
+    return false;
+  }
+  if (value['templateExcludePatterns'] !== undefined && !isStringArray(value['templateExcludePatterns'])) {
     return false;
   }
   return typeof value['mutationSequence'] === 'number' && ['ignorePatterns', 'descendants', 'warnings'].every((key) => isStringArray(value[key]));

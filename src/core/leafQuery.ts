@@ -35,13 +35,20 @@ export interface LeafReportModel {
   externalRoot: string;
   finishedAt: string;
   mutationWarning: boolean;
+  revision?: number;
   rootFolder?: LeafTreeNode;
   rows: LeafRow[];
+  scanMetrics?: ScanMetrics;
+  scanSummary?: string;
   stale?: boolean;
   startedAt: string;
+  statusScanMode?: import('./auditTypes.ts').StatusScanMode;
+  templateExclusionSummary?: string;
   tree?: LeafTreeNode[];
+  uncheckedBindings?: string[];
   uncheckedCount: number;
   vaultRoot: string;
+  verifiedChanges?: { folders: string[]; operationId: string; verifiedAt: string }[];
 }
 export interface LeafRow {
   categories: LeafCategory[];
@@ -50,6 +57,14 @@ export interface LeafRow {
   relativePath: string;
   searchText: string;
   segments: string[];
+}
+export interface ScanMetrics {
+  excludedBranches: number;
+  physicalFolders: number;
+  physicalLeaves: number;
+  skippedLinks: number;
+  skippedRepositories: number;
+  unreadableDirectories: number;
 }
 
 const DEFAULT_DEPTH = 2;

@@ -28,6 +28,39 @@ function fixture(paths: string[]): ReturnType<typeof auditFixture> {
   return scan;
 }
 describe('filesystem report tree', () => {
+  it('filters adoptable physical leaves with the current search and availability', () => {
+    const model = buildLeafReport(fixture(['Branch', 'Branch/Available', 'Branch/Blocked', 'Other']));
+    const blocked = model.tree!.find((node) => node.segments.at(-1) === 'Blocked')!;
+    blocked.blocked = true;
+    const query = { ...DEFAULT_TREE_QUERY, adoptableOnly: true, search: 'Branch' };
+    const result = queryTree(model, query);
+    expect([...result.matched].map((id) => result.nodes.get(id)?.segments.at(-1))).toEqual(['Available']);
+    expect(result.rows.map((row) => row.segments.at(-1))).toEqual(['Available']);
+    expect([...result.visible].map((id) => result.nodes.get(id)?.segments.at(-1))).toContain('Branch');
+    expect(queryTree(model, { ...query, category: 'git' }).matched.size).toBe(0);
+    model.stale = true;
+    expect(queryTree(model, query).matched.size).toBe(0);
+  });
+
+  it('counts adoptable leaves separately from all leaves and keeps whole-branch totals under filtering', () => {
+    const model = buildLeafReport(fixture(['Branch', 'Branch/Available', 'Branch/Blocked', 'Elsewhere']));
+    const branch = model.tree!.find((node) => node.relativePath === 'Branch')!;
+    const blocked = model.tree!.find((node) => node.segments.at(-1) === 'Blocked')!;
+    blocked.blocked = true;
+    const result = queryTree(model, DEFAULT_TREE_QUERY);
+    expect(result.adoptableCounts.get(branch.id)).toBe(1);
+    expect(result.counts.get(branch.id)).toBe(2);
+    const filtered = queryTree(model, { ...DEFAULT_TREE_QUERY, search: 'Available' });
+    expect(filtered.filteredAdoptableCounts.get(branch.id)).toBe(1);
+    expect(filtered.counts.get(branch.id)).toBe(1);
+    expect(filtered.adoptableCounts.get(branch.id)).toBe(1);
+    expect(branch.total).toBe(2);
+    model.coverage!.vaultIdentityIssueIds.push('unreadable-note');
+    const restricted = queryTree(model, DEFAULT_TREE_QUERY);
+    expect(restricted.adoptableCounts.get(branch.id) ?? 0).toBe(0);
+    expect(restricted.counts.get(branch.id)).toBe(2);
+  });
+
   it('keeps natural sibling order and stable total-count order under filtering', () => {
     const model = buildLeafReport(fixture(['item10', 'item2', 'item2/a', 'item2/b']));
     const names = queryTree(model, DEFAULT_TREE_QUERY);

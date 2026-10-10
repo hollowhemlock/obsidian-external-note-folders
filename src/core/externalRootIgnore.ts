@@ -11,11 +11,13 @@ export interface ExternalRootIgnoreMatcher {
   errors: ExternalRootIgnoreError[];
   ignoresAbsoluteDirectoryPath: (absolutePath: string) => boolean;
   ignoresRelativeDirectoryPath: (relativePath: string) => boolean;
+  ignoresRelativeFilePath: (relativePath: string) => boolean;
   patterns: string[];
 }
 
 export interface ExternalRootIgnoreOptions {
   ignoreCase?: boolean;
+  rootLabel?: string;
 }
 
 export interface IgnoredDirectory {
@@ -31,7 +33,7 @@ export function buildExternalRootIgnoreMatcher(
   rawPatterns: readonly string[] = [],
   options: ExternalRootIgnoreOptions = {}
 ): ExternalRootIgnoreMatcher {
-  const normalizedPatterns = normalizeExternalRootIgnorePatterns(rawPatterns);
+  const normalizedPatterns = normalizeExternalRootIgnorePatterns(rawPatterns, options.rootLabel);
   const ignoreCase = options.ignoreCase ?? (process.platform === 'darwin' || process.platform === 'win32');
   const ignoreMatcher = ignoreFactory({
     ignorecase: ignoreCase
@@ -55,6 +57,10 @@ export function buildExternalRootIgnoreMatcher(
         toExternalRootRelativeIgnorePath(externalRootPath, absolutePath)
       ),
     ignoresRelativeDirectoryPath: (relativePath: string) => ignoresRelativeDirectoryPath(ignoreMatcher, normalizeRelativeIgnorePath(relativePath)),
+    ignoresRelativeFilePath: (relativePath: string): boolean => {
+      const normalized = normalizeRelativeIgnorePath(relativePath);
+      return normalized.length > 0 && normalized !== '.' && ignoreMatcher.ignores(normalized);
+    },
     patterns: normalizedPatterns.patterns
   };
 }
@@ -75,7 +81,7 @@ export function formatIgnoredDirectoryWarnings(ignoredDirectories: readonly Igno
   ];
 }
 
-export function normalizeExternalRootIgnorePatterns(rawPatterns: readonly string[]): {
+export function normalizeExternalRootIgnorePatterns(rawPatterns: readonly string[], rootLabel = 'configured external root'): {
   errors: ExternalRootIgnoreError[];
   patterns: string[];
 } {
@@ -98,7 +104,7 @@ export function normalizeExternalRootIgnorePatterns(rawPatterns: readonly string
 
     if (WINDOWS_DRIVE_PATTERN.test(normalizedPattern) || normalizedPattern.startsWith('//')) {
       errors.push({
-        message: 'Ignore patterns must be relative to the configured external root.',
+        message: `Ignore patterns must be relative to the ${rootLabel}.`,
         pattern: normalizedPattern
       });
       continue;

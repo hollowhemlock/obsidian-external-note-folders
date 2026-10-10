@@ -10,10 +10,9 @@ model implications.
 > that ADR: new writes use `<uuid>.exnf`, while fixed `.exnf` markers are legacy
 > migration evidence.
 >
-> ADR-0027 treats the marker filename change as a breaking marker-contract
-> change targeting a future `2.0.0` release. Fixed `.exnf` markers are
-> deprecated in favor of `<uuid>.exnf`; this document does not bump package or
-> manifest versions.
+> ADR-0027 introduced the breaking marker-contract change released in `2.0.0`.
+> Fixed `.exnf` markers are deprecated in favor of `<uuid>.exnf`; this document
+> does not bump package or manifest versions.
 
 ## Related Decisions
 

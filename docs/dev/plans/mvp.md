@@ -1,6 +1,13 @@
 # External Note Folders — MVP Plan
 
-This plan defines a safe, minimal MVP aligned with ADR-0001 through ADR-0014.
+Status: Historical implementation checklist, not the current product backlog.
+
+This plan records the original MVP phases and their validation notes. Checked
+items and old command/script names describe that work; unchecked items do not
+authorize new work. For current behavior and test requirements, start with the
+[README](../../../README.md#documentation-map), [product intent](../product/intent.md),
+and [testing guide](../testing/README.md). Accepted follow-up ADRs supersede early
+design assumptions in this checklist.
 
 The plan is split into three phases:
 
@@ -28,9 +35,9 @@ Status legend:
 - [x] No conflict-based surprise renames — plugin never renames folders to
       dodge collisions (deterministic path derivation including sanitization
       and hash shortening is normal creation behavior, not renaming)
-- [x] External state never drives vault mutations automatically; the only
-      exception is explicit, confirmation-gated restoration of one unique
-      exact-path imported marker identity under ADR-0031
+- [x] External state never drives vault mutations automatically. Later explicit
+      workflows include imported-marker restoration under ADR-0031 and
+      single-folder adoption/selected-note relocation under ADR-0032 and ADR-0008.
 - [x] Exactly one external root is configured
 
 References:

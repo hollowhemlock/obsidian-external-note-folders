@@ -1,6 +1,7 @@
 import {
   mkdir,
   mkdtemp,
+  readdir,
   rm,
   symlink,
   writeFile
@@ -11,7 +12,8 @@ import {
   afterEach,
   describe,
   expect,
-  it
+  it,
+  vi
 } from 'vitest';
 
 import { buildExnfMarkerFileName } from '../core/marker.ts';
@@ -23,11 +25,28 @@ import {
 
 const UUID = '123e4567-e89b-42d3-a456-426614174000';
 
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const original = await importOriginal<typeof import('node:fs/promises')>();
+  return { ...original, readdir: vi.fn(original.readdir) };
+});
+
 describe('setup target inspection', () => {
   const temporaryDirectories: string[] = [];
 
   afterEach(async () => {
+    vi.clearAllMocks();
     await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { force: true, recursive: true })));
+  });
+
+  it('blocks setup when an existing parent cannot be enumerated', async () => {
+    const root = await tempRoot();
+    await mkdir(path.join(root, 'Parent'));
+    vi.mocked(readdir).mockRejectedValueOnce(Object.assign(new Error('parent access denied'), { code: 'EACCES' }));
+    const inspection = await inspectSetupTarget({ externalRootPath: root, ignorePatterns: [], notePath: 'Parent/Alpha.md' });
+    expect(inspection.errors).toEqual([expect.stringContaining('parent access denied')]);
+    expect(inspection.directoryPaths).toEqual([]);
+    expect(inspection.targetMarkerUuids).toEqual([]);
+    expect(await readdir(path.join(root, 'Parent'))).toEqual([]);
   });
 
   it('classifies missing, unmarked, and imported-marker targets', async () => {

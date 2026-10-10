@@ -71,6 +71,28 @@ async function snapshot(root: string): Promise<Record<string, string>> {
 }
 
 describe('standalone adoption audit', () => {
+  it('excludes declared templates while retaining ordinary malformed-note restrictions', async () => {
+    const { external, vault } = await fixture();
+    const malformed = '---\nvalue: [\n---\n';
+    await put(vault, 'Draft.tpl.md', malformed);
+    await put(vault, 'nested/Draft.tpl.md', malformed);
+    await put(vault, 'settings/templates/note.md', malformed);
+    await put(vault, 'settings/templates.archive/note.md', note());
+    await put(vault, 'nested/settings/templates/note.md', malformed);
+    await put(vault, 'ordinary.md', malformed);
+    await put(external, `settings/templates/${UUID}.exnf`);
+    const scan = await scanAdoptionAudit(vault, external, {
+      templateExcludePatterns: ['*.tpl.md', '/settings/templates/', '/settings/templates.archive/']
+    });
+    expect(scan.notes.map((entry) => entry.relativePath).sort()).toEqual(['nested/settings/templates/note.md', 'ordinary.md']);
+    expect(scan.issues.filter((issue) => issue.unchecked)).toHaveLength(2);
+    expect(scan.vault.bindings.size).toBe(0);
+    expect(scan.markers).toHaveLength(1);
+    expect(buildAuditReports(scan).summary).toContain('Template exclusions');
+    // Standalone scans remain exhaustive unless exclusions are explicitly supplied.
+    expect((await scanAdoptionAudit(vault, external)).notes).toHaveLength(6);
+  });
+
   it('optionally excludes command-specific branches while still scanning all vault notes', async () => {
     const { external, vault } = await fixture();
     await put(vault, 'node_modules/Note.md', note());
@@ -124,6 +146,49 @@ describe('standalone adoption audit', () => {
     expect(scan.notes.find((item) => item.notePath.endsWith('quoted.md'))?.uuid).toBe(UUID);
     expect(scan.notes.find((item) => item.notePath.endsWith('empty.md'))?.status).toBe('invalid-property');
     expect(scan.issues.filter((issue) => issue.unchecked)).toEqual([]);
+  });
+
+  it.each([
+    `identity: &identity ${UUID}\nexnf: *identity`,
+    `exnf: "${UUID.slice(0, 18)}\\\n  ${UUID.slice(18)}"`
+  ])('preserves identity when YAML uses aliases or quoted line continuations: %s', async (frontmatter) => {
+    const { external, vault } = await fixture();
+    await put(vault, 'Note.md', `---\n${frontmatter}\n---\n`);
+    const before = await snapshot(vault);
+    const scan = await scanAdoptionAudit(vault, external);
+    expect(scan.notes).toEqual([expect.objectContaining({ relativePath: 'Note.md', status: 'valid', uuid: UUID, value: UUID })]);
+    expect(scan.vault.bindings.get(UUID)).toBe('Note.md');
+    expect(scan.issues).toEqual([]);
+    expect(await snapshot(vault)).toEqual(before);
+  });
+
+  it('preserves folded quoted values when reporting invalid YAML identities', async () => {
+    const { external, vault } = await fixture();
+    await put(vault, 'Note.md', '---\nexnf: "first line\n  second line"\n---\n');
+    const scan = await scanAdoptionAudit(vault, external);
+    expect(scan.notes).toEqual([expect.objectContaining({ status: 'invalid-property', value: 'first line second line' })]);
+    expect(scan.vault.bindings.size).toBe(0);
+  });
+
+  it.each([
+    ['alias expansion', `a: &a [one, two]\nb: &b [${Array<string>(10).fill('*a').join(', ')}]\nc: [${Array<string>(10).fill('*b').join(', ')}]`],
+    ['excessive nesting', `nested: ${'['.repeat(5000)}one${']'.repeat(5000)}`]
+  ])('reports unchecked frontmatter after YAML resource exhaustion from %s and continues scanning', async (_name, frontmatter) => {
+    // Product intent 8: parsing failures remain visible without discarding readable note evidence.
+    const { external, vault } = await fixture();
+    await put(vault, 'A-bad.md', `---\nexnf: ${OTHER_UUID}\n${frontmatter}\n---\n`);
+    await put(vault, 'Z-good.md', note());
+    const before = await snapshot(vault);
+    const scan = await scanAdoptionAudit(vault, external);
+    expect(scan.notes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ relativePath: 'A-bad.md', status: 'unchecked-frontmatter' }),
+      expect.objectContaining({ relativePath: 'Z-good.md', status: 'valid', uuid: UUID })
+    ]));
+    expect(scan.vault.bindings.has(OTHER_UUID)).toBe(false);
+    expect(scan.vault.bindings.get(UUID)).toBe('Z-good.md');
+    expect(scan.issues).toEqual([expect.objectContaining({ location: path.join(vault, 'A-bad.md'), scope: 'vault', unchecked: true })]);
+    expect(buildAuditReports(scan).complete).toBe(false);
+    expect(await snapshot(vault)).toEqual(before);
   });
 
   it('reports missing counterparts and uses deepest exact adoption candidates', async () => {

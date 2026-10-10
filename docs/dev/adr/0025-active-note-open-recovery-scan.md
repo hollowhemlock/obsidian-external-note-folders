@@ -98,6 +98,16 @@ active-note recovery scan. If the expected folder itself is ignored, recovery ca
 still explain that state but safe create/adopt actions for that ignored target
 are disabled.
 
+### Missing marker in the expected folder
+
+An identified note with an unmarked expected folder offers the shared **Create
+missing marker** preview from ADR-0031. The selected identity is freshly read
+through the vault adapter before choosing recovery. Discovery and navigation
+remain available; their unrelated errors do not independently veto the scoped
+repair. Discovered locations for the selected UUID are passed to repair for fresh
+checks. Its own target/ancestor safety, ownership, topology, and exclusion checks
+authorize creation, never the legacy recovery availability flag.
+
 ### Out of Scope
 
 - Scan caps, cancellation, cache/indexing, or background indexing

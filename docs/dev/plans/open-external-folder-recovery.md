@@ -1,5 +1,11 @@
 # Open External Folder Recovery Spec
 
+Status: Maintained supporting specification for active-note recovery.
+
+Unlike the historical rollout plans in this directory, this document is kept
+aligned with the recovery command. Product intent and accepted ADRs remain the
+higher authorities; it does not govern the separate status-window adoption UI.
+
 ## Summary
 
 `Open external folder` has a fast path and a recovery path. The fast path opens
@@ -7,8 +13,9 @@ the expected folder when it is already correctly bound. The recovery path runs
 only when expected-folder inspection fails to find a matching marker; it scans
 for active-note-relevant recovery data and presents a persistent modal.
 
-This spec is canonical for the recovery modal UX. README tables summarize this
-behavior but should not add extra modal behavior.
+This spec describes the recovery modal UX within the constraints of
+[ADR-0025](../adr/0025-active-note-open-recovery-scan.md). README tables summarize
+this behavior but should not add extra modal behavior.
 
 ## Command Flow
 

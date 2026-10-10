@@ -2,9 +2,53 @@
 
 This is a plugin for [Obsidian](https://obsidian.md/) that associates Obsidian vault notes with lazily created folders under an external root using UUIDs, preserving stable associations across moves and reorganizations.
 
+## Start here
+
+Install and enable the plugin through [BRAT](#installation). For a reproducible
+beta trial, pin the version you are testing. In **Settings → External Note
+Folders**, set **External root path** to the directory that will hold your
+external folders.
+
+### Your first binding in five minutes
+
+1. Create and open a note named `Projects/Example.md` in your vault.
+2. Run **Set up external folder** from Obsidian's command palette. When the
+   expected folder is absent, the plugin creates `<external root>/Projects/Example`
+   and opens it. If that folder already contains files, review and confirm the
+   adoption preview first.
+3. The note now has an `exnf` property. The external folder contains an empty
+   `<same UUID>.exnf` file. Keep both: they identify the relationship even if a
+   path changes later.
+4. Run **External folder status** and select `Projects/Example`. A matching
+   checked binding is green **Healthy**. The coverage notice explains locations
+   the scan skipped; green does not require an exhaustive root scan.
+5. Run **Open external folder** from the note whenever you need its files.
+
+![A checked Example binding is green, with matching YAML and marker columns.](docs/images/status-2.2.png)
+
+To bind a folder that already exists, select it in **External folder status** and
+choose **Adopt this folder…**. Choose a suggested note or create one, inspect the
+preview, and confirm. Selecting a suggestion alone writes nothing. **Bind without
+moving** preserves a selected note's location; a different expected path is
+shown as **Path differs**. After adoption, the status and identity columns update
+automatically so you can continue to the next folder without refreshing.
+
+If an identified note's expected folder has lost its marker, use **Create missing
+marker**. Review the existing UUID and proposed marker path, then confirm
+**Create marker**. Do not assign a replacement UUID. If an operation was
+interrupted, choose **Review pending operation** before trying another change.
+
+Path-drift moves retain stricter checks: incomplete scan coverage can disable a
+move even when the note and local marker match. The scoped adoption and missing-marker
+repair policies do not authorize moving an existing binding.
+
+For details, see [the command reference](#commands),
+[External folder status](#external-folder-status), and
+[the safety model](#pragmatic-solution).
+
 ## What It Does
 
-External Note Folders links a markdown note to an external folder by storing a canonical UUID in the note's `exnf` frontmatter field and creating an empty `<uuid>.exnf` marker file in the external folder. The canonical filename is the marker's complete identity; its contents are never read. Legacy fixed `.exnf` markers are read during the 2.0.0 migration window and should be migrated with the explicit migration command.
+External Note Folders links a markdown note to an external folder by storing a canonical UUID in the note's `exnf` frontmatter field and creating an empty `<uuid>.exnf` marker file in the external folder. The canonical filename is the marker's complete identity; its contents are never read. Legacy fixed `.exnf` markers remain readable for migration and should be migrated with the explicit migration command.
 
 External folder paths normally mirror the vault-relative note path without `.md`. Folder-note layouts collapse to the parent folder, so `Projects/Alpha/Alpha.md` uses `Projects/Alpha/` instead of `Projects/Alpha/Alpha/`.
 
@@ -30,7 +74,7 @@ Reconcile is never automatic. The command builds a dry-run plan first and moves 
 - `Adopt exact-path external folders`: Builds a leaf-first dry-run plan for exact derived-path matches from notes that do not already have `exnf` identity. When exact candidates overlap, only the deepest candidates are eligible, and targets overlapping an already-identified note or marked folder are blocked, so adoption never creates nested identities or bound folders. After confirmation, the command writes `<uuid>.exnf` markers first and note frontmatter second. The legacy command ID remains unchanged so existing hotkeys continue to work.
 - `Suggest moved external folder matches`: Builds a read-only report of unassigned notes and unmarked external folders with identical literal names but divergent relative paths. Only names that are unique among checked eligible paths are suggested; ambiguous names are summarized, and ignored or skipped subtrees are explicitly unchecked. This command never assigns UUIDs, writes markers, moves folders, or adopts a suggestion.
 - `Report external folder drift`: Read-only report that compares current note-derived external folder paths against existing external folders, highlights integrity errors, missing/orphaned/unexpected/occupied paths, and suggests likely matches.
-- `External folder status`: Opens or focuses the shared status tree for the active vault and external root. Defaults to scanning and showing all folders. Command-specific settings optionally exclude branches from scanning. Inspect exact-path, YAML, and marker evidence; preview adoption or a selected binding repair before confirming. Refresh explicitly to rescan; Cancel retains the previous result. The existing command ID and hotkeys remain unchanged.
+- `External folder status`: Opens or focuses the shared status tree for the active vault and external root. Defaults to filtering external folders using shared exclusions and repository Git ignore rules. Use the explicit unfiltered rescan for exhaustive external discovery. Inspect exact-path, YAML, and marker evidence; preview adoption or a selected binding repair before confirming. Refresh explicitly to rescan; Cancel retains the previous result. The existing command ID and hotkeys remain unchanged.
 - `Resume folder adoption…`: Lists pending single-folder operations, even when their markers hide them from the unmarked report. Revalidates before resuming. An uncertain rename requires manual inspection of note locations and links before verifying completion.
 - `Reconcile external folders`: Builds a dry-run move plan and, only after explicit confirmation, moves existing bound external folders to their current note-derived paths. It never deletes folders or marker files and stops on first failure.
 - `Migrate legacy marker files`: Builds a dry-run plan that renames legacy fixed `.exnf` markers to `<uuid>.exnf` and executes only after explicit confirmation.
@@ -230,6 +274,41 @@ with the [`ignore`](https://github.com/kaelzhang/node-ignore) package. See also
 the [Git gitignore documentation](https://git-scm.com/docs/gitignore) and
 [ADR-0026](docs/dev/adr/0026-safe-partial-exact-adoption-with-external-root-ignore-patterns.md).
 
+## Template Exclusion Patterns
+
+Use **Template exclusion patterns** for template source files whose frontmatter
+is intentionally incomplete. Enter one vault-relative `.gitignore`-style pattern
+per line. The setting is empty by default; nothing is excluded automatically.
+
+```gitignore
+*.tpl.md
+/settings/templates/
+/settings/templates.archive/
+```
+
+`*.tpl.md` matches filenames at any depth. A leading `/` anchors a pattern to the
+vault root, and a trailing `/` matches a directory and its descendants. The two
+directory patterns above do not match `nested/settings/templates/`. Either style
+works independently, and they can be combined. Backslashes are normalized to `/`;
+blank lines and `#` comments are ignored. Negation, Windows drive paths, and UNC
+paths are rejected. Case matching follows the external-root pattern conventions.
+
+Matching files are outside the plugin's binding scope: they cannot own bindings,
+receive identifiers, be adopted, or be destinations for note creation or moves.
+Their frontmatter is not inspected, including any existing `exnf` property. Use
+these patterns only for files that should never own external folders. Generated
+notes outside the excluded paths are checked normally. External markers are
+still inspected; excluding their owner does not hide or delete the markers.
+
+This setting applies to all plugin note scans and mutation preflights, separately
+from external-folder ignore settings. Refresh **External folder status** after
+changing it. Scan details and exports disclose the configured patterns and count
+of excluded files or directory subtrees; coverage refers to eligible notes only.
+Ordinary unreadable or malformed notes still restrict adoption. Changing the
+patterns invalidates previews; legacy group-adoption recovery requires restoring
+its original patterns. Removing a pattern restores normal checks for those notes.
+Standalone audit commands continue to scan all notes by default.
+
 ## Safety Model
 
 - The vault is the source of truth for note identity.
@@ -253,7 +332,7 @@ the [Git gitignore documentation](https://git-scm.com/docs/gitignore) and
 | Expected folder has matching marker | Opens without a root scan. Additional UUID markers in that folder produce a warning and are never overwritten. | Reported as current plus stale/orphan/misplaced evidence. | [ADR-0015](docs/dev/adr/0015-external-folder-path-derivation.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md), [ADR-0027](docs/dev/adr/0027-uuid-named-marker-files.md) |
 | Canonical marker contains arbitrary or unreadable data | Content is not read; the canonical filename supplies identity. | Classified from the filename. | [ADR-0027](docs/dev/adr/0027-uuid-named-marker-files.md) |
 | Expected folder is missing | Runs the active-note recovery scan before offering create/open actions. | Can report a missing expected folder or an unexpected off-path folder if one exists. | [ADR-0002](docs/dev/adr/0002-missing-external-is-normal.md), [ADR-0015](docs/dev/adr/0015-external-folder-path-derivation.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md) |
-| Expected folder exists without marker | Runs recovery scan and may offer explicit marker adoption after revalidation. | Reported as an occupied target path when a bound folder is expected there. | [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md), [ADR-0027](docs/dev/adr/0027-uuid-named-marker-files.md) |
+| Expected folder exists without marker | Runs recovery discovery and offers the shared **Create missing marker** preview with fresh scoped checks. | Reported as an occupied target path when a bound folder is expected there. | [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md), [ADR-0027](docs/dev/adr/0027-uuid-named-marker-files.md) |
 | Expected folder has a malformed marker filename, malformed legacy marker content, or a different marker UUID | Does not open the expected path; runs recovery scan and shows the expected-path problem. | Reported as an integrity error or occupied target. | [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md), [ADR-0027](docs/dev/adr/0027-uuid-named-marker-files.md) |
 | Same UUID is bound somewhere else | If expected fast path failed, one off-path match can open with a persistent modal; duplicates block auto-open. | Reported as unexpected drift and can be reconciled explicitly. | [ADR-0006](docs/dev/adr/0006-reconcile-is-explicit.md), [ADR-0022](docs/dev/adr/0022-reconcile-planner-and-execution-contract.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md) |
 | Marker has no matching vault note | Only shown by open recovery when it is an exact-name candidate or active-note-relevant warning. | Reported as an orphan bound folder. | [ADR-0008](docs/dev/adr/0008-no-reverse-reconciliation.md), [ADR-0009](docs/dev/adr/0009-status-model.md), [ADR-0025](docs/dev/adr/0025-active-note-open-recovery-scan.md), [ADR-0027](docs/dev/adr/0027-uuid-named-marker-files.md) |
@@ -284,18 +363,49 @@ reconciliation.
 - Bulk adoption is strict, partial, and leaf-first: it only adopts deepest exact derived-path matches whose individual target row is safe. Existing bindings and planned leaves are pruned from a compact residual-tree summary; malformed, duplicate, and skipped evidence remains visible as grouped warnings or blocked candidates, while configured ignores appear as notices. Residual directories are informational and are never modified.
 - `Report external folder drift` is read-only and can be used before reconcile to inspect missing, orphaned, unexpected, occupied, and likely moved folders without changing the vault or external root.
 - `Open external folder` does not assign note identity. Use `Set up external folder` for the one-command workflow or `Assign external folder identifier` when identity should exist before a folder.
-- ADR-0025 recovery scans are active-note scoped, not a substitute for full drift reporting. Long-running commands show a start/progress modal, but scan caps, cancellation, and cached indexes are intentionally out of scope until performance requires them.
+- ADR-0025 recovery scans are active-note scoped, not a substitute for full drift reporting. Their start/progress modal is separate from the status window's cancellable physical audit and scheduled analysis.
 - Concurrent UUID assignment across unsynced devices can create orphan external folders.
 - Sync tool conflicts in note frontmatter or external marker files are outside the plugin's repair scope; `Report external folder drift` surfaces the resulting state.
-- Fixed `.exnf` markers are deprecated legacy evidence during the 2.0.0 migration window. New writes create empty `<uuid>.exnf` files; run `Migrate legacy marker files` to rename old markers.
+- Fixed `.exnf` markers remain readable as deprecated legacy evidence. New writes create empty `<uuid>.exnf` files; run `Migrate legacy marker files` to rename old markers.
 - New UUID-named markers are empty because their canonical filename carries the folder identity. Existing UUID-named marker contents are opaque and ignored. Legacy fixed `.exnf` markers still carry their UUID in their content during the migration window.
 
 ## Contributor Guide
 
+### Documentation map
+
+Use this map for human and LLM-assisted maintenance. Current task instructions
+take precedence; repository documents do not independently authorize commits,
+publishing, or mutations. Check the current checkout before assuming a proposal
+has shipped or an earlier test result still applies.
+
+| Task | Start here | Status / purpose |
+| --- | --- | --- |
+| Understand commands and settings | [Commands](#commands), [External folder status](#external-folder-status) | Current user-facing behavior; not a roadmap. |
+| Change product behavior | [Product intent](docs/dev/product/intent.md), [ADR index](docs/dev/adr/README.md) | Product authority, then accepted architectural and safety decisions. Superseded ADRs are historical. |
+| Find implementation boundaries | [Project structure](#project-structure), [Agent guide](AGENTS.md) | Code navigation and task workflow; keep business rules in core. |
+| Decide task authority | [Autonomy policy](docs/dev/agent/autonomy-policy.md) | Scope and escalation rules; advisory observations do not authorize work. |
+| Add or verify coverage | [Testing guide](docs/dev/testing/README.md), [State matrix](docs/dev/testing/external-folder-state-matrix.md) | Current coverage expectations; the linked ledger distinguishes tested and planned scenarios. |
+| Run live Obsidian tests | [Integration guide](test/integration/README.md), [Fixture guide](test/fixtures/README.md) | Primary-checkout-only disposable sandbox; never substitute a real user vault. |
+| Review or release | [Review gate](docs/dev/procedures/commit-pull-request-merge-review-gate.md), [Release procedure](docs/dev/procedures/release.md) | Required evidence and publication workflow; local tests do not replace required CI. |
+| Investigate earlier designs | [MVP plan](docs/dev/plans/mvp.md), [Adoption plan](docs/dev/plans/external-folder-adoption.md), [Marker notes](docs/dev/plans/uuid-marker-filenames.md) | Historical implementation context, not a current backlog. |
+| Change active-note recovery UX | [Recovery spec](docs/dev/plans/open-external-folder-recovery.md) | Maintained supporting spec, subordinate to product intent and accepted ADRs. |
+
+`.release-intent/` records describe the intent and validation of their original
+changes. They are not the installed-version source or fresh test evidence.
+Release Please owns version metadata and the changelog; use the exact release
+tag to inspect a published version. `CLAUDE.md` delegates to `AGENTS.md` so agent
+guidance has one entry point. The ADR index is generated; update its source ADRs
+and run `npm run docs:adr:index` rather than editing the index by hand.
+
 ### Project structure
 
-- `src/`: plugin source (entrypoint `main.ts`, core plugin classes, UI samples, editor extensions, styles)
-- `scripts/`: local development helpers
+- `src/main.ts`, `src/Plugin.ts`: plugin entry point, commands, mutation lock, and adapter wiring
+- `src/core/`: pure identity, path, report, and planning logic; no filesystem IO or Obsidian imports
+- `src/storage/`: filesystem/process adapters, journals, physical audit scanning, and report output
+- `src/obsidian/`: vault API adapters, status tab, and single-folder adoption controller/dialog
+- `src/ui/`: shared browser-safe report UI, session state, navigation, and presentation
+- Root `src/*Modal.ts` and `src/PluginSettingsTab.ts`: Obsidian-specific dialogs and settings UI
+- `scripts/`: standalone audit/HTML entry points, performance checks, sandbox helpers, and release tooling
 - `test/fixtures/`: committed fixture data and disposable sandbox data
 - `docs/dev/adr/`: architecture decision records
 - `docs/dev/procedures/`: development and release procedures
@@ -306,6 +416,8 @@ reconciliation.
 - `npm run dev`
 - `npm run build`
 - `npm run build:clean`
+- `npm run sandbox:refresh` (build and reload the existing sandbox plugin without
+  resetting notes, external files, settings, or journals; primary checkout only)
 - `npm run lint`
 - `npm run format:check`
 - `npm run test`
@@ -317,6 +429,20 @@ reconciliation.
 - `npm run release:check-metadata`
 - `npm run release:check-assets`
 - `npm run fixtures:new-sandbox`
+
+After validated runtime/UI changes, the agent workflow runs `npm run sandbox:refresh`
+automatically. This uses the successful `dist/build` artifacts and reloads only this
+plugin in the sandbox; it does not reload the whole app window or reset fixtures.
+The sandbox must already be initialized with the plugin enabled. A reload failure
+is reported separately from copying the artifacts. Builds used by CI and worktrees
+remain independent of the local Obsidian runtime. `npm run dev` remains available
+for continuous watch builds.
+
+Integration tests still use a real Obsidian runtime and reset the disposable sandbox.
+They can open notes and modals within that vault. The existing runner may open/reload
+its window; it does not guarantee a desktop without interruptions. Use an isolated
+desktop session or test machine for that guarantee. See the
+[integration guide](test/integration/README.md#desktop-interruption-and-background-runs).
 
 ### Standalone read-only adoption audit
 
@@ -331,9 +457,11 @@ npx --no-install jiti scripts/audit-adoption.ts `
 
 These are also the default source roots; the default output parent is the system
 temporary directory under `external-note-folders-audit`. Each run writes a fresh
-timestamped directory and prints its absolute path. The command uses the locally
-installed `jiti` and `yaml` packages from the current dependency tree; it does not
-install packages or require a running Obsidian instance. Use `--help` for options.
+timestamped directory and prints its absolute path. The command uses the project's
+declared `jiti` development dependency and `yaml` runtime dependency; it does not
+install packages or require a running Obsidian instance. The YAML parser is also
+bundled into the plugin's `main.js`, so plugin users need no separate YAML package,
+Obsidian plugin, Node.js, or npm installation. Use `--help` for options.
 
 The audit reads actual files recursively, without using Obsidian's cache or plugin
 ignore settings. Under `cabin`, it reads markdown files and parses top-level YAML
@@ -381,6 +509,38 @@ This is a live scan, not an atomic filesystem snapshot; rerun if files change du
 the scan. Exit codes are `0` for a complete scan (which may have findings), `2` for
 incomplete coverage with reports, and `1` for a command/output failure.
 
+### Create a missing marker
+
+When an identified note maps exactly to a checked, unmarked folder, status shows
+**Missing marker** and **Create missing marker**. Setup and Open recovery use the
+same preview. It shows the note, existing UUID, absolute folder, and proposed
+marker path. **Create marker** writes only an empty `<uuid>.exnf`; the note,
+folder contents, and locations stay unchanged. Offline HTML explains this action
+and directs you to Obsidian.
+
+Fresh checks read vault note identities without relying on the metadata cache,
+then inspect the target, ancestors, and included descendants. Intentional settings
+and Git exclusions (including tracked-path exceptions and Git metadata) are
+listed in a collapsed disclosure and require no acknowledgment. They do not
+block this narrow repair. An excluded target, unsafe paths, unignored links,
+required read/repository failures, competing UUID owners, overlapping identified
+note reservations, or observed conflicting markers do block it. Ordinary child
+notes without identifiers do not block restoring the parent marker.
+
+Previously discovered locations for this UUID are rechecked before creation.
+A remaining match offers **Inspect existing binding**. Unknown locations outside
+the checked scope may still contain markers; this does not prove exhaustive
+uniqueness. Changes to eligibility or disclosed omission scope require a new
+preview. A matching marker that appears meanwhile is verified, never overwritten.
+
+Marker-only repairs use the setup journal's `marker-write → complete` stages,
+never frontmatter writing. **Review pending operation** remains available after
+restart; resume requires the original note UUID and repeats the same checks.
+Overlapping mutations are blocked while repair is pending. Successful creation
+refreshes the current status mode, selection, and filters; a failed or cancelled
+refresh keeps the previous snapshot visibly stale. Generic adoption, missing-folder
+creation, and imported-identity restoration retain their separate safeguards.
+
 ### External folder status
 
 Open `report.html` offline or run **External folder status** in Obsidian. Keep
@@ -419,8 +579,8 @@ cancelled/failed refresh preserve this inspection; selecting another folder,
 changing filters, or a completed refresh ends it. Root markers are inspected
 through **Inspect external root**, without adding a folder row or adoption target.
 
-Parents above confirmed bindings are labeled **Contains bound subfolders**.
-When descendant markers exist without a confirmed binding, the label is
+Parents above checked, matching bindings are labeled **Contains bound subfolders**.
+When descendant markers exist without an observed valid binding, the label is
 **Contains descendant markers**. These replace misleading unassigned/adoption
 candidate labels without overriding local conflicts or unchecked evidence.
 An identified parent without a local marker retains **Marker absent here** and
@@ -430,11 +590,49 @@ counts and explain why adopting the entire parent would create a nested binding.
 The parent can remain an ordinary container; its local `marker` tag stays absent.
 The adoption restrictions list names the affected paths and offers navigation.
 
-Search and Refresh stay visible. **View** contains sorting and display filters;
-**Export** contains downloads. Escape closes either disclosure and returns focus.
-Active filters are summarized beside **Clear filters**. Display choices last only
+The external root path and **Inspect external root** sit directly below the title.
+**Scan** shows the completed scan mode, time, outcome, and separate metrics for
+physical folders, known physical leaves, excluded branches, unreadable directories,
+skipped links, and skipped repositories. These totals describe the captured scan
+and stay fixed while filtering or navigating. Unknown metrics show an em dash.
+**Scan details** contains diagnostics; **Export scan** contains all-status,
+all-unmarked-leaf, and audit CSV exports. **Rescan excluding ignored folders**,
+**Rescan entire external directory without filters**, and **Cancel** sit at the end
+of Scan. Cancelling or failing a rescan preserves the last completed snapshot.
+
+**Filter** starts with **Search within results** and contains separate counts of
+matching folders, physical leaves, and expected paths. **Export filtered results**
+contains matching-status and matching-unmarked-leaf exports. Filter counts include
+matches in collapsed branches and exclude context ancestors and navigation reveals.
+**All folders**, **Adoptable leaves**, and **Needs review** are quick
+views. Choosing one preserves search, status, and category filters and resets the
+advanced folder scope to all scanned folders. Adoptable leaves includes only
+physical leaves with no known adoption blocker; context ancestors remain visible.
+**Status**, **Category**, and **Sort** are always labeled and visible. **Advanced**
+contains unmarked-leaf scope, generated/internal paths, and expected paths.
+It shows an indicator when an advanced filter is active. Adoption recovery sits
+with the result navigation controls. Escape closes Advanced or an export disclosure
+and returns focus. Search narrows the current view without rescanning.
+Removable filter chips sit below the controls. Each chip removes only its own
+filter; **Clear filters** resets every filter while preserving sort order. Empty
+results offer the same clear-filter action. Display choices last only
 for the current tab; reopening starts with all folders and natural name sorting.
-**Scan details** lists exclusions, skipped links, and read failures in pages.
+Scan progress and outcomes remain separate from filter and action feedback.
+Passive text, including paths, metrics, warnings, legends, and details, is selectable
+for copying. Interactive tree rows and controls retain their normal interactions.
+The Scan section describes expected omissions once: ignored folders reduce scan
+work and noise, links are not followed, and additional markers or note identities
+may exist in unchecked locations. These omissions are informational. Read failures
+and unavailable repositories have a compact warning with **View scan problems**.
+**Scan details** groups intentional exclusions, skipped links, read/repository
+failures, and marker findings in separate collapsed, paginated sections.
+Fatal scan failures open a separate **Latest scan attempt** section with the
+attempt's timestamp, scan mode, roots, affected path when available, and full
+diagnostic. Its text is selectable; **Copy error** copies the diagnostic and its
+context even before the first successful scan. The failed attempt stays separate
+from the last completed snapshot and remains available during a retry. A completed
+or cancelled retry clears it; another failure replaces it. Snapshot exports still
+describe the completed scan, not a later failed attempt.
 
 **Needs review** narrows the current filters to orange/red rows. **Previous issue**
 and **Next issue** visit those matches in tree order using the current sibling
@@ -442,25 +640,48 @@ sort, including collapsed branches and rows beyond the rendered page. Navigation
 does not wrap or change filters; unavailable directions are disabled. Context-only
 ancestors and temporary reveals are not issues. The position indicator counts
 issues in the current filters, whether Needs review is on or off.
+These controls sit above the details pane, alongside **Next adoptable leaf**.
+That action selects the next physical leaf with no known adoption blocker within
+the current search and filters, including collapsed branches and later pages.
+It does not adopt, wrap, or change filters. Stale snapshots and pending operations
+are respected; a fresh adoption preview still checks the selected note and mode.
 
 Exact-path evidence uses discovered vault paths independently of external scan
 gaps. An unreadable note still has a usable path, but its YAML identity is
 unchecked. An unreadable marker does not make inspected child directories
-unreadable or remove their known leaf counts. Identity uniqueness remains
-provisional when scan gaps could conceal duplicate UUIDs.
+unreadable or remove their known leaf counts.
+
+**Healthy binding** means the directory, associated note, and local marker identity
+were checked, their UUIDs match at the expected path, and no conflict affecting the
+binding was found. Exhaustive discovery is not required: unrelated vault gaps,
+external exclusions, skipped links/repositories, and unreadable descendants do not
+downgrade a matching binding. Drift remains orange. Unchecked local identity
+evidence prevents green, including an unreadable second marker beside a matching
+marker. Observed valid nested markers make both marked participants conflicts;
+ordinary unmarked containers remain informational. Global coverage cannot prove
+uniqueness or absence in unchecked locations, and is disclosed separately.
 
 The details panel leads with the relationship and available actions. Adoption
 stays visible but disabled for known restrictions, naming local, ancestor, or
-descendant markers and excluded, linked, or unreadable paths. Pending operations
-offer recovery; stale results offer Refresh. **Choose a note to check adoption**
+descendant markers, excluded targets, and required linked or unreadable paths. Intentional
+exclusions beneath an included target alone do not restrict selected-folder adoption. When note restrictions
+could come from intentional template frontmatter, **Open template exclusion settings** opens
+and focuses the plugin's pattern setting. Configure deliberate exclusions and
+refresh; the shortcut does not exclude anything itself. Offline reports show the
+settings path instead. Pending operations offer recovery; stale results offer
+Refresh. **Choose a note to check adoption**
 means no blocker is established by the snapshot; the adoption preview and fresh
-execution checks remain authoritative. Associated notes, same-name suggestions,
+execution checks remain authoritative. Observed valid bindings instead say
+**Already bound; adoption is not needed**, with the disabled adoption control and
+restrictions inside a collapsed **Adoption restrictions** section. Recovery and
+stale-result controls remain prominent. Associated notes, same-name suggestions,
 other marked ancestors, and technical/scan details start expanded; each section
 can be collapsed. Same-name suggestions remain separate from confirmed associations.
-Scan details and the View/Export controls outside the selected-folder panel
+Scan details and the Advanced/export controls outside the selected-folder panel
 continue to start closed.
 
-A compact sticky header keeps the selected folder, status, and navigation visible.
+A compact sticky header keeps the selected folder, status, and path actions visible.
+The relative path scrolls with the details, leaving more room for restrictions.
 Binding relationships and actions precede note suggestions and technical records.
 Actual/expected paths have labeled copy controls. Sorting, filtering, and refresh
 preserve the same folder's section expansion, scroll position, and keyboard focus;
@@ -474,8 +695,10 @@ remembered only for the current tab/page session and returns when widened.
 
 Compact 28px rows align folder names, physical leaf quantities, descriptors, and
 evidence in separate columns. Indentation affects only the name column. Leaf
-quantities show matching/known totals when filters hide leaves. Column headings
-stay visible while scrolling; narrow panes scroll horizontally to retain the
+quantities show **Adoptable / total** physical leaves within the current search
+and filters. Tooltips retain the whole branch's adoptable and total leaf counts.
+Adoptable means no known blocker in this snapshot, not approval to adopt. Column
+headings stay visible while scrolling; narrow panes scroll horizontally to retain the
 columns. Details text can be selected and copied normally, alongside the existing
 Copy path buttons.
 
@@ -496,9 +719,9 @@ disables actions without recoloring the previous completed result.
 | Color | Meaning | Examples |
 | --- | --- | --- |
 | Gray | Informational | Blocked containers, content subfolders, intentionally excluded paths and skipped links |
-| Green | Healthy binding | Confirmed binding at the expected path |
+| Green | Healthy binding | Checked matching binding at the expected path |
 | Blue | Optional action | Branches or leaves with no known adoption blocker, including unassigned folders |
-| Orange | Review recommended | Drift, unreadable local evidence, unmatched markers, provisional bindings, changes awaiting refresh |
+| Orange | Review recommended | Drift, unreadable local evidence, unmatched markers, changes awaiting refresh |
 | Red | Conflict / recovery | Invalid identities, duplicate UUIDs, conflicting bindings, pending operations |
 
 | Attention | Light row / hover | Dark row / hover | Light / dark indicator |
@@ -528,26 +751,62 @@ These are informational: they cannot be adopted or opened as existing folders.
 A partial external root can intentionally omit them. A UUID found elsewhere is
 reported as drift, while excluded or unreadable locations remain unchecked.
 
-Settings under **External folder status — this command only** are independent
-of normal external-root ignore settings. **Ignored folder patterns** defaults to
-`.git/`, `node_modules/`, `build/`, `dist/`, `.cache/`, `__pycache__/`, and `.venv/`.
-**Skip scanning ignored folders** is off by default. Enabling it skips matching
-external branches on the next refresh; vault notes are still fully scanned.
-Turn it off to search for unexpectedly misplaced markers in those branches.
-Excluded branches remain labeled placeholders. Incomplete coverage makes
-uniqueness and absence provisional. Standalone audits continue to scan fully.
+Filtered status scans use **External root ignore patterns** plus Git's repository
+and nested `.gitignore` files, `.git/info/exclude`, and configured global ignore
+file. Git interprets the full file syntax, including negation, escaping, and `**`.
+Rules apply within their repository, including worktrees and submodules. Tracked
+files protect their containing directories from Git pruning; explicit plugin
+exclusions still take precedence. Git metadata is excluded automatically.
+Generated directories such as `dist/` have no additional hard-coded exclusion.
+
+Git must be installed and available to Obsidian. Nested repositories that fail
+initial repository or index validation are skipped before their contents are
+scanned. The scan completes with warnings, and **Scan details** retains each
+skipped repository and its Git diagnostic. Skipped repositories have their own
+count and remain unchecked, with the same adoption restrictions as other
+unscanned branches. No worktree repair is performed automatically.
+
+Root or containing-repository validation failures, Git launch failures, timeouts,
+output-limit failures, and errors during ignore queries or process shutdown stop
+the filtered scan and preserve the previous completed results. There is no
+approximate fallback. **Rescan entire external directory without filters** works without Git
+and bypasses external scan exclusions. It still respects template exclusions,
+read failures, and the prohibition on following links. Every included folder is
+checked for all `.exnf` markers, regardless of file-level Git ignore rules.
+
+Ignored, unreadable, and linked branches are hidden from the normal tree, with
+counts and reasons retained in **Scan details**. Git exclusions name the source
+file, line, and rule. Identified notes pointing into unchecked branches remain
+visible in a warning summary. Excluded targets remain unavailable and excluded topology preserves
+physical-leaf counts. Incomplete coverage limits exhaustive uniqueness and absence
+claims without downgrading checked bindings. Display filters never rescan, and each new scan reloads Git rules.
+Standalone audits, bulk adoption, and other repairs retain their existing scan behavior.
+
+Detected repository roots show **git**, including nested repositories,
+worktrees, and submodules. Descendant details show **Inside repository**, linking
+to the nearest root when it is in the displayed tree. A containing root outside
+the tree is shown as a path. These labels describe discovered `.git` metadata,
+not repository health or eligibility. Unfiltered scans detect directories and
+gitfiles without invoking Git or following their pointers. Normal filtered browsing
+keeps `.git` hidden. Labels do not change colors, leaf counts, expansion, navigation,
+or candidate selection; users can choose an eligible outer, repository, or inner folder.
+All tree rows use normal font weight, including marked folders and selected rows.
 
 **Export filtered status** and **Export all status** write `filtered-folder-status.csv`
 and `folder-status.csv`, including evidence, confidence, note paths, and explanations.
+The existing `confidence` column describes exhaustive coverage, independently of
+displayed binding health; `provisional` can accompany a green observed binding.
+CSV schemas and forensic audit classifications retain their existing meanings.
 Filtered exports include matching folders in collapsed branches, but exclude
 contextual tree ancestors and temporary navigation reveals. Displayed-folder
-counts likewise count actual filter matches. All-status exports include virtual
+counts in Filter likewise count actual filter matches. All-status exports include virtual
 expected paths. Existing audit CSVs and unmarked-leaf exports retain their meanings.
-Status fields describe the captured scan. If session mutations affect filtering,
-status exports append that context to the existing explanation field; they do not
-replace captured evidence with an assumed post-mutation state.
+Status fields and current status exports include verified adoption updates. Each
+export pins one report revision when invoked, even while its destination dialog is
+open. Summaries preserve the original scan scope/time and list later verification.
+Raw forensic audit exports continue to describe the original completed scan.
 
-For a unique drifted binding, selected-folder details offer **Move external folder
+For a drifted binding with complete checked coverage, selected-folder details offer **Move external folder
 to match note** or **Move note to match external folder**. Both require a preview
 and explicit confirmation, fresh full scans, safe destinations, and mutation-lock
 checks. Folder moves include their subtree. Note moves relocate only the selected
@@ -561,8 +820,12 @@ conflict repair is offered.
 
 In Obsidian, **Adopt this folder…** in the selected folder details binds that directory and its
 entire subtree to one note, including content hidden by filters. It opens a
-dialog; nothing changes until **Confirm adoption**. Suggestions include exact
-derived paths, matching filenames, and aliases. Search the vault for other
+dialog; nothing changes until **Confirm adoption**. A persistent **Suggested notes**
+list shows full paths, exact-path matches, same-name candidates, aliases, and local
+restrictions. One locally suitable exact-name candidate is preselected after all
+competing candidates have been checked; multiple or unresolved choices require
+selection. Suggestions never prove eligibility. Clicking or keyboard-selecting a
+suggestion immediately prepares a preview and defaults to **Bind without moving**. Search the vault for other
 notes in the autocomplete field and choose a suggestion, or enter an exact vault-relative
 note path (the `.md` extension is optional). Empty input selects **Create new note**;
 a valid existing note enables **Bind without moving** and **Move note to match folder**.
@@ -587,8 +850,21 @@ External folders never move during adoption. Future reconciliation remains
 note-driven. Hidden vault paths and paths that cannot round-trip through the
 plugin's path rules cannot be new-note or move destinations.
 
-Adoption respects ignore settings and checks the entire selected subtree for
-markers and unsafe evidence, including physically present ignored descendants.
+Selected-folder adoption that creates a new UUID inspects the target, ancestors,
+and included descendants using the same configured/Git exclusions, tracked-path
+exceptions, and metadata exclusions as filtered status scans. It checks every marker
+in included directories regardless of file-level ignore rules. Excluded targets or
+targets under excluded ancestors remain unavailable; intentional excluded descendants
+alone do not block the parent. Existing-unmarked-folder setup uses this same policy.
+The preview's collapsed **Excluded from checks** retains paths, reasons, and Git rule
+provenance. No exclusion acknowledgment is required. Excluded locations may contain
+undiscovered markers; these checks do not establish exhaustive uniqueness.
+
+Fresh vault identity, note-content, destination, and reservation checks still apply.
+Known overlapping marker evidence from completed reports is rechecked even under
+excluded directories; unreadable known evidence blocks. Unrelated external failures
+do not veto adoption, but failures in a containing repository needed to inspect the
+target do. A different note-derived expected path receives the same topology checks.
 Existing bindings prevent nested adoption. Matching unassigned child notes require
 acknowledgment; they remain unchanged but cannot have separate nested bindings.
 An existing UUID is reused only after fresh uniqueness checks. Alias problems,
@@ -603,18 +879,40 @@ Resume checks saved note content before writing markers or note properties. Edit
 source notes block further writes. Newly discovered descendant notes are listed
 in the recovery dialog and require acknowledgment before resuming; further
 additions require acknowledgment again.
+New-policy journals retain their inspection scope and known marker evidence. If
+omissions change after a partial write, **Review pending operation** offers updated
+checks for confirmation and resumes the same journal, preserving identity and completed
+effects. Older journals retain their original strict rules without migration.
 An interrupted rename is never blindly repeated. Once the note is at the intended
 destination and links have been checked manually, **I checked links — verify
 completion** validates the binding and finishes the journal without another move.
 No rollback deletes notes, directories, or markers.
 
-After adoption, stay in the report and use **Open note** if desired. Affected
-folders are marked adopted or pending recovery. Counts and exports remain a
-historical snapshot, with a stale warning until **Refresh**. Standalone HTML has
-no adoption controls. Single-folder writes avoid creating unwanted notes, but
-safety checks can still require full-root scans.
+After verified adoption or resume, YAML and marker columns, binding status, counts,
+and navigation update automatically without another filesystem traversal or manual
+refresh. The report retains selection, expansion, filters, and scroll position.
+An adopted row leaving **Adoptable only** remains temporarily visible until you
+navigate away; it is no longer an adoptable candidate. Healthy and Path differs
+remain primary. Secondary history distinguishes **Binding changed this session**
+from **Binding changed in a subfolder** and links to affected descendants.
 
-The tab labels its scope **Full physical audit — ignore patterns not applied**.
+Updates preserve unrelated conflicts and unchecked evidence. Each report retains its
+own discovery scope, including unfiltered evidence omitted by adoption's narrower
+checks. Original scan times remain visible beside later verification times. A scan
+overlapping a mutation cannot replace newer verified results. If presentation fails,
+**Adoption completed; status update needs verification** offers a read-only retry;
+a completed adoption is not repeated. Pending writes retain recovery controls.
+Standalone HTML presents the supplied working revision with no adoption controls. Single-folder writes avoid creating unwanted notes, but
+safety checks for reuse of an existing UUID still require full-root scans. Imported
+restoration, bulk exact adoption, and reconcile/move checks remain unchanged. Missing-folder
+setup retains its targeted fast path; exact missing-marker repair uses its separate workflow.
+
+The tab labels its scope **Physical audit — scan and template exclusions are disclosed below**.
+It defaults to filtered external scanning; eligible vault notes are still fully
+scanned. The separate **Template exclusion patterns** setting declares which
+vault paths cannot own bindings. Completed snapshots and exports disclose their
+scan mode and coverage. Cancelled or failed rescans retain the prior snapshot's
+mode and timestamp. Reopening the tab starts with filtered scanning.
 This audit explicitly permits raw, read-only filesystem reads of the active vault;
 it does not use cached frontmatter. Vault adapters without an absolute filesystem
 root are unsupported. Existing commands keep their vault adapters, ignore rules,
@@ -646,6 +944,12 @@ CSV slice durations, and export time in `tmp/audit-performance.json`. The sandbo
 integration suite also measures shared-interface rendering and filtering with
 20,000 leaves. Performance varies with hardware, path depth, and file sizes;
 one filesystem response or individual YAML document cannot be interrupted midway.
+Selected adoption verifies the target, ancestors, included descendants, the relevant
+expected path, and all eligible vault identities. Fresh bytes remain mandatory.
+Bounded note reads and workflow-local parse reuse reduce repeated work; confirmation
+still repeats required safety checks. The controller benchmark records preview and
+confirmation separately, with inspection/read/parse/Git work counts. A no-op move
+performs no inspection; final verification also supplies report evidence.
 
 ### Commit conventions
 
@@ -795,6 +1099,14 @@ The plugin does not use `window.DEBUG`.
 - `npm run test:integration` builds the plugin, fully resets the sandbox, installs the plugin
   artifacts, reloads Obsidian, and runs the integration tests. The GitHub integration workflow is
   manual-only and requires an online self-hosted runner labeled `obsidian-cli`.
+  The post-reload preflight waits up to 30 seconds for the exact sandbox vault,
+  loaded plugin, and registered commands, then checks the supported app version.
+  It fails immediately on a different vault and never writes a probe into it.
+  Headless Windows filesystem/process/controller tests also run in pull-request CI.
+- Integration watch is intentionally unavailable because reruns reused mutated fixtures and
+  stale plugin builds. Setup tests record folder-opening requests without launching Explorer;
+  the [integration guide](test/integration/README.md#file-manager-launch-coverage) describes an
+  optional manual file-manager check.
 - Formal semantic fixture scenarios live under
   `test/fixtures/fixture/{vault-plugin-external-note-folders-fixture,external-root}/<domain>/<scenario-slug>`
   with expected JSON under

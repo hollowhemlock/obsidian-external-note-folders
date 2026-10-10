@@ -142,6 +142,25 @@ Maintenance guidance lives in [Testing Strategy](README.md).
 | R27 | Imported marker UUID also occurs elsewhere in the checked root | Restoration blocker |
 | R28 | Restoration scan has skipped or inaccessible evidence | Uniqueness cannot be proven; block |
 | R29 | Restoration scan excludes configured ignored directories | Intentional blind spot disclosed in confirmation |
+| R30 | Status scan excludes directories using Git rules and shared patterns | Hidden branches retain coverage, binding warnings, and adoption restrictions |
+| R31 | Git filtering fails or is unavailable | Nested repository/index validation exits skip that branch with explicit unchecked coverage; root validation, launch, timeout, output-limit, and runtime failures retain the previous snapshot; explicit unfiltered scan remains available |
+
+Status presentation checks for R30/R31 keep Scan totals and outcomes separate from
+Filter matches and action feedback. Cover unknown versus zero metrics, ignored
+branches versus unavailable repositories, collapsed matches, context ancestors,
+and temporary navigation reveals. Sandbox checks cover section and export
+placement, rescan controls, root inspection, and selectable passive text.
+
+Status binding health for R30/R31 and G7 is independent of exhaustive coverage:
+checked matching note/marker identity at the expected path is green despite
+unrelated vault gaps, exclusions, skipped links/repositories, or unreadable
+descendants. Local directory/note/marker uncertainty prevents green, including a
+matching marker beside an unreadable second marker. Drift remains orange;
+observed valid nested markers make all overlapping marked participants red,
+without recoloring unmarked containers. Ancestor descriptions, binding counts,
+review navigation, and offline HTML use the same rule. Expected omissions are
+informational; actual failures have a compact warning and grouped diagnostics.
+Adoption/repair safeguards, forensic classifications, and CSV schemas are unchanged.
 
 ### Journal And Execution State
 
@@ -400,3 +419,61 @@ Coverage tracking lives in
 every canonical state ID in this matrix as either covered by a committed scenario or planned for a
 specific future fixture group. `npm run test` validates that the ledger stays synchronized with this
 matrix and with committed expected JSON.
+
+The 2.2 readiness pass adds command-boundary coverage for absent/non-Markdown active
+files, stale plans, the mutation lock, unavailable roots during resume, and completed
+scoped setup followed by a file-manager failure. The latter preserves the completed
+journal and binding and reports opening as a separate failure. Parent-read failures
+use injected storage errors rather than OS-dependent permission changes. Existing
+controller tests cover completed writes followed by presentation failure; these are
+now reflected in the coverage ledger.
+
+## Missing-marker repair (ADR-0031)
+
+| State | Expected behavior | Coverage |
+| --- | --- | --- |
+| Exact identified note; checked unmarked target; .git/references/node_modules/dist omitted | Enabled preview, existing UUID, collapsed omissions; marker-only confirmation | Controller and availability regression tests; sandbox UI |
+| Missing metadata-cache entry | Fresh note bytes select the repair workflow; no replacement UUID | Setup and controller regressions |
+| Duplicate UUID owner, overlapping identified reservation, nested/local conflict | Block creation | Core and controller regressions |
+| Unrelated invalid parsed UUID or ordinary descendant note | Does not independently block | Core/controller regressions |
+| Required read/parse/enumeration failure or unsafe known location | Block without writes | Controller regressions |
+| Git policy or omission scope changes after preview | Re-preview required; tracked markers remain conflicts | Controller regressions |
+| Matching marker appears concurrently | Verify and complete without rewriting | Controller regression |
+| Interruption immediately after marker creation | Pending operation survives restart; original identity required; resume verifies output | Controller and journal regressions |
+| Completed repair, refresh succeeds | Green observed binding; filters/selection retained | Sandbox UI |
+| Failed/cancelled refresh after mutation | Preserve stale snapshot | Audit session regressions |
+| Old setup journals | Existing stages remain readable/resumable | Existing setup/journal regressions |
+
+## Scoped new-UUID adoption and repository orientation (ADR-0032/0034)
+
+| State | Expected behavior | Coverage |
+| --- | --- | --- |
+| Included outer project, repo root, or eligible inner folder with ignored descendants | Preview allowed; exclusions disclosed without acknowledgment | Controller and rendered sandbox |
+| Excluded target or ancestor | Unavailable; never suggested through leaf navigation | Availability/controller |
+| Included marker, identified reservation, unsafe path, required read/repository failure | Block the affected adoption; retain forensic coverage | Controller, scanner, core |
+| Unrelated broken repository | Does not independently veto a targeted adoption | Controller |
+| Known overlapping marker becomes excluded | Recheck before dismissing; unreadable known location blocks | Controller recovery |
+| Omission scope changes after marker creation | Updated preview and confirmation resume same journal/UUID without rewriting completed effects | Controller, setup journal, sandbox |
+| Old journal or malformed optional context | Absent context uses old rules; malformed context rejected | Journal/storage |
+| Nested repo, worktree, submodule, external containing root | Nearest repository badge/context; metadata label does not imply health | Git scanner and sandbox |
+| Unfiltered scan without Git | Detect metadata without following gitfile pointers | Git scanner |
+| Labels with leaf navigation and offline HTML | Same ordering, branch expansion, physical counts, read-only offline controls | Core and sandbox |
+
+## Continuous selected-folder adoption (ADR-0032)
+
+| State | Expected behavior | Coverage |
+| --- | --- | --- |
+| Verified adoption or resumed adoption | New immutable working evidence; YAML/marker/status/counts update without full refresh | Controller/session; rendered consecutive adoptions |
+| Expected path versus different path | Healthy versus Path differs remains primary; unrelated optional rows keep their colors | Core/session/rendered |
+| Changed child under bound or unbound ancestor | Ancestor retains its primary description; secondary linked descendant history | Shared details; rendered |
+| Adopted selection leaves current filter | Temporarily reveal row without candidate count or export membership | Rendered navigation |
+| Narrow verification over unfiltered report | Preserve omitted discoveries and original scope/time | Core/session; two open report modes |
+| Unreadable, skipped, or absent evidence | Retain known evidence unless a successful check establishes replacement or absence | Evidence merge regressions |
+| Export dialog open during completion | Export uses one pinned revision; forensic exports use original scan | Session |
+| Duplicate, obsolete, disposed, or incompatible update | Do not republish or overwrite current report | Session |
+| Full scan overlapping adoption | Retain newer verified evidence; disclose superseded scan | Session |
+| Completed journal with failed presentation | No repeated mutation; read-only targeted retry | Controller/session |
+| Zero, one, multiple, blocked or unreadable suggestions | Local reads only; sole suitable candidate can preselect; ambiguity requires choice | Dialog/controller/rendered |
+| Preview cancellation and shared work | No writes; settle cancelled work; do not reuse completed authority | Preview/state tests |
+| Large vault and consecutive adoption | Eight reads maximum; deterministic evidence; bounded exact-content cache; five/six inspection budget | Scanner/cache/controller benchmark |
+| Legacy and partially completed journals | Retain existing validation and recovery safeguards | Existing controller/storage regressions |

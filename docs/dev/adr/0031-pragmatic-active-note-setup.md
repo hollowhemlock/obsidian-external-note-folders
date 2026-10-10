@@ -41,6 +41,40 @@ If a matching expected marker coexists with other UUID markers, opening remains
 available but warns about the additional identities. No command overwrites or
 chooses among competing markers.
 
+## Scoped adoption of an existing unmarked folder
+
+Existing unmarked targets for unassigned notes now use ADR-0032's scoped new-UUID
+adoption policy. Fresh vault reads and target topology checks run at preview, every
+effect, and completion. Intentional excluded descendants alone do not block adoption.
+The setup journal optionally captures the original note bytes and validated inspection
+context. Changed scope on recovery requires an updated preview and confirmation for
+the same journal; completed writes and UUID remain intact. Absent context preserves
+legacy resume behavior; malformed context fails closed. Missing-folder setup's fast
+path and Git requirements, imported restoration, and identified-note repair are unchanged.
+
+## Marker-only repair for an identified note
+
+Status, Setup, and Open recovery share a marker-only preview and executor. Fresh
+adapter reads determine note ownership, independent of metadata-cache availability.
+Exactly one owner must retain the original UUID and expected target. The target,
+ancestors, and included subtree use the filtered status scan's configured/Git
+rules, tracked paths, and metadata exclusions. Intentional omissions are disclosed,
+not blockers. Required read failures, unignored links, repository-validation
+failures, overlapping identified reservations, and observed marker conflicts block.
+Ordinary descendant notes without UUIDs do not reserve the identified parent's
+binding. Known competing UUID locations are rechecked; no whole-root scan is
+required, and scoped checks do not establish exhaustive uniqueness.
+
+The pure repair plan captures identity, root, target, policy, omissions, known
+locations, and mutation sequence. Confirmation permits exclusive marker creation
+under the mutation lock after fresh checks. Matching concurrent output is verified.
+The marker-only action extends the existing journal with `marker-write → complete`,
+never a frontmatter stage. Resume repeats the same policy and requires the original
+note UUID. Changed eligibility or omissions require another preview. Old journals
+remain readable without migration. Pending repairs are discoverable after restart
+and block overlapping mutation workflows. This policy is separate from generic
+adoption and restoration of an imported UUID into an unassigned note.
+
 ## Consequences
 
 - Common setup no longer depends on a broad whole-root scan.

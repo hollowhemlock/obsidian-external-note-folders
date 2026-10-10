@@ -36,6 +36,20 @@ function fixture(): Parameters<typeof buildGroupAdoptionPlan>[0] {
   return { folderPath, ignorePatterns: [], move: false, mutationSequence: 0, note: null, snapshot, uuid: UUID };
 }
 describe('explicit folder group adoption', () => {
+  it('rejects excluded sources and destinations for binding, creation, and note moves', () => {
+    const input = fixture();
+    addNote(input, 'Draft.tpl.md');
+    input.snapshot.templateExclusions = { paths: [], patterns: ['*.tpl.md'] };
+    for (const move of [false, true]) {
+      expect(() => buildGroupAdoptionPlan({ ...input, move, note: { aliases: [], path: 'Draft.tpl.md' } })).toThrow('excluded');
+    }
+    input.snapshot.templateExclusions.patterns = ['/Projects/'];
+    expect(() => buildGroupAdoptionPlan(input)).toThrow('excluded');
+    addNote(input, 'Other.md');
+    expect(() => buildGroupAdoptionPlan({ ...input, move: true, note: { aliases: [], path: 'Other.md' } })).toThrow('excluded');
+    expect(buildGroupAdoptionPlan({ ...input, note: { aliases: [], path: 'Other.md' } }).templateExcludePatterns).toEqual(['/Projects/']);
+  });
+
   it('creates minimal matching paths and recognizes folder notes', () => {
     const input = fixture();
     expect(buildGroupAdoptionPlan(input).notePath).toBe('Projects/Example.md');

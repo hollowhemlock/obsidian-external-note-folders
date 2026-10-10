@@ -28,6 +28,52 @@ function fixture(): {
   return { a, b, model, parent };
 }
 describe('shared folder availability', () => {
+  it('allows an included parent around intentional exclusions without inventing leaves', () => {
+    const scan = auditFixture();
+    const parent = path.join(scan.externalRoot, 'Project');
+    const excluded = path.join(parent, 'build');
+    scan.folders.push(parent, excluded);
+    scan.external.ignoredDirectories.push({ folderPath: excluded, relativePath: 'Project/build' });
+    scan.issues.push({
+      exclusionSource: 'git',
+      kind: 'directory',
+      location: excluded,
+      reason: 'Git rule .gitignore:1: build/',
+      scope: 'external',
+      unchecked: true
+    });
+    const model = buildLeafReport(scan);
+    const node = model.tree!.find((item) => item.folderPath === parent)!;
+    const availability = finishAuditSteps(folderAvailabilitySteps(model, model.tree!));
+    expect(availability.get(node.id)?.adoptable).toBe(true);
+    expect(node.evidence?.physicalLeaf).toBe(false);
+    expect(model.coverage!.issues).toHaveLength(1);
+    const hidden = model.tree!.find((item) => item.folderPath === excluded)!;
+    expect(availability.get(hidden.id)?.adoptable).toBe(false);
+  });
+  it('offers missing-marker preview through intentional omissions but not stale or pending evidence', () => {
+    const scan = auditFixture();
+    const uuid = '123e4567-e89b-42d3-a456-426614174000';
+    const folderPath = path.join(scan.externalRoot, 'Conductor');
+    scan.folders.push(folderPath);
+    scan.notes.push({ hasExnf: true, notePath: path.join(scan.vaultRoot, 'Conductor.md'), relativePath: 'Conductor.md', status: 'valid', uuid, value: uuid });
+    scan.vault.bindings.set(uuid, 'Conductor.md');
+    for (const name of ['references', 'node_modules', 'dist', '.git']) {
+      const location = path.join(folderPath, name);
+      scan.external.ignoredDirectories.push({ folderPath: location, relativePath: `Conductor/${name}` });
+      scan.issues.push({ exclusionSource: 'git', kind: 'directory', location, reason: `Git excludes ${name}`, scope: 'external', unchecked: true });
+    }
+    const model = buildLeafReport(scan);
+    const tree = model.tree ?? [];
+    const node = tree.find((item) => item.folderPath === folderPath);
+    if (!node) {
+      throw new Error('Missing fixture folder');
+    }
+    expect(finishAuditSteps(folderAvailabilitySteps(model, tree)).get(node.id)).toMatchObject({ adoptable: false, attention: 'review', markerRepair: true });
+    expect(finishAuditSteps(folderAvailabilitySteps(model, tree, new Map([[folderPath, null]]))).get(node.id)?.markerRepair).toBe(false);
+    model.stale = true;
+    expect(finishAuditSteps(folderAvailabilitySteps(model, tree)).get(node.id)?.markerRepair).toBe(false);
+  });
   it('keeps case-distinct folders separate with captured case-sensitive identities', () => {
     const { a, model } = fixture();
     model.caseSensitivePaths = true;

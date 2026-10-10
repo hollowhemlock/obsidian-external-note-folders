@@ -2,12 +2,16 @@ import type { AuditMarker } from './auditTypes.ts';
 import type { LeafReportModel } from './leafQuery.ts';
 import type { LeafTreeNode } from './leafTree.ts';
 
+import { isIntentionalExclusion } from './adoptionPolicy.ts';
+
 export interface AdoptionBlocker {
   location: string;
   message: string;
   nodeId?: string;
 }
 export interface CoverageIssue {
+  code?: import('./auditTypes.ts').AuditIssue['code'];
+  exclusionSource?: import('./auditTypes.ts').AuditIssue['exclusionSource'];
   id: string;
   kind: 'directory' | 'excluded' | 'link' | 'marker' | 'note';
   location: string;
@@ -17,11 +21,14 @@ export interface CoverageIssue {
 }
 export interface FolderInspection {
   ancestorMarkerId: null | string;
+  ancestorReserved?: boolean;
   directoryChecked: boolean;
   issueIds: string[];
   markers: AuditMarker[];
   subtreeIssues: number;
   subtreeMarkers: number;
+  subtreeOmissions?: number;
+  subtreeReservations?: number;
 }
 export interface InspectionIndex {
   issues: Map<string, CoverageIssue>;
@@ -56,6 +63,7 @@ export function* adoptionBlockerSteps(index: InspectionIndex, node: LeafTreeNode
   let parent = index.nodes.get(node.parent ?? index.rootId ?? '');
   while (parent && parent.id !== node.id) {
     addIssues(parent);
+    addReservations(parent);
     parent = parent.id === index.rootId ? undefined : index.nodes.get(parent.parent ?? index.rootId ?? '');
     yield;
   }
@@ -75,9 +83,10 @@ export function* adoptionBlockerSteps(index: InspectionIndex, node: LeafTreeNode
       });
     }
     addIssues(current);
+    addReservations(current);
     for (const id of current.children) {
       const child = index.nodes.get(id);
-      if (child && child.kind !== 'virtual') {
+      if (child) {
         pending.push(child);
       }
       yield;
@@ -85,10 +94,24 @@ export function* adoptionBlockerSteps(index: InspectionIndex, node: LeafTreeNode
     yield;
   }
   return blockers;
+  function addReservations(current: LeafTreeNode): void {
+    for (const note of current.notes) {
+      if ((note.association === 'exact' || note.association === 'exact+uuid') && note.status !== 'missing-property') {
+        blockers.push({
+          location: note.notePath,
+          message: 'This identified or invalid note reserves an overlapping folder. Inspect its binding before adoption.',
+          nodeId: current.id
+        });
+      }
+    }
+  }
   function addIssues(current: LeafTreeNode): void {
     for (const id of current.inspection?.issueIds ?? []) {
       const issue = index.issues.get(id);
-      if (issue?.unchecked) {
+      if (
+        issue?.unchecked && !(current.id !== node.id && isIntentionalExclusion(issue)
+          && current.segments.length > node.segments.length)
+      ) {
         blockers.push({ location: issue.location, message: blockerExplanation(issue), nodeId: current.id });
       }
     }
@@ -115,11 +138,11 @@ export function descendantMarkerExplanation(node: LeafTreeNode): string {
   }
   const marked = `${String(counts.markedFolders)} marked ${counts.markedFolders === 1 ? 'subfolder' : 'subfolders'}`;
   const bound = counts.boundFolders
-    ? `, including ${String(counts.boundFolders)} confirmed ${counts.boundFolders === 1 ? 'binding' : 'bindings'}`
-    : '; no descendant binding is confirmed by this scan';
+    ? `, including ${String(counts.boundFolders)} observed ${counts.boundFolders === 1 ? 'binding' : 'bindings'}`
+    : '; no descendant binding was checked successfully';
   const restriction = counts.boundFolders
     ? 'Adopting this parent would create a nested binding.'
-    : 'Descendant marker evidence blocks parent adoption, even when those bindings are unconfirmed.';
+    : 'Descendant marker evidence blocks parent adoption, even when those bindings could not be checked.';
   return `This folder contains ${marked}${bound}. It cannot be adopted as a whole. ${restriction} `
     + 'It can remain an ordinary container. Inspect the marked subfolders; descendant markers do not activate this folder’s local marker tag.';
 }
@@ -164,15 +187,14 @@ export function* markedAncestors(index: InspectionIndex, node: LeafTreeNode): Ge
 
 export function shortFolderStatus(node: LeafTreeNode): string {
   const status = node.evidence?.status ?? 'Unchecked';
-  if (status.startsWith('Bound at ') && node.evidence?.confidence === 'provisional') {
-    return 'Binding match · provisional';
-  }
   const labels: Record<string, string> = {
     'Ambiguous or invalid evidence': 'Ambiguous / invalid',
-    'Bound at different path': 'Bound · different path',
+    'Bound at different path': 'Path differs',
     'Bound at expected path': 'Already bound',
     'Inside a marked folder': 'Content subfolder',
-    'Possible adoption candidate': 'Possible adoption'
+    'Marker absent here': 'Missing marker',
+    'Possible adoption candidate': 'Possible adoption',
+    'Unchecked': 'Binding could not be checked'
   };
   return labels[status] ?? status;
 }

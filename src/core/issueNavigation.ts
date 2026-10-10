@@ -1,5 +1,7 @@
 import type { TreeResult } from './leafTree.ts';
 
+import { isAdoptableLeaf } from './folderAvailability.ts';
+
 const BINARY_DIVISOR = 2;
 
 export interface IssueOrder {
@@ -26,8 +28,19 @@ export function adjacentIssue(order: IssueOrder, selected: string | undefined, d
   return order.ids[direction === 1 ? low : low - 1];
 }
 
+export function* adoptableLeafOrderSteps(result: TreeResult): Generator<void, IssueOrder> {
+  return yield* navigationOrderSteps(result, (id) => isAdoptableLeaf(result.nodes.get(id), result.availability.get(id)));
+}
+
 /** Walk all matching branches, independent of expansion and windowed DOM rows. */
 export function* issueOrderSteps(result: TreeResult): Generator<void, IssueOrder> {
+  return yield* navigationOrderSteps(result, (id) => {
+    const attention = result.availability.get(id)?.attention;
+    return attention === 'review' || attention === 'conflict';
+  });
+}
+
+function* navigationOrderSteps(result: TreeResult, eligible: (id: string) => boolean): Generator<void, IssueOrder> {
   const ids: string[] = [];
   const positions = new Map<string, number>();
   // Retain hidden selection positions without making hidden entries issues.
@@ -38,8 +51,7 @@ export function* issueOrderSteps(result: TreeResult): Generator<void, IssueOrder
       continue;
     }
     positions.set(id, positions.size);
-    const attention = result.availability.get(id)?.attention;
-    if (result.matched.has(id) && (attention === 'review' || attention === 'conflict')) {
+    if (result.matched.has(id) && eligible(id)) {
       ids.push(id);
     }
     const children = result.orderedChildren.get(id) ?? [];

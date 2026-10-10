@@ -6,6 +6,7 @@ import {
 } from 'obsidian';
 
 import type { LeafRow } from '../core/leafQuery.ts';
+import type { VerifiedBindingChange } from '../core/verifiedBindingChange.ts';
 import type { AuditMutationState } from '../ui/auditSession.ts';
 import type { LeafReportView } from '../ui/leafReportView.ts';
 
@@ -14,6 +15,8 @@ import { buildAuditExportSummary } from '../core/auditExportSummary.ts';
 import { buildAuditTableSteps } from '../core/auditReport.ts';
 import { folderStatusTable } from '../core/folderStatusCsv.ts';
 import { buildLeafReportSteps } from '../core/leafReport.ts';
+import { deriveExternalFolderPath } from '../core/pathPolicy.ts';
+import { inspectAdoption } from '../storage/adoptionInspection.ts';
 import {
   assertAuditRoots,
   openExistingAuditFolder
@@ -29,21 +32,49 @@ import { AuditExportModal } from './AuditExportModal.ts';
 
 export const LEAF_REPORT_VIEW_TYPE = 'external-note-folders-leaf-report';
 export interface LeafReportTabOptions {
-  adopt?: (folder: string) => void;
+  adopt?: (folder: string, knownMarkerPaths: string[]) => void;
+  createMissingMarker?: (notePath: string, folderPath: string, knownFolders: string[]) => Promise<void>;
   externalRoot: () => string;
   mutationState: () => AuditMutationState;
+  openTemplateSettings?: () => void;
   pending?: () => Promise<number>;
+  pendingRepairs?: () => Promise<{ targetPath: string }[]>;
   repair?: (folder: string, direction: 'external' | 'note') => Promise<void>;
   resume?: () => Promise<void>;
   scanPatterns?: () => string[];
+  templatePatterns?: () => string[];
 }
 
 export class LeafReportTab extends ItemView {
   private destination = '';
   private report: LeafReportView | undefined;
+  private retryButton: HTMLButtonElement | undefined;
+  private retryChange: undefined | VerifiedBindingChange;
+
   private session: AuditSession | undefined;
+
   public constructor(leaf: WorkspaceLeaf, private readonly options: LeafReportTabOptions) {
     super(leaf);
+  }
+
+  public async applyVerified(change: VerifiedBindingChange): Promise<void> {
+    try {
+      await this.session?.applyVerified(change);
+    } catch (error: unknown) {
+      this.showReportStatus(`Adoption completed; status update needs verification. ${String(error)}`);
+      this.retryChange = change;
+      this.retryButton?.remove();
+      const button = this.contentEl.createEl('button', { text: 'Retry status verification' });
+      this.retryButton = button;
+      button.onclick = (): void => {
+        button.disabled = true;
+        this.retryVerification().catch((failure: unknown) => {
+          this.showReportStatus(`Adoption completed; status update needs verification. ${String(failure)}`);
+        }).finally(() => {
+          button.disabled = false;
+        });
+      };
+    }
   }
 
   public override getDisplayText(): string {
@@ -58,9 +89,25 @@ export class LeafReportTab extends ItemView {
     return LEAF_REPORT_VIEW_TYPE;
   }
 
+  public knownMarkerFolders(uuid: string): string[] {
+    return (this.session?.workingSnapshot?.markers ?? []).filter((marker) => marker.uuid === uuid).map((marker) => marker.folderPath);
+  }
+
+  public knownMarkerPaths(): string[] {
+    const snapshot = this.session?.workingSnapshot;
+    return [
+      ...new Set([
+        ...(snapshot?.markers.map((marker) => marker.markerPath) ?? []),
+        ...(snapshot?.issues.filter((issue) => issue.scope === 'external' && (issue.kind === 'marker' || issue.location.toLowerCase().endsWith('.exnf'))).map((
+          issue
+        ) => issue.location) ?? [])
+      ])
+    ];
+  }
+
   public markAdopted(folder: string, note: null | string): void {
-    if (this.session?.model) {
-      this.session.model.stale = true;
+    if (this.session?.model && note !== null) {
+      this.session.model = { ...this.session.model, stale: true };
     }
     this.report?.adopted(folder, note);
   }
@@ -73,9 +120,18 @@ export class LeafReportTab extends ItemView {
   public override async onOpen(): Promise<void> {
     this.contentEl.replaceChildren();
     this.report = mountLeafReport(this.contentEl, {
+      ...(this.options.createMissingMarker
+        ? {
+          createMissingMarker: async (notePath: string, folderPath: string): Promise<void> => {
+            const note = this.session?.workingSnapshot?.notes.find((item) => item.relativePath === notePath);
+            await this.options.createMissingMarker?.(notePath, folderPath, note ? this.knownMarkerFolders(note.uuid) : []);
+          }
+        }
+        : {}),
       ...(this.options.adopt ? { adopt: this.options.adopt } : {}),
       ...(this.options.resume ? { resume: this.options.resume } : {}),
       ...(this.options.repair ? { repair: this.options.repair } : {}),
+      ...(this.options.openTemplateSettings ? { openTemplateSettings: this.options.openTemplateSettings } : {}),
       cancel: () => this.session?.cancel(),
       copy: async (text) => navigator.clipboard.writeText(text),
       exportLeaves: async (rows, filtered) => this.exportRows(rows, filtered),
@@ -95,6 +151,10 @@ export class LeafReportTab extends ItemView {
           );
         });
       },
+      initialContext: {
+        externalRoot: this.options.externalRoot(),
+        vaultRoot: (this.app.vault.adapter as { getBasePath?: () => string }).getBasePath?.() ?? ''
+      },
       openFolder: async (folderPath) => {
         await openExistingAuditFolder(folderPath);
       },
@@ -105,30 +165,52 @@ export class LeafReportTab extends ItemView {
         }
         await this.app.workspace.getLeaf('tab').openFile(file);
       },
-      refresh: async () => this.session?.refresh()
+      refresh: async () => this.session?.refresh(),
+      rescanUnfiltered: async () => this.session?.refresh('unfiltered')
     });
     this.session = new AuditSession({
+      actionStatus: (message, busy): void => this.report?.status(message, busy, 'action'),
       analyze: async (snapshot, signal): Promise<import('../core/leafQuery.ts').LeafReportModel> => runAuditSteps(buildLeafReportSteps(snapshot), { signal }),
+      configuration: (): { ignorePatterns: string[]; templatePatterns: string[] } => ({
+        ignorePatterns: [...(this.options.scanPatterns?.() ?? [])],
+        templatePatterns: [...(this.options.templatePatterns?.() ?? [])]
+      }),
       mutationState: this.options.mutationState,
       scan: async (control): Promise<import('../core/auditTypes.ts').AuditSnapshot> => {
         const adapter = this.app.vault.adapter as { getBasePath?: () => string };
         const vaultRoot = adapter.getBasePath?.();
         const externalRoot = this.options.externalRoot();
         assertAuditRoots(vaultRoot, externalRoot);
-        return scanAdoptionAudit(vaultRoot, externalRoot, { ...control, ignorePatterns: [...(this.options.scanPatterns?.() ?? [])] });
+        return scanAdoptionAudit(vaultRoot, externalRoot, {
+          ...control,
+          ignorePatterns: [...(this.options.scanPatterns?.() ?? [])],
+          templateExcludePatterns: [...(this.options.templatePatterns?.() ?? [])]
+        });
       },
-      status: (message, busy): void => this.report?.status(message, busy),
+      scanContext: (): import('../ui/scanFailure.ts').ScanContext => ({
+        externalRoot: this.options.externalRoot(),
+        vaultRoot: (this.app.vault.adapter as { getBasePath?: () => string }).getBasePath?.() ?? ''
+      }),
+      scanFailure: (failure): void => this.report?.scanFailure(failure),
+      status: (message, busy): void => this.report?.status(message, busy, 'scan'),
       update: async (model, signal): Promise<void> => this.report?.update(model, signal)
     });
     await this.session.refresh();
     try {
+      for (const repair of await this.options.pendingRepairs?.() ?? []) {
+        this.markAdopted(repair.targetPath, null);
+      }
       const pending = await this.options.pending?.();
       if (pending) {
-        this.showReportStatus(`${String(pending)} pending folder adoption(s). Use Resume folder adoption.`);
+        this.showReportStatus(`${String(pending)} pending folder operation(s). Use Review pending operation or Resume folder adoption.`);
       }
     } catch (error: unknown) {
       this.showReportStatus(`Cannot inspect pending adoptions: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  public async refreshAfterRepair(): Promise<void> {
+    await this.session?.refreshAfterMutation(this.session.model?.statusScanMode ?? 'filtered');
   }
 
   public shutdown(): void {
@@ -167,7 +249,7 @@ export class LeafReportTab extends ItemView {
         destination,
         signal
       );
-    });
+    }, true);
   }
 
   private async exportRows(rows: readonly LeafRow[], filtered: boolean): Promise<void> {
@@ -189,6 +271,24 @@ export class LeafReportTab extends ItemView {
         signal
       );
     });
+  }
+
+  private async retryVerification(): Promise<void> {
+    const previous = this.retryChange;
+    if (!previous) {
+      return;
+    }
+    const { snapshot: evidence } = await inspectAdoption({
+      externalRoot: previous.externalRoot,
+      ignorePatterns: this.options.scanPatterns?.() ?? [],
+      knownMarkerPaths: this.knownMarkerPaths(),
+      targets: [...previous.affectedFolders, deriveExternalFolderPath(previous.newNotePath, previous.externalRoot)],
+      templatePatterns: this.options.templatePatterns?.() ?? [],
+      vaultRoot: previous.vaultRoot
+    });
+    await this.session?.applyVerified({ ...previous, evidence, verifiedAt: evidence.finishedAt });
+    this.retryChange = undefined;
+    this.retryButton?.remove();
   }
 
   private showReportStatus(message: string): void {

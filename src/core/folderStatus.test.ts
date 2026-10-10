@@ -6,6 +6,7 @@ import {
 } from 'vitest';
 
 import { auditFixture } from '../../test/support/auditFixture.ts';
+import { folderAttention } from './folderAttention.ts';
 import {
   buildExternalRepair,
   buildNoteRepair
@@ -29,12 +30,36 @@ function fixture(notePath = 'Elsewhere.md'): { folder: string; scan: ReturnType<
   return { folder, scan };
 }
 describe('folder status evidence', () => {
+  it('hides unreadable boundaries without hiding marker warnings or relaxing parent restrictions', () => {
+    const { scan } = fixture('Folder.md');
+    scan.statusScanMode = 'filtered';
+    const boundary = path.join(scan.externalRoot, 'Parent/Unreadable');
+    scan.folders.push(path.join(scan.externalRoot, 'Parent'), boundary);
+    scan.issues.push({ kind: 'directory', location: boundary, reason: 'Directory could not be fully read.', scope: 'external', unchecked: true });
+    scan.issues.push({
+      kind: 'marker',
+      location: path.join(scan.externalRoot, 'Folder/.exnf'),
+      reason: 'Unreadable marker',
+      scope: 'external',
+      unchecked: true
+    });
+    const model = buildLeafReport(scan);
+    const parent = model.tree?.find((node) => node.relativePath === 'Parent');
+    const unreadable = model.tree?.find((node) => node.folderPath === boundary);
+    const marked = model.tree?.find((node) => node.relativePath === 'Folder');
+    expect(parent?.blocked).toBe(true);
+    expect(parent?.evidence?.physicalLeaf).toBe(false);
+    expect(unreadable?.hiddenByCoverage).toBe(true);
+    expect(marked?.hiddenByCoverage).not.toBe(true);
+    expect(queryTree(model, DEFAULT_TREE_QUERY).visible.has(marked!.id)).toBe(true);
+  });
+
   it.each([
     ['valid', true, false, 'Contains bound subfolders'],
     ['valid', false, false, 'Contains descendant markers'],
     ['invalid-marker', false, false, 'Contains descendant markers'],
     ['unchecked-marker', false, true, 'Contains descendant markers'],
-    ['valid', true, true, 'Contains descendant markers']
+    ['valid', true, true, 'Contains bound subfolders']
   ])('describes containers with %s descendants, associated=%s, incomplete=%s', (markerStatus, associated, incomplete, expected) => {
     const { scan } = fixture('Container/deep/Folder.md');
     const folderPath = path.join(scan.externalRoot, 'Container/deep/Folder');
@@ -58,7 +83,7 @@ describe('folder status evidence', () => {
     const model = buildLeafReport(scan);
     const parent = model.tree?.find((node) => node.relativePath === 'Container');
     expect(parent?.evidence).toMatchObject({
-      descendants: { boundFolders: associated && !incomplete ? 1 : 0, markedFolders: 1 },
+      descendants: { boundFolders: associated ? 1 : 0, markedFolders: 1 },
       marker: 'absent',
       status: expected
     });
@@ -101,7 +126,7 @@ describe('folder status evidence', () => {
     expect(filtered.matched.has(parent.id)).toBe(true);
     const exported = folderStatusTable([parent]).rows[0];
     expect(exported?.['status']).toBe('Marker absent here');
-    expect(exported?.['explanation']).toContain('including 1 confirmed binding');
+    expect(exported?.['explanation']).toContain('including 1 observed binding');
   });
   it('preserves local identity problems above bound descendants', () => {
     const { scan } = fixture('Folder/Child.md');
@@ -213,8 +238,8 @@ describe('folder status evidence', () => {
   it('classifies a valid nested marker as an identity conflict', () => {
     const { folder, scan } = fixture('Folder.md');
     const childUuid = '22222222-2222-4222-8222-222222222222';
-    const child = path.join(folder, 'Child');
-    const notePath = 'Folder/Child.md';
+    const child = path.join(folder, 'Content', 'Child');
+    const notePath = 'Folder/Content/Child.md';
     scan.folders.push(child);
     scan.notes.push({
       hasExnf: true,
@@ -233,9 +258,77 @@ describe('folder status evidence', () => {
     });
     scan.vault.bindings.set(childUuid, notePath);
     scan.external.bindings.set(childUuid, child);
-    const node = buildLeafReport(scan).tree?.find((row) => row.folderPath === child);
+    const model = buildLeafReport(scan);
+    const node = model.tree?.find((row) => row.folderPath === child);
     expect(node?.evidence).toMatchObject({ exact: 'present', marker: 'present', status: 'Identity conflict', yaml: 'present' });
     expect(node?.conflict).toBe(true);
+    const parent = model.tree!.find((row) => row.folderPath === folder)!;
+    expect(parent.evidence?.status).toBe('Identity conflict');
+    expect(folderAttention(parent)).toBe('conflict');
+    expect(folderAttention(model.tree!.find((row) => row.folderPath === path.join(folder, 'Content'))!)).toBe('neutral');
+    expect(model.rootFolder?.conflict).toBe(false);
+  });
+
+  // Product intent 6 / status health: incomplete discovery is not a broken observed binding.
+  it.each(['excluded', 'links', 'child-read', 'other-read', 'vault-note', 'vault-directory', 'repository', 'malformed'] as const)(
+    'keeps a checked matching binding healthy with %s gaps or findings',
+    (kind) => {
+      const { folder, scan } = fixture('Folder.md');
+      scan.statusScanMode = kind === 'excluded' ? 'filtered' : 'unfiltered';
+      const externalPath = path.join(kind === 'child-read' || kind === 'excluded' ? folder : scan.externalRoot, 'unchecked');
+      if (kind === 'excluded') {
+        scan.external.ignoredDirectories.push({ folderPath: externalPath, relativePath: 'Folder/unchecked' });
+      }
+      const vault = kind === 'vault-note' || kind === 'vault-directory';
+      const issueKinds = {
+        'child-read': 'directory',
+        'excluded': 'directory',
+        'links': 'link',
+        'malformed': 'marker',
+        'other-read': 'directory',
+        'repository': 'directory',
+        'vault-directory': 'directory',
+        'vault-note': 'note'
+      } as const;
+      const count = kind === 'links' ? 803 : 1;
+      for (let i = 0; i < count; i++) {
+        scan.issues.push({
+          ...(kind === 'repository' ? { code: 'git-repository-unavailable' as const } : {}),
+          ...(kind === 'excluded' ? { exclusionSource: 'git' as const } : {}),
+          kind: issueKinds[kind],
+          location: vault ? path.join(scan.vaultRoot, 'Other') : `${externalPath}${kind === 'links' ? String(i) : ''}`,
+          reason: 'Fixture gap or finding',
+          scope: vault ? 'vault' : 'external',
+          unchecked: kind !== 'malformed'
+        });
+      }
+      const model = buildLeafReport(scan);
+      const node = model.tree!.find((row) => row.folderPath === folder)!;
+      expect(folderAttention(node)).toBe('healthy');
+      expect(queryTree(model, { ...DEFAULT_TREE_QUERY, needsReview: true }).matched.has(node.id)).toBe(false);
+      expect(model.rootFolder?.evidence?.descendants?.boundFolders).toBe(1);
+      expect(folderStatusTable([node]).rows[0]?.['confidence']).toBe(kind === 'malformed' ? 'checked' : 'provisional');
+    }
+  );
+
+  it.each(['directory', 'note', 'marker'] as const)('keeps unreadable local %s evidence out of observed binding counts', (kind) => {
+    const { folder, scan } = fixture('Folder.md');
+    if (kind === 'marker') {
+      scan.markers.push({ folderPath: folder, format: 'legacy', markerPath: path.join(folder, '.exnf'), status: 'unchecked-marker', uuid: '' });
+    } else if (kind === 'note') {
+      Object.assign(scan.notes[0]!, { status: 'unchecked-frontmatter', uuid: '' });
+    }
+    scan.issues.push({
+      kind,
+      location: { directory: folder, marker: path.join(folder, '.exnf'), note: scan.notes[0]!.notePath }[kind],
+      reason: 'Cannot read',
+      scope: kind === 'note' ? 'vault' : 'external',
+      unchecked: true
+    });
+    const model = buildLeafReport(scan);
+    const node = model.tree!.find((row) => row.folderPath === folder)!;
+    expect(folderAttention(node)).toBe('review');
+    expect(model.rootFolder?.evidence?.descendants?.boundFolders).toBe(0);
   });
   it('separates ancestor markers, candidate names, and absent yaml', () => {
     const { folder, scan } = fixture('Other/Child.md');
@@ -249,6 +342,7 @@ describe('folder status evidence', () => {
     scan.issues.push({ location: path.join(scan.externalRoot, 'ignored'), reason: 'Excluded', scope: 'external', unchecked: true });
     expect(buildLeafReport(scan).tree?.find((row) => row.folderPath === folder)?.evidence?.confidence).toBe('provisional');
     expect(() => buildNoteRepair(scan, folder, { aliases: [], path: 'Elsewhere.md' }, 0, [])).toThrow('coverage');
+    expect(() => buildExternalRepair(scan, folder, 0)).toThrow('coverage');
   });
   it('scopes external moves to the selected binding and rejects occupied destinations', () => {
     const { folder, scan } = fixture();

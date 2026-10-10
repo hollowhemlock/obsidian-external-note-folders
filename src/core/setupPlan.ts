@@ -22,9 +22,11 @@ export type SetupAction =
 
 export interface SetupPlan {
   action: SetupAction;
+  adoptionSourceContent?: string;
   errors: string[];
   externalRootPath: string;
   ignoredDirectoryCount: number;
+  inspectionPolicy?: import('./adoptionPolicy.ts').AdoptionInspectionPolicy;
   legacyMarkerPaths: string[];
   mutationSequence: number;
   notePath: string;
@@ -40,6 +42,7 @@ export interface SetupTargetInspection {
   externalRootPath: string;
   ignoredDirectories: string[];
   legacyMarkerPaths: string[];
+  omissions?: import('./markerRepair.ts').MarkerRepairOmission[];
   skippedDirectories: string[];
   targetIgnored: boolean;
   targetKind: 'directory' | 'missing';

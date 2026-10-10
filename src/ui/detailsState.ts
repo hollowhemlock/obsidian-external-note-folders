@@ -18,7 +18,7 @@ export function captureDetails(parent: HTMLElement): DetailsState {
 /** Return a one-shot follow-up for asynchronously populated blocker controls. */
 export function restoreDetails(parent: HTMLElement, state: DetailsState): () => void {
   for (const item of parent.querySelectorAll<HTMLDetailsElement>('details[data-section]')) {
-    item.open = state.open.get(item.dataset['section'] ?? '') ?? true;
+    item.open = state.open.get(item.dataset['section'] ?? '') ?? item.open;
   }
   if (state.focused || state.section) {
     const controls = [...parent.querySelectorAll<HTMLElement>('[data-detail-key]:not([disabled])')];

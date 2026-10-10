@@ -87,6 +87,10 @@ export function getObsidianCliSetupGuidance(): string {
   ].join(' ');
 }
 
+export function hasObsidianCliError(result: ObsidianCliResult): boolean {
+  return result.status !== 0 || result.errorMessage.length > 0 || /^Error:/mu.test(`${result.stdout}\n${result.stderr}`);
+}
+
 export function isRuntimeUnavailable(result: ObsidianCliResult): boolean {
   return [
     result.stdout,
@@ -159,7 +163,8 @@ export function runObsidianCli(
     const result = spawnSync(candidate, args, {
       cwd,
       encoding: 'utf8',
-      timeout: timeoutMilliseconds
+      timeout: timeoutMilliseconds,
+      windowsHide: true
     });
     if (isMissingExecutableError(result.error)) {
       continue;
