@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/hollowhemlock/obsidian-external-note-folders/compare/external-note-folders-2.1.0...external-note-folders-2.2.0) (2026-10-10)
+
+
+### Features
+
+* improve folder status and binding workflows ([f1a56bd](https://github.com/hollowhemlock/obsidian-external-note-folders/commit/f1a56bde5e15c9c0365e4323dd623e17ab8cc13e))
+
 ## [2.1.0](https://github.com/hollowhemlock/obsidian-external-note-folders/compare/external-note-folders-2.0.0...external-note-folders-2.1.0) (2026-09-22)
 
 
