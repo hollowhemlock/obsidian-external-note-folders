@@ -30,8 +30,7 @@ import {
   buildAdoptionResumeSnapshot,
   buildGroupAdoptionPlan,
   matchingNotePath,
-  noteMatchReason,
-  pathsOverlap
+  noteMatchReason
 } from '../core/groupAdoption.ts';
 import {
   deriveExternalFolderPath,
@@ -57,6 +56,7 @@ import {
   saveGroupJournal
 } from '../storage/groupAdoptionJournal.ts';
 import { buildJournalRootPath } from '../storage/journalPath.ts';
+import { assertNoPendingGroupAdoption } from '../storage/pendingReservations.ts';
 import { executeReconcilePlan } from '../storage/reconcileExecutor.ts';
 import { InflightPreviews } from '../ui/inflightPreviews.ts';
 import { GroupAdoptionModal } from './GroupAdoptionModal.ts';
@@ -506,15 +506,7 @@ export class GroupAdoptionController {
   }
 
   private async assertNoOverlappingAdoption(targets: readonly string[], except?: string): Promise<void> {
-    for (const file of await this.pending()) {
-      if (file === except) {
-        continue;
-      }
-      const other = await readGroupJournal(file);
-      if (targets.some((target) => [other.plan.folderPath, other.plan.expectedFolder].some((candidate) => pathsOverlap(target, candidate)))) {
-        throw new Error(`Another pending adoption overlaps this operation: ${file}`);
-      }
-    }
+    await assertNoPendingGroupAdoption(targets, await this.pending(), 'Another pending adoption overlaps this operation', except);
   }
 
   private async assertPendingRepair(plan: GroupAdoptionJournal['plan']): Promise<void> {

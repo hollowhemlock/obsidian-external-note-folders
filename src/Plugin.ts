@@ -33,7 +33,6 @@ import {
 import { sameAdoptionScope } from './core/adoptionPolicy.ts';
 import { buildDriftReport } from './core/driftReport.ts';
 import { getExnfFrontmatterValue } from './core/frontmatter.ts';
-import { pathsOverlap } from './core/groupAdoption.ts';
 import {
   buildExistingIdentifiedNoteTargets,
   findIdentifiedNoteConflict
@@ -108,7 +107,6 @@ import {
   writeExpectedMarkerIfMissingOrMatching,
   writeMarkerToExistingUnmarkedFolder
 } from './storage/boundExternalFolder.ts';
-import { readGroupJournal } from './storage/groupAdoptionJournal.ts';
 import {
   buildAdoptionJournalRootPath,
   buildJournalRootPath,
@@ -116,6 +114,11 @@ import {
   buildSetupJournalRootPath
 } from './storage/journalPath.ts';
 import { executeMarkerMigrationPlan } from './storage/markerMigrationExecutor.ts';
+import {
+  assertNoPendingBulkAdoption,
+  assertNoPendingGroupAdoption,
+  assertNoPendingSetup
+} from './storage/pendingReservations.ts';
 import { executeReconcilePlan } from './storage/reconcileExecutor.ts';
 import { scanExternalRoot } from './storage/scanExternalRoot.ts';
 import {
@@ -333,31 +336,13 @@ export class Plugin extends ObsidianPlugin {
   }
 
   private async assertNoPendingMarkerRepair(folder: string): Promise<void> {
-    for (const journal of await this.markerRepairs().pending()) {
-      if (pathsOverlap(folder, journal.targetPath)) {
-        throw new Error(`Review pending marker repair: ${journal.journalPath}`);
-      }
-    }
+    assertNoPendingSetup(folder, await this.markerRepairs().pending(), 'Review pending marker repair');
   }
 
   private async assertSetupAdoptionOverlap(folder: string, except?: string, skipGroups = false): Promise<void> {
-    for (const journal of await listIncompleteSetupJournals(this.getSetupJournalRootPath())) {
-      if (journal.journalPath !== except && pathsOverlap(folder, journal.targetPath)) {
-        throw new Error(`Review pending setup: ${journal.journalPath}`);
-      }
-    }
-    for (const file of skipGroups ? [] : await this.groupAdoption?.pending() ?? []) {
-      const other = await readGroupJournal(file);
-      if (pathsOverlap(folder, other.plan.folderPath) || pathsOverlap(folder, other.plan.expectedFolder)) {
-        throw new Error(`Review pending folder adoption: ${file}`);
-      }
-    }
-    for (const item of await listIncompleteAdoptionJournals(this.getAdoptionJournalRootPath())) {
-      const pending = await readAdoptionJournal(item.journalPath);
-      if (pending.entries.some((entry) => entry.completedAt === null && pathsOverlap(folder, entry.folderPath))) {
-        throw new Error(`Review pending bulk adoption: ${item.journalPath}`);
-      }
-    }
+    assertNoPendingSetup(folder, await listIncompleteSetupJournals(this.getSetupJournalRootPath()), 'Review pending setup', except);
+    await assertNoPendingGroupAdoption([folder], skipGroups ? [] : await this.groupAdoption?.pending() ?? [], 'Review pending folder adoption');
+    await assertNoPendingBulkAdoption(folder, await listIncompleteAdoptionJournals(this.getAdoptionJournalRootPath()));
   }
 
   private async assertSetupJournalTargetSafe(journal: SetupJournal): Promise<void> {
@@ -711,23 +696,9 @@ export class Plugin extends ObsidianPlugin {
     }
     const host: MarkerRepairHost = {
       assertNoPending: async (folder, except) => {
-        for (const journal of await listIncompleteSetupJournals(this.getSetupJournalRootPath())) {
-          if (journal.journalPath !== except && pathsOverlap(folder, journal.targetPath)) {
-            throw new Error(`Review pending setup or marker repair: ${journal.journalPath}`);
-          }
-        }
-        for (const file of await this.groupAdoption?.pending() ?? []) {
-          const journal = await readGroupJournal(file);
-          if (pathsOverlap(folder, journal.plan.folderPath) || pathsOverlap(folder, journal.plan.expectedFolder)) {
-            throw new Error(`Review pending folder adoption: ${file}`);
-          }
-        }
-        for (const item of await listIncompleteAdoptionJournals(this.getAdoptionJournalRootPath())) {
-          const journal = await readAdoptionJournal(item.journalPath);
-          if (journal.entries.some((entry) => entry.completedAt === null && pathsOverlap(folder, entry.folderPath))) {
-            throw new Error(`Review pending bulk adoption: ${item.journalPath}`);
-          }
-        }
+        assertNoPendingSetup(folder, await listIncompleteSetupJournals(this.getSetupJournalRootPath()), 'Review pending setup or marker repair', except);
+        await assertNoPendingGroupAdoption([folder], await this.groupAdoption?.pending() ?? [], 'Review pending folder adoption');
+        await assertNoPendingBulkAdoption(folder, await listIncompleteAdoptionJournals(this.getAdoptionJournalRootPath()));
       },
       changed: (folder, note) => {
         for (const leaf of this.app.workspace.getLeavesOfType(LEAF_REPORT_VIEW_TYPE)) {
