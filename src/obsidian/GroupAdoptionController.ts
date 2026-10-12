@@ -27,6 +27,7 @@ import {
 } from '../core/folderRepair.ts';
 import { getExnfFrontmatterValue } from '../core/frontmatter.ts';
 import {
+  buildAdoptionResumeSnapshot,
   buildGroupAdoptionPlan,
   matchingNotePath,
   noteMatchReason,
@@ -776,16 +777,6 @@ export class GroupAdoptionController {
       throw new Error('Unchecked evidence prevents proving the existing UUID is unique.');
     }
     const { content, currentPath } = await this.inspectResumeNote(journal);
-    // Exclude only this operation's own effects; all other evidence must pass the planner again.
-    scan.markers = scan.markers.filter((marker) =>
-      !(marker.uuid === plan.uuid && marker.markerPath === path.join(plan.folderPath, `${plan.uuid}.exnf`) && marker.status === 'valid')
-    );
-    const own = scan.notes.find((note) => note.relativePath === currentPath);
-    if (own?.uuid === plan.uuid) {
-      own.uuid = '';
-      own.hasExnf = false;
-      own.status = 'missing-property';
-    }
     const fresh = buildGroupAdoptionPlan({
       folderPath: plan.folderPath,
       ignorePatterns: checked ? this.host.settings().externalRootIgnorePatterns : plan.ignorePatterns,
@@ -793,7 +784,7 @@ export class GroupAdoptionController {
       move: currentPath !== plan.notePath,
       mutationSequence: this.host.sequence(),
       note: content === null ? null : { aliases: frontmatter(content)['aliases'], path: currentPath },
-      snapshot: scan,
+      snapshot: buildAdoptionResumeSnapshot(scan, { folderPath: plan.folderPath, notePath: currentPath, uuid: plan.uuid }),
       uuid: plan.uuid
     });
     const additions = fresh.descendants.filter((descendant) => !plan.descendants.includes(descendant));

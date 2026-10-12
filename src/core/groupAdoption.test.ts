@@ -8,6 +8,7 @@ import {
 import { auditFixture } from '../../test/support/auditFixture.ts';
 import {
   aliasesWithPreviousName,
+  buildAdoptionResumeSnapshot,
   buildGroupAdoptionPlan,
   noteMatchReason
 } from './groupAdoption.ts';
@@ -35,6 +36,112 @@ function fixture(): Parameters<typeof buildGroupAdoptionPlan>[0] {
   snapshot.folders.push(folderPath);
   return { folderPath, ignorePatterns: [], move: false, mutationSequence: 0, note: null, snapshot, uuid: UUID };
 }
+function resumeFixture(): { note: { aliases: undefined; path: string } } & ReturnType<typeof fixture> {
+  const input = fixture();
+  const notePath = 'Projects/Example.md';
+  addNote(input, notePath, UUID);
+  input.snapshot.markers.push({
+    folderPath: input.folderPath,
+    format: 'uuid-named',
+    markerPath: path.join(input.folderPath, `${UUID}.exnf`),
+    status: 'valid',
+    uuid: UUID
+  });
+  input.inspectionPolicy = {
+    externalRoot: input.snapshot.externalRoot,
+    ignorePatterns: [],
+    kind: 'filtered-adoption-v1',
+    knownMarkerPaths: [],
+    omissions: [],
+    templatePatterns: [],
+    vaultRoot: input.snapshot.vaultRoot
+  };
+  return { ...input, note: { aliases: undefined, path: notePath } };
+}
+
+// ADR-0032: only a derived planner view masks the operation's own effects.
+describe('adoption resume evidence', () => {
+  it('replans completed effects while preserving the original verification evidence and indexes', () => {
+    const input = resumeFixture();
+    const { snapshot } = input;
+    snapshot.markers.push({ ...snapshot.markers[0]! });
+    snapshot.vault.bindings.set(UUID, input.note.path);
+    snapshot.external.bindings.set(UUID, input.folderPath);
+    const before = structuredClone(snapshot);
+    expect(() => buildGroupAdoptionPlan(input)).toThrow('Existing UUID adoption');
+
+    const projected = buildAdoptionResumeSnapshot(snapshot, { folderPath: input.folderPath, notePath: input.note.path, uuid: UUID });
+
+    expect(buildGroupAdoptionPlan({ ...input, snapshot: projected })).toMatchObject({ notePath: input.note.path, uuid: UUID });
+    expect(projected.markers).toEqual([]);
+    expect(projected.notes).toEqual([{ ...before.notes[0], hasExnf: false, status: 'missing-property', uuid: '' }]);
+    expect({ ...projected, markers: before.markers, notes: before.notes }).toEqual(before);
+    expect(snapshot).toEqual(before);
+  });
+
+  it.each([
+    ['other owner', 'another note'],
+    ['other local marker', 'Conflicting marker'],
+    ['same UUID elsewhere', 'Conflicting marker'],
+    ['unchecked target', 'Unchecked evidence']
+  ])(
+    'retains %s as a planner blocker',
+    (conflict, expectedError) => {
+      const input = resumeFixture();
+      if (conflict === 'other owner') {
+        addNote(input, 'Other.md', UUID);
+      } else if (conflict === 'unchecked target') {
+        input.snapshot.issues.push({ location: input.folderPath, reason: 'Unreadable', unchecked: true });
+      } else {
+        const folderPath = conflict === 'other local marker' ? input.folderPath : path.join(input.snapshot.externalRoot, 'Other');
+        const uuid = conflict === 'other local marker' ? '22222222-2222-4222-8222-222222222222' : UUID;
+        input.snapshot.markers.push({ folderPath, format: 'uuid-named', markerPath: path.join(folderPath, `${uuid}.exnf`), status: 'valid', uuid });
+      }
+      const projected = buildAdoptionResumeSnapshot(input.snapshot, { folderPath: input.folderPath, notePath: input.note.path, uuid: UUID });
+      expect(() => buildGroupAdoptionPlan({ ...input, snapshot: projected })).toThrow(expectedError);
+    }
+  );
+
+  it.each(['invalid', 'unchecked', 'legacy', 'different case', 'unnormalized path'])(
+    'retains a marker with %s instead of masking it as an own effect',
+    (difference) => {
+      const input = resumeFixture();
+      const marker = input.snapshot.markers[0]!;
+      if (difference === 'invalid' || difference === 'unchecked') {
+        marker.status = difference;
+      } else if (difference === 'legacy') {
+        marker.format = 'legacy';
+        marker.markerPath = path.join(input.folderPath, '.exnf');
+      } else if (difference === 'different case') {
+        marker.markerPath = marker.markerPath.toUpperCase();
+      } else {
+        marker.markerPath = `${input.folderPath}${path.sep}.${path.sep}${UUID}.exnf`;
+      }
+      const projected = buildAdoptionResumeSnapshot(input.snapshot, { folderPath: input.folderPath, notePath: input.note.path, uuid: UUID });
+      expect(projected.markers).toEqual(input.snapshot.markers);
+      expect(() => buildGroupAdoptionPlan({ ...input, snapshot: projected })).toThrow('Conflicting marker');
+    }
+  );
+
+  it.each([UUID, '22222222-2222-4222-8222-222222222222'])('checks only the first exact note-path match with UUID %s', (firstUuid) => {
+    const input = resumeFixture();
+    input.snapshot.notes[0]!.uuid = firstUuid;
+    addNote(input, input.note.path, UUID);
+    const before = structuredClone(input.snapshot);
+    const projected = buildAdoptionResumeSnapshot(input.snapshot, { folderPath: input.folderPath, notePath: input.note.path, uuid: UUID });
+    expect(projected.notes[0]).toEqual(firstUuid === UUID ? { ...before.notes[0], hasExnf: false, status: 'missing-property', uuid: '' } : before.notes[0]);
+    expect(projected.notes[1]).toEqual(before.notes[1]);
+    expect(input.snapshot).toEqual(before);
+  });
+
+  it('leaves note evidence unchanged when the supplied path differs', () => {
+    const input = resumeFixture();
+    const projected = buildAdoptionResumeSnapshot(input.snapshot, { folderPath: input.folderPath, notePath: input.note.path.toUpperCase(), uuid: UUID });
+    expect(projected.notes).toEqual(input.snapshot.notes);
+    expect(() => buildGroupAdoptionPlan({ ...input, snapshot: projected })).toThrow('Existing UUID adoption');
+  });
+});
+
 describe('explicit folder group adoption', () => {
   it('rejects excluded sources and destinations for binding, creation, and note moves', () => {
     const input = fixture();

@@ -1,12 +1,12 @@
 import type { App } from 'obsidian';
 
-// eslint-disable-next-line import-x/no-nodejs-modules -- Pure path computations at the adapter boundary.
-import path from 'node:path';
-
 import type { SetupPlan } from '../core/setupPlan.ts';
 
 import { getExnfFrontmatterValue } from '../core/frontmatter.ts';
-import { buildGroupAdoptionPlan } from '../core/groupAdoption.ts';
+import {
+  buildAdoptionResumeSnapshot,
+  buildGroupAdoptionPlan
+} from '../core/groupAdoption.ts';
 import {
   deriveExternalFolderPath,
   normalizePathForIdentity
@@ -46,15 +46,6 @@ export async function checkSetupAdoption(app: App, input: {
   }
   if (input.resume) {
     await inspectGroupMarker(snapshot.externalRoot, target, uuid);
-    snapshot.markers = snapshot.markers.filter((marker) =>
-      !(marker.markerPath === path.join(target, `${uuid}.exnf`) && marker.status === 'valid' && marker.uuid === uuid)
-    );
-    const own = snapshot.notes.find((note) => note.relativePath === input.notePath);
-    if (own?.uuid === uuid) {
-      own.uuid = '';
-      own.hasExnf = false;
-      own.status = 'missing-property';
-    }
   }
   const plan = buildGroupAdoptionPlan({
     folderPath: target,
@@ -63,7 +54,7 @@ export async function checkSetupAdoption(app: App, input: {
     move: false,
     mutationSequence: input.mutationSequence,
     note: { aliases: undefined, path: input.notePath },
-    snapshot,
+    snapshot: input.resume ? buildAdoptionResumeSnapshot(snapshot, { folderPath: target, notePath: input.notePath, uuid }) : snapshot,
     uuid
   });
   if (
