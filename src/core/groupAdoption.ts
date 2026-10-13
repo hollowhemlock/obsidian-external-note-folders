@@ -47,6 +47,24 @@ export function aliasesWithPreviousName(value: unknown, basename: string): strin
   }
   return aliases.some((alias) => alias.toLowerCase() === basename.toLowerCase()) ? [...aliases] : [...aliases, basename];
 }
+/** Planner-only view with unchanged scan indexes; use the original snapshot for verified reporting. */
+export function buildAdoptionResumeSnapshot(
+  snapshot: AuditSnapshot,
+  operation: { folderPath: string; notePath: string; uuid: string }
+): AuditSnapshot {
+  const markerPath = path.join(operation.folderPath, `${operation.uuid}.exnf`);
+  const notes = [...snapshot.notes];
+  const ownIndex = notes.findIndex((note) => note.relativePath === operation.notePath);
+  const own = notes[ownIndex];
+  if (own?.uuid === operation.uuid) {
+    notes[ownIndex] = { ...own, hasExnf: false, status: 'missing-property', uuid: '' };
+  }
+  return {
+    ...snapshot,
+    markers: snapshot.markers.filter((marker) => !(marker.markerPath === markerPath && marker.status === 'valid' && marker.uuid === operation.uuid)),
+    notes
+  };
+}
 export function buildGroupAdoptionPlan(input: {
   folderPath: string;
   ignorePatterns: string[];
