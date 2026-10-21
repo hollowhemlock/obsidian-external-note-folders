@@ -70,6 +70,12 @@ can open or reload its window. Hidden-window timer throttling can also cause ren
 tests to time out. Windows CLI child processes suppress extra console windows;
 that does not hide or isolate the Obsidian UI.
 
+The leaf-report suite temporarily disables background throttling in the verified
+sandbox renderer so its timers and rendering checks can progress when the window
+is hidden. Each test restores the previous setting in cleanup, including after
+assertion failures or CLI timeouts. This changes only the test environment; the
+plugin's scheduling, test deadlines, and performance assertions remain unchanged.
+
 The status-tree keyboard/focus checks explicitly focus the sandbox window and
 verify that it has focus before asserting native focus behavior. Keep that window
 undisturbed during those checks. Background-only runs can pass the other GUI

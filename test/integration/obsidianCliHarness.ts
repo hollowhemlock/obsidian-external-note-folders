@@ -50,6 +50,28 @@ export function runSandboxEval(code: string): CliResult {
   }
 }
 
+/** Returns the previous setting so test cleanup can restore it even after a CLI timeout. */
+export function setSandboxBackgroundThrottling(enabled: boolean): boolean {
+  const result = runSandboxEval(`(() => {
+    const path = require('node:path');
+    const key = value => {
+      const resolved = path.resolve(value);
+      return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+    };
+    if (key(app.vault.adapter.getBasePath()) !== key(${JSON.stringify(getSandboxVaultPath())})) {
+      throw new Error('Refusing to change background throttling outside the sandbox vault.');
+    }
+    const contents = require('electron').remote.getCurrentWebContents();
+    const previous = contents.getBackgroundThrottling();
+    contents.setBackgroundThrottling(${String(enabled)});
+    return 'EXNF_BACKGROUND_THROTTLING:' + previous;
+  })()`);
+  expect(result.status, formatCliResult(result)).toBe(0);
+  const previous = /EXNF_BACKGROUND_THROTTLING:(?<enabled>true|false)/u.exec(result.stdout)?.groups?.['enabled'];
+  expect(previous, formatCliResult(result)).toBeDefined();
+  return previous === 'true';
+}
+
 export async function closeSandboxModals(): Promise<void> {
   const closeResult = runSandboxCli([
     'eval',

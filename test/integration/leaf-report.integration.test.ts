@@ -22,6 +22,7 @@ import {
   resolveRepoPath,
   runSandboxCli,
   runSandboxEval,
+  setSandboxBackgroundThrottling,
   waitForPluginCommands,
   waitForSandboxModalText,
   writeSandboxReport
@@ -50,12 +51,21 @@ function focusSandboxForKeyboardChecks(): void {
 }
 
 describe('shared leaf report integration', () => {
+  let backgroundThrottling: boolean | undefined;
   beforeEach(async () => {
+    backgroundThrottling = setSandboxBackgroundThrottling(false);
     await closeSandboxModals();
   });
   afterEach(async () => {
-    await closeSandboxModals();
-    evaluate(`app.workspace.detachLeavesOfType('${VIEW_TYPE}')`);
+    try {
+      await closeSandboxModals();
+      evaluate(`app.workspace.detachLeavesOfType('${VIEW_TYPE}')`);
+    } finally {
+      if (backgroundThrottling !== undefined) {
+        setSandboxBackgroundThrottling(backgroundThrottling);
+        backgroundThrottling = undefined;
+      }
+    }
   });
   it('shows healthy bindings through filtered and full scan gaps in the tab and offline HTML', async () => {
     const pluginId = await readSandboxPluginId();
