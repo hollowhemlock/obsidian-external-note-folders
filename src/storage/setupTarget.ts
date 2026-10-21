@@ -4,7 +4,6 @@ import {
   lstat,
   mkdir,
   readdir,
-  readFile,
   realpath
 } from 'node:fs/promises';
 import path from 'node:path';
@@ -13,15 +12,11 @@ import type { SetupTargetInspection } from '../core/setupPlan.ts';
 
 import { buildExternalRootIgnoreMatcher } from '../core/externalRootIgnore.ts';
 import {
-  classifyExnfMarkerFileName,
-  parseLegacyExnfMarkerFile,
-  parseUuidNamedExnfMarkerFile
-} from '../core/marker.ts';
-import {
   assertPathIsWithinRoot,
   deriveExternalFolderPath
 } from '../core/pathPolicy.ts';
 import { resolveExternalRootPath } from './boundExternalFolder.ts';
+import { readMarkerEntry } from './markerEntry.ts';
 
 export async function assertSetupMarkerWriteReady(input: {
   allowPayload: boolean;
@@ -244,17 +239,10 @@ async function readDirectoryMarkersFromEntries(
   for (const entry of entries) {
     const markerPath = path.join(directoryPath, entry.name);
     try {
-      const fileName = classifyExnfMarkerFileName(entry.name);
-      if (fileName.kind === 'not-marker') {
-        continue;
+      const marker = await readMarkerEntry(directoryPath, entry);
+      if (marker) {
+        markers.push(marker);
       }
-      if (!entry.isFile()) {
-        throw new Error('Marker path is not a regular file.');
-      }
-      const marker = fileName.kind === 'uuid-named'
-        ? parseUuidNamedExnfMarkerFile(entry.name)
-        : parseLegacyExnfMarkerFile(entry.name, await readFile(markerPath, 'utf8'));
-      markers.push({ format: marker.format, markerPath, uuid: marker.uuid });
     } catch (error: unknown) {
       errors.push(`Malformed marker at ${markerPath}: ${toErrorMessage(error)}`);
     }

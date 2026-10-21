@@ -7,7 +7,6 @@ import {
   lstat,
   mkdir,
   readdir,
-  readFile,
   realpath,
   writeFile
 } from 'node:fs/promises';
@@ -20,11 +19,10 @@ import {
   classifyExnfMarkerFileName,
   findLegacyMarkerConflict,
   formatLegacyMarkerConflictMessage,
-  parseLegacyExnfMarkerFile,
-  parseUuidNamedExnfMarkerFile,
   serializeUuidNamedExnfMarker
 } from '../core/marker.ts';
 import { deriveExternalFolderPath } from '../core/pathPolicy.ts';
+import { readMarkerEntry } from './markerEntry.ts';
 
 export interface EnsureExpectedBoundExternalFolderInput {
   createIfMissing: boolean;
@@ -406,19 +404,12 @@ async function inspectFolderMarkers(folderPath: string, expectedUuid: string): P
 
     const markerPath = path.join(folderPath, entry.name);
     try {
-      const fileNameResult = classifyExnfMarkerFileName(entry.name);
-      if (fileNameResult.kind === 'not-marker') {
+      const marker = await readMarkerEntry(folderPath, entry);
+      if (!marker) {
         continue;
       }
 
-      const marker = fileNameResult.kind === 'uuid-named'
-        ? parseUuidNamedExnfMarkerFile(entry.name)
-        : parseLegacyExnfMarkerFile(entry.name, await readFile(markerPath, 'utf8'));
-      parsedMarkers.push({
-        format: marker.format,
-        markerPath,
-        uuid: marker.uuid
-      });
+      parsedMarkers.push(marker);
       if (marker.uuid === expectedUuid) {
         matchingMarkerPath = markerPath;
       } else {
